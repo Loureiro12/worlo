@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+  - packages/*
+
+# React Native tooling is still more predictable with a flat node_modules.
+# https://docs.expo.dev/guides/monorepos/#package-managers-with-isolated-dependencies
+nodeLinker: hoisted
+
+# Single source of truth for versions shared across workspaces.
+catalog:
+  react: 19.3.0
+  react-native: 0.88.1
+  typescript: ~6.0.3
+  "@types/react": ~19.3.0
+  vitest: ^5.0.5
+  "@supabase/supabase-js": ^2.118.0
+  drizzle-orm: ^0.45.4
+  expo: ~58.0.21
+  jest-expo: ~58.0.13
+  react-native-safe-area-context: ~5.10.1
+
+onlyBuiltDependencies:
+  - better-sqlite3
+  - lefthook

@@ -1,0 +1,45 @@
+# Estratégia de testes
+
+Objetivo: **confiança de ponta a ponta sem que os testes virem gargalo.** A maior parte da lógica vive em pacotes TS puros, que se testam em milissegundos. O E2E fica reservado aos fluxos críticos e roda de forma escalonada.
+
+| Camada                            | Ferramenta               | Onde                             | Tempo    | Quando roda                  |
+| --------------------------------- | ------------------------ | -------------------------------- | -------- | ---------------------------- |
+| Lógica de sync, scheduler, i18n   | Vitest                   | `packages/sync`, `packages/i18n` | < 1s     | Todo PR (só os afetados)     |
+| SQLite real + engine              | Vitest + better-sqlite3  | `packages/db`                    | < 1s     | Todo PR (só os afetados)     |
+| Componentes e contraste WCAG      | Jest + RNTL              | `packages/ui`, `apps/mobile`     | ~3s      | Todo PR (só os afetados)     |
+| Banco: RLS, triggers, constraints | pgTAP                    | `supabase/tests`                 | ~5s      | PRs que mexem no banco       |
+| E2E `smoke` (sem backend)         | Maestro                  | `apps/mobile/.maestro`           | ~1–2 min | PRs que mexem no app/pacotes |
+| E2E completo (`sync`, `ui`)       | Maestro + Supabase local | idem                             | ~5 min   | `main` e nightly             |
+
+## Por que não vira gargalo
+
+- **Pirâmide de verdade.** O sync engine e o adapter SQLite são testados com fakes e SQLite em memória (incluindo dois "dispositivos" sincronizando via o mesmo servidor), não via E2E.
+- **Turborepo `--affected` + cache.** Um PR que só mexe em `packages/i18n` não roda os testes do `ui`, e o que já passou não roda de novo.
+- **Hooks baratos.** O pre-commit (lefthook) roda só o Biome nos arquivos staged. Testes ficam no CI ou em `pnpm test:affected`.
+- **E2E sem rebuild nativo.** `scripts/e2e.mjs` guarda o binário Release pelo [fingerprint](https://docs.expo.dev/versions/latest/sdk/fingerprint/) nativo. Mudou só JS? O bundle é reempacotado no binário existente (`@expo/repack-app`) em segundos. O build completo só acontece quando muda dependência nativa, plugin ou config. Vale localmente e no CI (cache do Actions).
+- **Maestro em vez de Detox.** É caixa-preta, sem instrumentação nativa nem build de teste separado, e com espera automática, o que reduz flakiness.
+- **Tags** separam o que roda em PR (`smoke`) do que roda em `main`/nightly (`sync`, `ui`).
+- **Concurrency** cancela execuções antigas do mesmo branch.
+
+## Rodando E2E localmente
+
+```sh
+# iOS (simulador aberto) — primeira vez: build completo; depois: repack de JS
+pnpm --filter @worlo/mobile e2e:build ios
+pnpm --filter @worlo/mobile e2e:install ios
+pnpm e2e:smoke
+
+# Fluxo de sync (precisa de Supabase local e das envs no build)
+pnpm db:start
+EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:56321 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable> \
+  pnpm --filter @worlo/mobile e2e:build ios
+cd apps/mobile && maestro test --include-tags=sync -e SUPABASE_SERVICE_KEY=<secret> .maestro
+```
+
+> O flow `offline-sync` usa `setAirplaneMode`, que só funciona no Android. No iOS, rode `smoke` e `ui`.
+
+## Convenções
+
+- Selecione elementos por `testID` (estável entre idiomas), não por texto, exceto quando o texto é o que se quer testar (como no flow de i18n).
+- Componentes: teste comportamento e acessibilidade (`getByRole('button', { name })`), não snapshots.
+- Bug encontrado no E2E vira primeiro um teste na camada mais baixa possível.

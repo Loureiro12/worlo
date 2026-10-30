@@ -1,0 +1,24 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "tasks": {
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": ["$TURBO_DEFAULT$", "!**/*.md", "!.turbo/**", "!node_modules/**"]
+    },
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.md",
+        "!.turbo/**",
+        "!node_modules/**",
+        "!.maestro/**",
+        "!e2e-artifacts/**"
+      ],
+      "outputs": []
+    },
+    "generate": {
+      "cache": false
+    }
+  }
+}

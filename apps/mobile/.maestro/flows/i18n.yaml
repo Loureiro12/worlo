@@ -1,0 +1,24 @@
+appId: com.worlo.app
+name: Language can be switched at runtime and is remembered
+tags:
+  - smoke
+---
+- runFlow: ../subflows/launch-clean.yaml
+- tapOn:
+    id: open-settings
+- tapOn:
+    id: language-es
+- assertVisible: Ajustes
+- back
+- assertVisible: Tareas
+
+- tapOn:
+    id: open-settings
+- tapOn:
+    id: language-en
+- back
+- assertVisible: Tasks
+
+- stopApp
+- launchApp
+- assertVisible: Tasks

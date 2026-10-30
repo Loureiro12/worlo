@@ -1,0 +1,31 @@
+node_modules/
+.turbo/
+coverage/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# env
+.env
+.env*.local
+
+# Expo / native (Continuous Native Generation)
+.expo/
+apps/*/ios/
+apps/*/android/
+apps/*/expo-env.d.ts
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+.metro-health-check*
+
+# Maestro
+.maestro-output/
+apps/*/e2e-artifacts/
+
+# Supabase
+supabase/.branches/
+supabase/.temp/

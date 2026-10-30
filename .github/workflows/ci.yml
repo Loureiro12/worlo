@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      database: ${{ steps.filter.outputs.database }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            database:
+              - 'supabase/**'
+              - 'packages/supabase/**'
+              - 'packages/sync/src/adapters/**'
+
+  # Lint + typecheck + unit/component tests. On PRs Turborepo only runs the
+  # workspaces affected by the diff; results are cached between runs.
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+      - run: pnpm lint
+      - name: Typecheck and test
+        run: pnpm turbo run typecheck test ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+        env:
+          TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
+
+  # Migrations, RLS (pgTAP), generated types and the sync adapter against a
+  # real PostgREST — only when the database or the sync layer changes.
+  database:
+    needs: changes
+    if: needs.changes.outputs.database == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
+      - run: supabase test db
+      - name: Generated types are up to date
+        run: |
+          supabase gen types typescript --local > packages/supabase/src/database.types.ts
+          git diff --exit-code packages/supabase/src/database.types.ts
+      - name: Sync adapter against real Supabase
+        run: |
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
+            pnpm --filter @worlo/sync exec vitest run src/adapters

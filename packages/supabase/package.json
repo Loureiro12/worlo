@@ -1,0 +1,19 @@
+{
+  "name": "@worlo/supabase",
+  "version": "0.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

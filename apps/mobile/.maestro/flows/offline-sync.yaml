@@ -1,0 +1,39 @@
+appId: com.worlo.app
+name: Changes made offline reach Supabase when the network returns
+tags:
+  - sync
+env:
+  SUPABASE_URL: ${SUPABASE_URL || 'http://127.0.0.1:56321'}
+---
+- runFlow: ../subflows/launch-clean.yaml
+- extendedWaitUntil:
+    visible:
+      id: sync-status
+      text: Synced|Sincronizado
+    timeout: 20000
+
+- setAirplaneMode: enabled
+- extendedWaitUntil:
+    visible:
+      id: sync-status
+      text: Offline|Sin conexión
+    timeout: 10000
+- tapOn:
+    id: new-task-input
+- inputText: Written offline
+- tapOn:
+    id: add-task-button
+- assertVisible:
+    id: sync-pending
+
+- setAirplaneMode: disabled
+- extendedWaitUntil:
+    notVisible:
+      id: sync-pending
+    timeout: 30000
+
+- runScript:
+    file: ../scripts/count-remote-tasks.js
+    env:
+      TITLE: Written offline
+- assertTrue: ${output.remoteCount == 1}

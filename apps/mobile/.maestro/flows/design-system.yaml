@@ -1,0 +1,21 @@
+appId: com.worlo.app
+name: Design system catalogue renders in light and dark
+tags:
+  - ui
+---
+- runFlow: ../subflows/launch-clean.yaml
+- tapOn:
+    id: open-settings
+- tapOn:
+    id: theme-light
+- tapOn:
+    id: open-design-system
+- assertVisible:
+    id: design-system-screen
+- takeScreenshot: design-system-light
+- back
+- tapOn:
+    id: theme-dark
+- tapOn:
+    id: open-design-system
+- takeScreenshot: design-system-dark

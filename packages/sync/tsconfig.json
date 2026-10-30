@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.base.json",
+  // Node types for tests (and timer typings). Source must stay platform-agnostic.
+  "compilerOptions": { "types": ["node"] },
+  "include": ["src"]
+}

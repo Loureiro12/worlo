@@ -1,0 +1,50 @@
+{
+  "name": "@worlo/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc",
+    "test": "jest",
+    "e2e": "maestro test .maestro",
+    "e2e:smoke": "maestro test --include-tags=smoke .maestro",
+    "e2e:fingerprint": "node scripts/e2e.mjs fingerprint",
+    "e2e:build": "node scripts/e2e.mjs build",
+    "e2e:install": "node scripts/e2e.mjs install"
+  },
+  "dependencies": {
+    "@react-native-community/netinfo": "12.0.1",
+    "@worlo/db": "workspace:*",
+    "@worlo/i18n": "workspace:*",
+    "@worlo/supabase": "workspace:*",
+    "@worlo/sync": "workspace:*",
+    "@worlo/ui": "workspace:*",
+    "drizzle-orm": "catalog:",
+    "expo": "catalog:",
+    "expo-constants": "~58.0.14",
+    "expo-crypto": "~58.0.7",
+    "expo-linking": "~58.0.15",
+    "expo-localization": "~58.0.5",
+    "expo-router": "~58.0.28",
+    "expo-sqlite": "~58.0.14",
+    "expo-status-bar": "~58.0.4",
+    "react": "catalog:",
+    "react-native": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-screens": "~4.30.1"
+  },
+  "devDependencies": {
+    "@expo/fingerprint": "~0.21.7",
+    "@expo/repack-app": "^0.10.4",
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "30.0.0",
+    "@types/react": "catalog:",
+    "babel-plugin-inline-import": "^3.0.0",
+    "jest": "~30.5.2",
+    "jest-expo": "catalog:",
+    "typescript": "catalog:"
+  }
+}

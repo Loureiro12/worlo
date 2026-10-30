@@ -1,0 +1,1 @@
+-- Local development seed. Runs on `supabase db reset`.
