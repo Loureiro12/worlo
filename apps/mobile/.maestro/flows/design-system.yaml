@@ -13,9 +13,14 @@ tags:
 - assertVisible:
     id: design-system-screen
 - takeScreenshot: design-system-light
-- back
+
+- runFlow: ../subflows/relaunch.yaml
+- tapOn:
+    id: open-settings
 - tapOn:
     id: theme-dark
 - tapOn:
     id: open-design-system
+- assertVisible:
+    id: design-system-screen
 - takeScreenshot: design-system-dark

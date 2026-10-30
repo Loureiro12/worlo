@@ -1,24 +1,26 @@
 appId: com.worlo.app
-name: Language can be switched at runtime and is remembered
+name: Language switches at runtime and is remembered
 tags:
   - smoke
 ---
 - runFlow: ../subflows/launch-clean.yaml
+
+# Runtime switch: the current screen re-renders in the new language.
 - tapOn:
     id: open-settings
 - tapOn:
     id: language-es
 - assertVisible: Ajustes
-- back
+- assertVisible: Idioma
+
+# Persisted: after a restart the home screen is still in Spanish.
+- runFlow: ../subflows/relaunch.yaml
 - assertVisible: Tareas
 
 - tapOn:
     id: open-settings
 - tapOn:
     id: language-en
-- back
-- assertVisible: Tasks
-
-- stopApp
-- launchApp
+- assertVisible: Settings
+- runFlow: ../subflows/relaunch.yaml
 - assertVisible: Tasks

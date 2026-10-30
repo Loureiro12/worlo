@@ -26,14 +26,18 @@ tags:
 # Complete
 - tapOn:
     id: task-toggle-Buy milk
-- assertVisible:
-    id: task-toggle-Buy milk
-    checked: true
+- runFlow:
+    file: ../subflows/assert-checked.yaml
+    env:
+      ID: task-toggle-Buy milk
 
 # Persist (restart without clearing state)
-- stopApp
-- launchApp
+- runFlow: ../subflows/relaunch.yaml
 - assertVisible: Buy milk
+- runFlow:
+    file: ../subflows/assert-checked.yaml
+    env:
+      ID: task-toggle-Buy milk
 
 # Delete
 - tapOn:

@@ -36,7 +36,13 @@ EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:56321 EXPO_PUBLIC_SUPABASE_PUBLISHABLE
 cd apps/mobile && maestro test --include-tags=sync -e SUPABASE_SERVICE_KEY=<secret> .maestro
 ```
 
-> O flow `offline-sync` usa `setAirplaneMode`, que só funciona no Android. No iOS, rode `smoke` e `ui`.
+Tempos de referência (iPhone 16 Pro, iOS 18): build nativo completo ~9 min; build seguinte só com JS (repack) ~15 s; suíte completa ~1 min.
+
+### Diferenças entre iOS e Android
+
+- **Sem `back` no iOS.** O Maestro não suporta o comando, e o botão de voltar nativo não tem id estável (o rótulo é o título da tela anterior, traduzido). Para voltar à home, use `subflows/relaunch.yaml`, que reinicia o app sem limpar dados e de quebra testa a persistência.
+- **Estado de checkbox.** O Android expõe `checked`; o iOS expõe o estado no valor de acessibilidade. Use `subflows/assert-checked.yaml`.
+- **Modo avião** (`setAirplaneMode`) só existe no Android. No iOS, o flow `offline-sync` valida apenas a ida e volta online; a parte offline roda no CI (Android).
 
 ## Convenções
 
