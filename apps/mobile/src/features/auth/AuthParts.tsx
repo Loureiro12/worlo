@@ -1,9 +1,20 @@
 import { useTranslation } from '@worlo/i18n';
-import { Button, colors, IconButton, Logo, PasswordStrength, Screen, Text } from '@worlo/ui';
+import {
+  Button,
+  colors,
+  IconButton,
+  Logo,
+  PasswordStrength,
+  Screen,
+  Text,
+  useToast,
+} from '@worlo/ui';
 import { useRouter } from 'expo-router';
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { View } from 'react-native';
+import { auth } from '@/lib/auth';
 import { routes } from '@/navigation/routes';
+import { enterApp, failureCode } from './entry';
 
 /**
  * Light auth screen (signup, login, forgot): back · centered logo, then the
@@ -86,24 +97,42 @@ export function AuthFooter({
   );
 }
 
-/** Apple + Google buttons and the "ou com e-mail" divider. */
-export function SocialLogin({ onPress }: { onPress: (provider: 'apple' | 'google') => void }) {
+export type SocialProvider = 'apple' | 'google';
+
+/**
+ * Apple + Google buttons and the "ou com e-mail" divider. Each button only
+ * shows where the provider is available (Apple: iOS; Google: client ids set);
+ * with neither, the whole block is hidden.
+ */
+export function SocialLogin({
+  onPress,
+  busy,
+  disabled = false,
+}: {
+  onPress: (provider: SocialProvider) => void;
+  /** The provider whose sign-in is running (spinner on its button). */
+  busy?: SocialProvider | null;
+  disabled?: boolean;
+}) {
   const { t } = useTranslation();
+  const providers = (['apple', 'google'] as const).filter((p) =>
+    p === 'apple' ? auth.appleAvailable : auth.googleAvailable,
+  );
+  if (!providers.length) return null;
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <SocialButton
-          testID="auth-apple"
-          label={t('auth.social.apple')}
-          provider="apple"
-          onPress={() => onPress('apple')}
-        />
-        <SocialButton
-          testID="auth-google"
-          label={t('auth.social.google')}
-          provider="google"
-          onPress={() => onPress('google')}
-        />
+        {providers.map((provider) => (
+          <SocialButton
+            key={provider}
+            testID={`auth-${provider}`}
+            label={t(`auth.social.${provider}`)}
+            provider={provider}
+            loading={busy === provider}
+            disabled={disabled}
+            onPress={() => onPress(provider)}
+          />
+        ))}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: colors.border }} />
@@ -120,11 +149,15 @@ function SocialButton({
   label,
   provider,
   onPress,
+  loading,
+  disabled,
   testID,
 }: {
   label: string;
-  provider: 'apple' | 'google';
+  provider: SocialProvider;
   onPress: () => void;
+  loading: boolean;
+  disabled: boolean;
   testID: string;
 }) {
   // Outline `linha` on white: a variant the shared Button doesn't have yet.
@@ -145,10 +178,38 @@ function SocialButton({
         icon={provider === 'apple' ? 'apple-logo' : 'google-logo'}
         color={colors.text}
         fullWidth
+        loading={loading}
+        disabled={disabled}
         onPress={onPress}
       />
     </View>
   );
+}
+
+/**
+ * Runs an Apple/Google sign-in for Signup/Login: cancel does nothing, an error
+ * shows a toast, success enters the app through the splash gate.
+ */
+export function useSocialSignIn(busy: boolean) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const toast = useToast();
+  const [provider, setProvider] = useState<SocialProvider | null>(null);
+
+  const signIn = async (next: SocialProvider) => {
+    if (busy || provider) return;
+    setProvider(next);
+    const result = await (next === 'apple' ? auth.signInWithApple() : auth.signInWithGoogle());
+    setProvider(null);
+    if (result.ok) {
+      void enterApp(router, { greet: true });
+      return;
+    }
+    const code = failureCode(result);
+    if (code) toast.show(t(`auth.errors.server.${code}`), 'error');
+  };
+
+  return { provider, signIn };
 }
 
 /** Strength meter with the "Use 8 caracteres ou mais" hint while empty. */

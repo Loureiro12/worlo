@@ -4,6 +4,16 @@ Build e envio para as lojas são feitos na nuvem com EAS ([Build](https://docs.e
 
 Todos os comandos rodam de dentro de `apps/mobile`.
 
+## Backend
+
+Os builds de `production` e `preview` apontam para o Supabase hospedado `worlo` (região São Paulo, `fehlkueykvwhysnoorcl`, [painel](https://supabase.com/dashboard/project/fehlkueykvwhysnoorcl)). A URL e a chave pública ficam em `eas.json` (`build.base.env`). São públicas por definição, vão dentro do app.
+
+- **Senha do banco:** está no Keychain do macOS, item `worlo-supabase-db-password` (`security find-generic-password -s worlo-supabase-db-password -w`).
+- **Mudou o schema?** Crie a migration, rode `pnpm db:test` e depois `supabase db push` na raiz.
+- **Mudou o conteúdo do catálogo** (países, passeios…)? Gere as seeds (`pnpm --filter @worlo/mobile db:seed:generate`) e rode `supabase db push --include-seed`. As linhas do catálogo são atualizadas no lugar; os dados da conta demo só são inseridos uma vez.
+- **Auth:** configurada por `supabase/config.toml` + `[remotes.production]`. Aplique mudanças com `supabase config push` (mostra o diff e pergunta antes).
+- **Confirmação de e-mail está desligada.** O SMTP padrão do Supabase só entrega para membros da organização, então testadores não receberiam o e-mail. Configure um SMTP próprio (Resend, Postmark…) em Authentication › SMTP antes de ligar a confirmação. Sem SMTP próprio, **"Esqueci minha senha" também só funciona para e-mails da equipe**.
+
 ## Perfis (`apps/mobile/eas.json`)
 
 | Perfil       | Gera                           | Para quê                                                                                                                                             |
@@ -26,8 +36,9 @@ Todos os comandos rodam de dentro de `apps/mobile`.
 - **Internos** (até 100 pessoas da sua equipe no App Store Connect): recebem o build assim que a Apple termina de processar (~10–30 min). Não tem revisão.
 - **Externos** (até 10 mil pessoas, por e-mail ou link público): o primeiro build de cada versão passa pela revisão beta da Apple (normalmente menos de 1 dia). Ela pede:
   - descrição do beta e e-mail para feedback;
-  - **conta de demonstração**: nesta fase visual, qualquer e-mail válido com qualquer senha entra no app (por exemplo `teste@worlo.app` / `worlo1234`). Diga isso nas notas para o revisor;
+  - **conta de demonstração**: `ana@worlo.app` / `worlo1234` (já tem mapa, viagens, roteiros e salvos);
   - URL de política de privacidade.
+- **Excluir conta** fica em Perfil › Configurações › Excluir conta (exigência da Apple para apps com cadastro).
 
 ## Uma vez só: Google
 
@@ -38,6 +49,17 @@ Todos os comandos rodam de dentro de `apps/mobile`.
 5. Em **Testar › Teste interno**, crie uma lista de e-mails de testadores (até 100) e compartilhe o link de participação.
 
 > Contas pessoais criadas depois de nov/2023 precisam rodar um **teste fechado com 12+ testadores por 14 dias** antes de poder publicar em produção. O teste interno não tem essa exigência, mas vale começar o fechado cedo.
+
+## Login com Google (quando quiser ligar)
+
+O botão do Google só aparece quando os IDs de cliente existem. A Apple exige que o login com Apple também esteja disponível, e ele já está, no iOS.
+
+1. Em [Google Cloud Console](https://console.cloud.google.com/apis/credentials), crie três clientes OAuth:
+   - **Web**: o ID dele vai em `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`;
+   - **iOS** (bundle `com.worlo.app`): vai em `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`;
+   - **Android** (pacote `com.worlo.app`), com o SHA-1 da chave de upload (`npx eas-cli@latest credentials --platform android`) e o da chave de assinatura do Play (Play Console › Integridade do app).
+2. Supabase › Authentication › Providers › Google: ative, cole o ID e o secret do cliente **Web** e ligue **Skip nonce check** (o SDK do iOS envia um nonce próprio).
+3. Coloque as duas variáveis em `build.base.env` no `eas.json` e gere um novo build. O plugin nativo entra sozinho quando a variável do iOS existe.
 
 ## Toda nova versão de teste
 

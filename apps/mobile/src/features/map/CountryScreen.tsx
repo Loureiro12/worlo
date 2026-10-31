@@ -15,9 +15,9 @@ import {
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
 import { countryFlag, useCountryName } from '@/lib/countries';
 import { img } from '@/lib/images';
-import { COUNTRIES, COUNTRY_PAGES, REGION } from '@/mocks/data.generated';
 import { routes } from '@/navigation/routes';
 import { Breadcrumb, decodeParam, useCountryStatus } from './shared';
 
@@ -26,6 +26,7 @@ import { Breadcrumb, decodeParam, useCountryStatus } from './shared';
  * 392); any other id gets a minimal page with the COUNTRIES facts.
  */
 export function CountryScreen() {
+  const { COUNTRIES, COUNTRY_PAGES, REGION } = useCatalog();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = decodeParam(rawId);
   const { t } = useTranslation();

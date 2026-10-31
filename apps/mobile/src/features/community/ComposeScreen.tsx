@@ -8,10 +8,8 @@ import {
   FormError,
   Icon,
   type IconName,
-  initialsOf,
   makeStyles,
   Photo,
-  palette,
   Screen,
   ScreenHeader,
   Segmented,
@@ -21,14 +19,15 @@ import {
   TextField,
   useToast,
 } from '@worlo/ui';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { img } from '@/lib/images';
+import { usePublishPost, type Visibility } from '@/data/community';
+import { useTrips } from '@/data/trips';
+import { demoKey } from '@/mocks/demo';
 import type { PostType } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import type { Visibility } from '@/store/slices/community';
 import {
   type PlaceKind,
   type PlaceOption,
@@ -57,6 +56,8 @@ const KIND_ICONS: Record<PlaceKind, IconName> = {
 };
 
 type Missing = 'place' | 'rating' | 'text' | null;
+
+type PickedPhoto = { uri: string; mimeType: string | null };
 
 /** 04_INTERACTIONS → Publicar: lugar → nota (avaliação) → texto ≥ 10. */
 export function firstMissing(form: {
@@ -136,9 +137,8 @@ export function ComposeScreen() {
   const toast = useToast();
   const close = useGoBack();
   const params = useLocalSearchParams<{ type?: string; place?: string }>();
-  const trips = useStore((s) => s.trips);
-  const me = useStore((s) => s.me);
-  const publish = useStore((s) => s.publish);
+  const trips = useTrips();
+  const publish = usePublishPost();
 
   const initialType = POST_TYPES.find((x) => x === params.type) ?? 'Dica';
   const [type, setType] = useState<PostType>(initialType);
@@ -148,10 +148,11 @@ export function ComposeScreen() {
   const [query, setQuery] = useState('');
   const [rating, setRating] = useState(0);
   const [text, setText] = useState('');
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<PickedPhoto[]>([]);
   const [tripId, setTripId] = useState<string | null>(null);
   const [visibility, setVisibility] = useState<Visibility>('public');
   const [showError, setShowError] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const missing = firstMissing({ place, type, rating, text });
   const error = showError ? missing : null;
@@ -164,38 +165,43 @@ export function ComposeScreen() {
       fn(...args);
     };
 
-  /** Simulated picker: seeded placeholder photos (no camera roll in this phase). */
-  const photoSeq = useRef(0);
-  const addPhoto = () => {
-    const n = photoSeq.current++;
-    const seed = tripId ?? trips[n % Math.max(1, trips.length)]?.id ?? 'compose';
-    setPhotos((p) => (p.length >= MAX_PHOTOS ? p : [...p, img(`${seed}-p${n}`, 400, 300)]));
+  /** System photo picker (no permission prompt needed); uploaded on publish. */
+  const addPhoto = async () => {
+    const room = MAX_PHOTOS - photos.length;
+    if (room <= 0) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsMultipleSelection: room > 1,
+        selectionLimit: room,
+        quality: 0.8,
+      });
+      if (result.canceled) return;
+      const picked = result.assets.map((a) => ({ uri: a.uri, mimeType: a.mimeType ?? null }));
+      setPhotos((p) => [...p, ...picked].slice(0, MAX_PHOTOS));
+    } catch {
+      toast.show(t('community.errors.photoPermission'), 'info');
+    }
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (missing || !place) {
       setShowError(true);
       return;
     }
-    const id = `u${Date.now()}`;
-    publish({
-      id,
-      mine: true,
-      author: me.name,
-      ini: initialsOf(me.name),
-      where: place.title,
-      when: t('community.time.now'),
+    if (sending) return;
+    setSending(true);
+    const id = await publish({
       type,
-      text: text.trim(),
-      yes: 0,
-      no: 0,
-      tint: palette.coral100,
-      rating: type === 'Avaliação' ? rating : undefined,
-      photo: photos[0] ?? null,
+      place: place.title,
+      text,
+      rating,
       photos,
       tripId,
       visibility,
     });
+    setSending(false);
+    if (!id) return;
     toast.show(t('community.compose.published'));
     router.replace(routes.post(id));
   };
@@ -225,7 +231,8 @@ export function ComposeScreen() {
                 ? t('community.compose.ctaAsk')
                 : t('community.compose.ctaPublish')
             }
-            onPress={submit}
+            loading={sending}
+            onPress={() => void submit()}
           />
         </BottomBar>
       }
@@ -355,7 +362,7 @@ export function ComposeScreen() {
       <View style={{ gap: 8 }}>
         <Text variant="label">{t('community.compose.photos')}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {photos.map((uri, i) => (
+          {photos.map(({ uri }, i) => (
             <Photo key={uri} uri={uri} tint={colors.border} width={76} height={76} radius={12}>
               <Pressable
                 testID={`compose-photo-remove-${i}`}
@@ -374,7 +381,7 @@ export function ComposeScreen() {
               testID="compose-photo-add"
               accessibilityRole="button"
               accessibilityLabel={`${t('community.compose.addPhoto')}, ${t('community.compose.photoCount', { n: photos.length })}`}
-              onPress={addPhoto}
+              onPress={() => void addPhoto()}
               style={styles.addPhoto}
             >
               <Icon name="camera-plus" size={22} color={colors.textSupport} />
@@ -402,7 +409,7 @@ export function ComposeScreen() {
           {trips.map((trip) => (
             <Chip
               key={trip.id}
-              testID={`compose-trip-${trip.id}`}
+              testID={`compose-trip-${demoKey(trip.id, 'trip')}`}
               label={trip.title}
               selected={tripId === trip.id}
               onPress={() => setTripId(trip.id)}

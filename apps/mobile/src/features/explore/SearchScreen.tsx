@@ -14,16 +14,24 @@ import {
   useToast,
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DemoGate } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
+import { useSearchPeople } from '@/data/community';
+import { usePeople } from '@/data/people';
+import { useItineraries } from '@/data/planning';
+import { useSavedItems } from '@/data/saved';
+import { useTrips } from '@/data/trips';
+import { useVisitedMap } from '@/data/world';
 import { avatarFor } from '@/lib/people';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 import { CountChip } from './CountChip';
 import {
   buildSearchIndex,
+  personItem,
   SEARCH_CATEGORIES,
   type SearchCategory,
   type SearchItem,
@@ -54,21 +62,38 @@ function SearchContent() {
   const toast = useToast();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
-  const visitedMap = useStore((s) => s.visitedMap);
-  const itineraries = useStore((s) => s.itineraries);
-  const trips = useStore((s) => s.trips);
+  const visitedMap = useVisitedMap();
+  const itineraries = useItineraries();
+  const trips = useTrips();
+  const saved = useSavedItems();
+  // People: the ones synced to the device, plus strangers from `search_people`.
+  const people = usePeople();
+  // Re-index when sync brings new catalog content.
+  const catalog = useCatalog();
   const recentSearches = useStore((s) => s.recentSearches);
   const addRecentSearch = useStore((s) => s.addRecentSearch);
   const clearRecentSearches = useStore((s) => s.clearRecentSearches);
   const selectMapCountry = useStore((s) => s.selectMapCountry);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
+  const remotePeople = useSearchPeople(query);
 
-  const index = useMemo(() => {
-    const sub: SubLabel = (key, vars) => t(`explore.search.sub.${key}`, vars);
-    return buildSearchIndex({ sub, visitedMap, itineraries, trips });
-  }, [t, visitedMap, itineraries, trips]);
-  const all = useMemo(() => searchItems(index, query), [index, query]);
+  // `catalog` is read inside buildSearchIndex (getCatalog): re-index when sync updates it.
+  const sub: SubLabel = useCallback((key, vars) => t(`explore.search.sub.${key}`, vars), [t]);
+  const index = useMemo(
+    () => buildSearchIndex({ sub, visitedMap, itineraries, trips, saved, people }),
+    [sub, visitedMap, itineraries, trips, saved, people, catalog],
+  );
+  const all = useMemo(() => {
+    const local = searchItems(index, query);
+    const known = new Set(people.map((p) => p.id));
+    const keys = new Set(local.map((it) => it.key));
+    const remote = remotePeople
+      .filter((p) => !known.has(p.id))
+      .map((p) => personItem(p, sub))
+      .filter((it) => !keys.has(it.key));
+    return [...local, ...remote];
+  }, [index, query, people, remotePeople, sub]);
   const shown = filter === 'all' ? all : all.filter((it) => it.cat === filter);
   const hasQuery = query.trim().length > 0;
 

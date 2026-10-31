@@ -21,8 +21,17 @@ export type Country = {
 export type City = { n: string; c: [number, number]; ph?: number };
 
 export type CollaboratorStatus = 'ok' | 'pending';
-/** `owner` marks who created a trip the user joined through an invite. */
-export type Collaborator = { name: string; status: CollaboratorStatus; owner?: boolean };
+/**
+ * Someone on a trip / wish besides the user. `owner` marks who created a trip
+ * the user joined through an invite; `userId` is set for Worlo accounts
+ * (memberships), absent for legacy free-text companions.
+ */
+export type Collaborator = {
+  name: string;
+  status: CollaboratorStatus;
+  owner?: boolean;
+  userId?: string;
+};
 
 export type Trip = {
   id: string;

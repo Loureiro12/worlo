@@ -41,6 +41,7 @@ const tripForm = {
     remove: 'Remover {{name}}',
     inviteLink: 'Convidar por link',
     linkCopied: 'Link de convite copiado. Quem entrar vira colaborador.',
+    saveFirst: 'Salve a viagem primeiro pra gerar o link de convite.',
   },
   when: 'Quando foi',
   whenPlaceholder: 'Julho de 2025',
@@ -84,6 +85,8 @@ const tripForm = {
   defaults: {
     period: 'Data a definir',
     savedNow: 'Salvo agora',
+    savedOn: 'Salvo em {{month}}',
+    invitedBy: 'Convite de {{name}}',
     destNote: 'Destino: {{dest}}',
   },
 };

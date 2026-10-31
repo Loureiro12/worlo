@@ -1,6 +1,13 @@
 import { fireEvent, screen } from '@testing-library/react-native';
+import { createLocalStore } from '@worlo/db';
+import { repos } from '@/data/repositories';
+import { savedLabel } from '@/data/world';
+import { db } from '@/lib/database';
+import { demoId } from '@/mocks/demo';
+import { userId } from '@/mocks/demoWorld';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
+import { seedDatabase } from '@/test/seed';
 import { renderWithProviders } from '@/test-utils';
 import { TripFormScreen } from './TripFormScreen';
 
@@ -30,6 +37,7 @@ const fill = async (dest: string, name: string) => {
 
 describe('TripFormScreen', () => {
   it('validates destination first, then name', async () => {
+    const before = repos.trips.list().length;
     await renderWithProviders(<TripFormScreen />);
     expect(screen.getByText('Nova viagem')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('trip-form-save'));
@@ -41,7 +49,8 @@ describe('TripFormScreen', () => {
     await fireEvent.press(screen.getByTestId('trip-form-save'));
     expect(screen.getByTestId('trip-form-error')).toHaveTextContent('Dá um nome pra essa viagem.');
     expect(screen.getByTestId('trip-form-name')).toHaveProp('aria-invalid', true);
-    expect(useStore.getState().trips).toHaveLength(4);
+    expect(repos.trips.list()).toHaveLength(before);
+    expect(await createLocalStore(db).pendingMutations(100)).toEqual([]);
   });
 
   it('saves a past trip, lights the country and returns to Realizadas', async () => {
@@ -51,22 +60,26 @@ describe('TripFormScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Praia' }));
     await fireEvent.press(screen.getByTestId('trip-form-save'));
 
-    expect(useStore.getState().trips[0]).toMatchObject({
+    expect(repos.trips.list()[0]).toMatchObject({
       title: 'Cerejeiras',
       place: 'Kyoto',
       country: 'Japão',
+      countryIso: '392',
       flag: '🇯🇵',
       period: 'Abril de 2024',
       year: '2024',
-      collab: [],
+      companions: [],
+      details: null,
     });
-    expect(useStore.getState().visitedMap['392']).toEqual(['2024']);
+    expect(repos.world.visitedMap()['392']).toEqual(['2024']);
+    const pending = await createLocalStore(db).pendingMutations(100);
+    expect(pending.map((m) => m.table)).toEqual(['trips', 'visited_countries']);
     expect(useStore.getState().tripsSegment).toBe('past');
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.trips);
     expect(screen.getByRole('alert')).toHaveTextContent('Viagem salva no seu mapa.');
   });
 
-  it('invites friends as pending collaborators', async () => {
+  it('creates the trip, then invites friends as pending members (outbox)', async () => {
     await renderWithProviders(<TripFormScreen />);
     await fill('Ubatuba', 'Feriado');
     await fireEvent.press(screen.getByRole('button', { name: 'Convidar Marina Costa' }));
@@ -76,10 +89,13 @@ describe('TripFormScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Remover João Pereira' }));
     await fireEvent.press(screen.getByTestId('trip-form-save'));
 
-    expect(useStore.getState().trips[0]).toMatchObject({
-      flag: '📍',
-      collab: [{ name: 'Marina Costa', status: 'pending' }],
-    });
+    const trip = repos.trips.list()[0];
+    expect(trip).toMatchObject({ flag: '📍', countryIso: null, companions: [] });
+    expect(repos.collab.members('trip', trip?.id ?? '')).toEqual([
+      expect.objectContaining({ userId: userId('Marina Costa'), status: 'pending' }),
+    ]);
+    const pending = await createLocalStore(db).pendingMutations(100);
+    expect(pending.map((m) => m.table)).toEqual(['trips', 'memberships']);
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Viagem salva. Convite enviado pra Marina.',
     );
@@ -93,12 +109,16 @@ describe('TripFormScreen', () => {
     await fill('Hanói, Vietnã', 'Comer pho');
     await fireEvent.press(screen.getByTestId('trip-form-save'));
 
-    expect(useStore.getState().futures.at(-1)).toMatchObject({
+    const wish = repos.world.wishes().at(-1);
+    expect(wish).toMatchObject({
       name: 'Comer pho',
-      cid: '',
+      countryIso: null,
       note: 'Destino: Hanói, Vietnã',
-      saved: 'Salvo agora',
+      companions: [],
     });
+    expect(wish && savedLabel(wish, 'pt-BR')).toEqual({ key: 'savedNow' });
+    const pending = await createLocalStore(db).pendingMutations(100);
+    expect(pending.map((m) => m.table)).toEqual(['wish_destinations']);
     expect(useStore.getState().tripsSegment).toBe('wish');
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.trips);
     expect(screen.getByRole('alert')).toHaveTextContent('Destino salvo. Bora?');
@@ -112,7 +132,7 @@ describe('TripFormScreen', () => {
   });
 
   it('edits an existing trip and goes back', async () => {
-    mockParams = { mode: 'edit', kind: 'past', id: 'floripa' };
+    mockParams = { mode: 'edit', kind: 'past', id: demoId('trip:floripa') };
     await renderWithProviders(<TripFormScreen />);
     expect(screen.getByText('Editar viagem')).toBeOnTheScreen();
     expect(screen.queryByTestId('trip-form-kind')).not.toBeOnTheScreen();
@@ -123,17 +143,22 @@ describe('TripFormScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Convidar Bia Souza' }));
     await fireEvent.press(screen.getByTestId('trip-form-save'));
 
-    const trip = useStore.getState().trips.find((t) => t.id === 'floripa');
+    const trip = repos.trips.get(demoId('trip:floripa'));
     expect(trip).toMatchObject({
       title: 'Inverno na Ilha',
       period: '12 – 17 jul 2025',
       year: '2025',
     });
-    expect(trip?.collab).toEqual([
-      { name: 'Marina Costa', status: 'ok' },
-      { name: 'João Pereira', status: 'ok' },
-      { name: 'Bia Souza', status: 'pending' },
-    ]);
+    expect(trip?.details).not.toBeNull(); // places, diary… are kept
+    expect(trip?.companions).toEqual([]);
+    const members = repos.collab.members('trip', demoId('trip:floripa'));
+    expect(members.map((m) => [m.userId, m.status])).toEqual(
+      expect.arrayContaining([
+        [userId('Marina Costa'), 'accepted'],
+        [userId('João Pereira'), 'accepted'],
+        [userId('Bia Souza'), 'pending'],
+      ]),
+    );
     expect(mockRouter.back).toHaveBeenCalled();
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Viagem atualizada. Convite enviado pra Bia.',
@@ -141,6 +166,7 @@ describe('TripFormScreen', () => {
   });
 
   it('finishes onboarding on the first map', async () => {
+    seedDatabase({ demo: false }); // a brand-new account
     mockParams = { mode: 'onboarding', kind: 'past', dest: 'Japão' };
     useStore.getState().toggleOnboardingCountry('392');
     useStore.getState().toggleOnboardingCountry('484');
@@ -151,9 +177,9 @@ describe('TripFormScreen', () => {
     await fireEvent.press(screen.getByTestId('trip-form-save'));
 
     const year = String(new Date().getFullYear());
-    expect(useStore.getState().trips[0]).toMatchObject({ title: 'Primeira viagem', year });
-    expect(useStore.getState().visitedMap['392']).toEqual([year]);
-    expect(useStore.getState().visitedMap['484']).toEqual([year]);
+    expect(repos.trips.list()).toHaveLength(1);
+    expect(repos.trips.list()[0]).toMatchObject({ title: 'Primeira viagem', year });
+    expect(repos.world.visitedMap()).toEqual({ '392': [year], '484': [year] });
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.firstMap);
   });
 });

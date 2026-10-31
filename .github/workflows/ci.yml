@@ -23,7 +23,10 @@ jobs:
             database:
               - 'supabase/**'
               - 'packages/supabase/**'
+              - 'packages/db/**'
               - 'packages/sync/src/adapters/**'
+              - 'apps/mobile/src/mocks/**'
+              - 'apps/mobile/src/data/catalogSpec.ts'
 
   # Lint + typecheck + unit/component tests. On PRs Turborepo only runs the
   # workspaces affected by the diff; results are cached between runs.
@@ -51,8 +54,9 @@ jobs:
         env:
           TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha }}
 
-  # Migrations, RLS (pgTAP), generated types and the sync adapter against a
-  # real PostgREST — only when the database or the sync layer changes.
+  # Migrations, RLS (pgTAP), seeds, generated types, and the sync adapter and
+  # SQLite repositories against a real PostgREST — only when the database, the
+  # sync layer or the seed sources change.
   database:
     needs: changes
     if: needs.changes.outputs.database == 'true' || github.event_name == 'push'
@@ -75,8 +79,13 @@ jobs:
         run: |
           supabase gen types typescript --local > packages/supabase/src/database.types.ts
           git diff --exit-code packages/supabase/src/database.types.ts
-      - name: Sync adapter against real Supabase
+      - name: Seeds are up to date
+        run: |
+          pnpm --filter @worlo/mobile db:seed:generate
+          git diff --exit-code supabase/seeds
+      - name: Sync adapter and SQLite repositories against real Supabase
         run: |
           eval "$(supabase status -o env)"
-          SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY" \
-            pnpm --filter @worlo/sync exec vitest run src/adapters
+          export SUPABASE_URL="$API_URL" SUPABASE_PUBLISHABLE_KEY="$PUBLISHABLE_KEY"
+          pnpm --filter @worlo/sync exec vitest run src/adapters
+          pnpm --filter @worlo/db exec vitest run src/supabase.integration.test.ts

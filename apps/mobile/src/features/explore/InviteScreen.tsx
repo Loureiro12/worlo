@@ -17,12 +17,10 @@ import {
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
+import { type InviteView, useInvite } from '@/data/collab';
 import { img } from '@/lib/images';
 import { avatarFor, firstName, joinNames, ME } from '@/lib/people';
-import { INVITES } from '@/mocks/data.generated';
-import type { Invite } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { useInviteActions } from './useInviteActions';
 
 type PermKey =
@@ -36,15 +34,15 @@ type PermKey =
   | 'budget'
   | 'profile';
 
-const PERMS: Record<Invite['kind'], readonly [IconName, PermKey][]> = {
-  past: [
+const PERMS: Record<InviteView['type'], readonly [IconName, PermKey][]> = {
+  trip: [
     ['images', 'photos'],
     ['map-pin', 'places'],
     ['wallet', 'expenses'],
     ['notebook', 'diary'],
     ['globe-hemisphere-west', 'map'],
   ],
-  future: [
+  wish: [
     ['map-trifold', 'itinerary'],
     ['bookmark-simple', 'suggest'],
     ['wallet', 'budget'],
@@ -52,12 +50,15 @@ const PERMS: Record<Invite['kind'], readonly [IconName, PermKey][]> = {
   ],
 };
 
-/** H2 · Convite (fullscreen) for a past ("jeri") or future ("seul") trip. */
+/**
+ * H2 · Convite (fullscreen) for a past trip or a wish, by my membership id.
+ * Pending invitees can read the trip / wish, so the preview is local data.
+ */
 export function InviteScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const invite = id ? INVITES[id] : undefined;
+  const invite = useInvite(id);
   if (!invite) {
     return (
       <Screen
@@ -71,24 +72,28 @@ export function InviteScreen() {
   return <InviteContent invite={invite} />;
 }
 
-function InviteContent({ invite }: { invite: Invite }) {
+function InviteContent({ invite }: { invite: InviteView }) {
   const { t } = useTranslation();
   const router = useRouter();
   const styles = useStyles();
-  const status = useStore((s) => s.invites[invite.id] ?? 'pending');
   const { accept, decline } = useInviteActions();
-  const past = invite.kind === 'past';
-  const openTrip = () => router.push(past ? routes.trip(invite.id) : routes.future(invite.id));
+  const past = invite.type === 'trip';
+  const status = invite.status;
+  const openTrip = () =>
+    router.push(past ? routes.trip(invite.entityId) : routes.future(invite.entityId));
 
-  const people = [invite.from, ...invite.others];
+  const people = [
+    ...(invite.inviterId ? [{ name: invite.inviterName, avatarUrl: invite.inviterAvatar }] : []),
+    ...invite.others,
+  ];
   const names = joinNames(
-    [...people.map(firstName), t('explore.invite.you')],
+    [...people.map((p) => firstName(p.name)), t('explore.invite.you')],
     t('common.list.and'),
   );
   const stats = [
-    { n: invite.days ?? 0, key: 'days' as const },
-    { n: invite.photos ?? 0, key: 'photos' as const },
-    { n: invite.places ?? 0, key: 'places' as const },
+    { n: invite.days, key: 'days' as const },
+    { n: invite.photos, key: 'photos' as const },
+    { n: invite.places, key: 'places' as const },
   ];
 
   const bottomBar = (
@@ -100,14 +105,14 @@ function InviteContent({ invite }: { invite: Invite }) {
             variant="outline"
             label={t('explore.invite.decline')}
             flex={1}
-            onPress={() => decline(invite.id)}
+            onPress={() => decline(invite.type, invite.entityId)}
           />
           <Button
             testID="invite-accept"
             label={t('explore.invite.accept')}
             flex={1.6}
             onPress={() => {
-              accept(invite.id);
+              accept(invite.type, invite.entityId);
               openTrip();
             }}
           />
@@ -121,20 +126,11 @@ function InviteContent({ invite }: { invite: Invite }) {
           onPress={openTrip}
         />
       ) : (
-        <View style={styles.declined}>
+        // Declining is final (the server only lets the owner invite again).
+        <View testID="invite-declined" style={styles.declined}>
           <Text variant="label" tone="muted" style={styles.flex}>
             {t('explore.invite.declinedText')}
           </Text>
-          <Button
-            testID="invite-accept-anyway"
-            variant="pill"
-            size="sm"
-            label={t('explore.invite.acceptAnyway')}
-            onPress={() => {
-              accept(invite.id);
-              openTrip();
-            }}
-          />
         </View>
       )}
     </BottomBar>
@@ -143,7 +139,7 @@ function InviteContent({ invite }: { invite: Invite }) {
   return (
     <HeroScreen
       testID="invite-screen"
-      heroUri={img(`inv-${invite.id}`, 800, 560)}
+      heroUri={img(`inv-${invite.key}`, 800, 560)}
       heroTint={colors.border}
       heroHeight={260}
       onBack={() => router.back()}
@@ -157,20 +153,22 @@ function InviteContent({ invite }: { invite: Invite }) {
         <Text variant="h1Detail">{invite.title}</Text>
         <View style={styles.facts}>
           <Fact icon="map-pin" text={`${invite.flag} ${invite.place}`} />
-          <Fact icon="calendar-blank" text={invite.period} />
+          {invite.period ? <Fact icon="calendar-blank" text={invite.period} /> : null}
         </View>
       </Card>
 
       <View style={styles.body}>
         <View style={styles.fromRow}>
-          <Avatar {...avatarFor(invite.from)} size={44} />
+          <Avatar {...avatarFor(invite.inviterName, invite.inviterAvatar)} size={44} />
           <View style={styles.fromText}>
             <Text variant="body" weight={700}>
-              {t('explore.invite.from', { name: invite.from })}
+              {t('explore.invite.from', { name: invite.inviterName })}
             </Text>
-            <View style={styles.bubble}>
-              <Text variant="body">{invite.note}</Text>
-            </View>
+            {invite.note ? (
+              <View style={styles.bubble}>
+                <Text variant="body">{invite.note}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -183,7 +181,7 @@ function InviteContent({ invite }: { invite: Invite }) {
               size={36}
               ringColor={colors.surface}
               label={names}
-              people={[...people, ME].map((n) => avatarFor(n))}
+              people={[...people.map((p) => avatarFor(p.name, p.avatarUrl)), avatarFor(ME)]}
             />
             <Text variant="label" tone="support" style={styles.flex}>
               {names}
@@ -203,7 +201,7 @@ function InviteContent({ invite }: { invite: Invite }) {
 
         <View style={styles.perms}>
           <Text variant="h3">{t('explore.invite.canTitle')}</Text>
-          {PERMS[invite.kind].map(([icon, key]) => (
+          {PERMS[invite.type].map(([icon, key]) => (
             <View key={key} style={styles.perm}>
               <View style={styles.permIcon}>
                 <Icon name={icon} size={18} />

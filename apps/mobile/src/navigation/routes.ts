@@ -45,6 +45,10 @@ export const routes = {
   signup: '/signup' as Href,
   login: '/login' as Href,
   forgot: '/forgot' as Href,
+  /** Opened by the password-recovery e-mail (`worlo://reset-password#access_token=…`). */
+  resetPassword: '/reset-password' as Href,
+  /** 2FA code after signing in (a verified TOTP factor and an AAL1 session). */
+  twoFactor: '/two-factor' as Href,
   onboardingMap: '/onboarding/map' as Href,
   firstMap: '/onboarding/first-map' as Href,
   tripForm: (params: TripFormParams): Href => ({ pathname: '/trip-form', params }),
@@ -87,9 +91,13 @@ export const routes = {
     pathname: '/share',
     params: { subject, ...params },
   }),
+  /** `id` = a person id (direct thread), a thread id or 'support'. */
   chat: (id: string): Href => `/chat/${encodeURIComponent(id)}`,
   notifs: '/notifs' as Href,
+  /** Invite to me, by my membership id. */
   invite: (id: string): Href => `/invite/${id}`,
+  /** Opened by an invite link (`worlo://join/<token>`). */
+  join: (token: string): Href => `/join/${token}`,
   search: '/search' as Href,
   compose: (
     params: { type?: 'Dica' | 'Avaliação' | 'Roteiro' | 'Pergunta'; place?: string } = {},

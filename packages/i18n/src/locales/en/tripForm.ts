@@ -42,6 +42,7 @@ const tripForm: TranslationSchema['tripForm'] = {
     remove: 'Remove {{name}}',
     inviteLink: 'Invite by link',
     linkCopied: 'Invite link copied. Whoever joins becomes a collaborator.',
+    saveFirst: 'Save the trip first to get an invite link.',
   },
   when: 'When was it',
   whenPlaceholder: 'July 2025',
@@ -85,6 +86,8 @@ const tripForm: TranslationSchema['tripForm'] = {
   defaults: {
     period: 'Date to be decided',
     savedNow: 'Saved just now',
+    savedOn: 'Saved {{month}}',
+    invitedBy: 'Invite from {{name}}',
     destNote: 'Destination: {{dest}}',
   },
 };

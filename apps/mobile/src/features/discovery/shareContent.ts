@@ -1,11 +1,16 @@
 import { useTranslation } from '@worlo/i18n';
 import { type AvatarProps, alpha, type IconName, palette } from '@worlo/ui';
+import { useCatalog } from '@/data/catalog';
+import { collaboratorsOf, isListed } from '@/data/collab';
+import { useMe } from '@/data/profile';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
 import { countryFlag, WORLD_COUNTRIES } from '@/lib/countries';
 import { img } from '@/lib/images';
 import { avatarFor, firstName, joinNames, ME } from '@/lib/people';
-import { CITIES, ROTS, TRIP_DETAILS, TRIPS } from '@/mocks/data.generated';
+import { demoKey } from '@/mocks/demo';
+import type { ItineraryDay } from '@/mocks/types';
 import type { ShareSubject } from '@/navigation/routes';
-import { useStore } from '@/store';
 import type { ShareFormat, ShareTheme } from '@/store/slices/discovery';
 
 export const SHARE_SUBJECTS: readonly { key: ShareSubject; icon: IconName }[] = [
@@ -90,7 +95,54 @@ export const ACHIEVEMENTS: Record<string, { icon: IconName; meta: string }> = {
 };
 export const DEFAULT_ACHIEVEMENT = 'Fim do mundo';
 
-/** Everything the preview draws, derived from the store (prototype → shareVals). */
+/** Read-only views of the user's trips / itineraries (rows from SQLite). */
+function useShareRecords() {
+  const trips = useQuery(
+    () =>
+      // Shared trips I joined count; invites I haven't answered don't.
+      repos.trips
+        .list()
+        .filter((row) => isListed('trip', row))
+        .map((row) => ({
+          id: row.id,
+          /** Prototype key for demo trips (`floripa`): picks the mock photos. */
+          imgKey: demoKey(row.id, 'trip'),
+          title: row.title,
+          place: row.place,
+          country: row.country,
+          flag: row.flag,
+          period: row.period,
+          year: row.year,
+          days: row.days,
+          photos: row.photos,
+          places: row.places,
+          collab: collaboratorsOf('trip', row),
+          best: typeof row.details?.best === 'string' ? row.details.best : '',
+        })),
+    [],
+  );
+  const itineraries = useQuery(
+    () =>
+      repos.planning.itineraries().map((row) => ({
+        id: row.id,
+        imgKey: demoKey(row.id, 'itinerary'),
+        title: row.title,
+        place: row.place,
+        flag: row.flag,
+        dates: row.dates,
+        days: row.days as ItineraryDay[],
+      })),
+    [],
+  );
+  const visitedMap = useQuery(() => repos.world.visitedMap(), []);
+  return { trips, itineraries, visitedMap };
+}
+
+/** Matches a route id: the row uuid, or the prototype key of a demo record. */
+const byRouteId = (id: string | undefined) => (x: { id: string; imgKey: string }) =>
+  id !== undefined && (x.id === id || x.imgKey === id);
+
+/** Everything the preview draws, from SQLite + the catalog (prototype → shareVals). */
 export function useShareContent(params: {
   format: ShareFormat;
   tripId?: string;
@@ -98,16 +150,15 @@ export function useShareContent(params: {
   achievement?: string;
 }) {
   const { t, i18n } = useTranslation();
-  const me = useStore((s) => s.me);
-  const visitedMap = useStore((s) => s.visitedMap);
-  const trips = useStore((s) => s.trips);
-  const itineraries = useStore((s) => s.itineraries);
+  const me = useMe();
+  const { trips, itineraries, visitedMap } = useShareRecords();
+  const { CITIES } = useCatalog();
   const lang = i18n.language;
   const number = (n: number) => n.toLocaleString(lang);
 
   const visited = Object.keys(visitedMap);
   const nCountries = visited.length;
-  const nCities = CITIES.length - 1;
+  const nCities = Math.max(CITIES.length - 1, 0);
   const nTrips = trips.length;
   const nPhotos = trips.reduce((sum, trip) => sum + trip.photos, 0);
   const nDays = trips.reduce((sum, trip) => sum + trip.days, 0);
@@ -116,9 +167,9 @@ export function useShareContent(params: {
     maximumFractionDigits: 1,
   });
 
-  const trip = trips.find((x) => x.id === params.tripId) ?? trips[0] ?? TRIPS[0];
+  const trip = trips.find(byRouteId(params.tripId)) ?? trips[0];
   const collaborators = (trip?.collab ?? []).filter((c) => c.status === 'ok').map((c) => c.name);
-  const roteiro = itineraries.find((x) => x.id === params.roteiroId) ?? itineraries[0] ?? ROTS[0];
+  const roteiro = itineraries.find(byRouteId(params.roteiroId)) ?? itineraries[0];
   const achTitle =
     params.achievement && ACHIEVEMENTS[params.achievement]
       ? params.achievement
@@ -157,7 +208,7 @@ export function useShareContent(params: {
       favorite: t('share.preview.favorite', { name: 'Patagônia de carro' }),
     },
     trip: {
-      img: img(`${trip?.id}-a`, 600, 700),
+      img: img(`${trip?.imgKey}-a`, 600, 700),
       place:
         `${trip?.flag ?? ''} ${trip?.place ?? ''}${trip?.country ? `, ${trip.country}` : ''}`.trim(),
       title: trip?.title ?? '',
@@ -180,12 +231,12 @@ export function useShareContent(params: {
         { n: number(trip?.places ?? 0), l: t('share.units.places', { count: trip?.places ?? 0 }) },
       ],
       collage: [0, 1, 2].map((i) =>
-        img(`${trip?.id}-p${i}`, i === 0 ? 500 : 300, i === 0 ? 600 : 300),
+        img(`${trip?.imgKey}-p${i}`, i === 0 ? 500 : 300, i === 0 ? 600 : 300),
       ),
-      best: (trip && TRIP_DETAILS[trip.id]?.best) || trip?.title || '',
+      best: trip?.best || trip?.title || '',
     },
     roteiro: {
-      img: img(`rot-${roteiro?.id}`, 600, 300),
+      img: img(`rot-${roteiro?.imgKey}`, 600, 300),
       title: roteiro?.title ?? '',
       meta: `${roteiro?.flag ?? ''} ${roteiro?.place ?? ''} · ${roteiro?.dates ?? ''}`.trim(),
       days: (roteiro?.days ?? []).slice(0, params.format === 'square' ? 2 : 4).map((d, i) => ({

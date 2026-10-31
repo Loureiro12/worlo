@@ -1,46 +1,57 @@
 import { useTranslation } from '@worlo/i18n';
-import { Button, FormError, TextField, useToast } from '@worlo/ui';
+import { Button, FormError, TextField } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { firstName } from '@/lib/people';
+import { type AuthErrorCode, auth } from '@/lib/auth';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import { AuthFooter, AuthScreen, AuthTitle, SocialLogin } from './AuthParts';
+import { AuthFooter, AuthScreen, AuthTitle, SocialLogin, useSocialSignIn } from './AuthParts';
+import { enterApp, failureCode } from './entry';
 import { type AuthField, loginError } from './validation';
 
-/** A4 · Entrar. Success → Explorar + "Bem-vinda de volta, {nome}." */
+/**
+ * A4 · Entrar. Success → the splash gate (first sync), then Explorar +
+ * "Bem-vinda de volta, {nome}." (or onboarding if the account never finished it).
+ */
 export function LoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
-  const signIn = useStore((s) => s.signIn);
-  const completeOnboarding = useStore((s) => s.completeOnboarding);
   const [values, setValues] = useState({ email: '', password: '' });
   const [error, setError] = useState<AuthField | null>(null);
+  const [serverError, setServerError] = useState<AuthErrorCode | null>(null);
+  const [busy, setBusy] = useState(false);
+  const social = useSocialSignIn(busy);
 
   const change = (field: 'email' | 'password') => (text: string) => {
     setValues((v) => ({ ...v, [field]: text }));
     setError(null);
+    setServerError(null);
   };
 
-  const enter = () => {
-    signIn();
-    completeOnboarding();
-    router.replace(routes.explore);
-    toast.show(t('auth.login.welcomeBack', { name: firstName(useStore.getState().me.name) }));
-  };
-
-  const submit = () => {
+  const submit = async () => {
+    if (busy || social.provider) return;
     const invalid = loginError(values);
     if (invalid) {
       setError(invalid);
       return;
     }
-    enter();
+    setBusy(true);
+    const result = await auth.signIn(values.email, values.password);
+    setBusy(false);
+    if (result.ok) {
+      void enterApp(router, { greet: true });
+      return;
+    }
+    setServerError(failureCode(result));
   };
 
-  const message = error === 'email' ? t('auth.errors.email') : t('auth.errors.passwordEmpty');
+  const message = error
+    ? error === 'email'
+      ? t('auth.errors.email')
+      : t('auth.errors.passwordEmpty')
+    : serverError
+      ? t(`auth.errors.server.${serverError}`)
+      : null;
 
   return (
     <AuthScreen
@@ -55,7 +66,7 @@ export function LoginScreen() {
       }
     >
       <AuthTitle title={t('auth.login.title')} text={t('auth.login.text')} />
-      <SocialLogin onPress={enter} />
+      <SocialLogin onPress={social.signIn} busy={social.provider} disabled={busy} />
       <TextField
         testID="login-email"
         label={t('auth.fields.email')}
@@ -88,7 +99,7 @@ export function LoginScreen() {
           autoComplete="current-password"
           textContentType="password"
           returnKeyType="done"
-          onSubmitEditing={submit}
+          onSubmitEditing={() => void submit()}
         />
         <View style={{ alignItems: 'flex-end' }}>
           <Button
@@ -99,8 +110,15 @@ export function LoginScreen() {
           />
         </View>
       </View>
-      {error ? <FormError testID="login-error" message={message} /> : null}
-      <Button testID="login-submit" label={t('auth.login.submit')} fullWidth onPress={submit} />
+      {message ? <FormError testID="login-error" message={message} /> : null}
+      <Button
+        testID="login-submit"
+        label={t('auth.login.submit')}
+        fullWidth
+        loading={busy}
+        disabled={social.provider !== null}
+        onPress={() => void submit()}
+      />
     </AuthScreen>
   );
 }

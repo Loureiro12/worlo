@@ -135,6 +135,24 @@ const trips = {
     inviteName: 'Convidar {{name}}',
     invited: 'Convite enviado pra {{name}}.',
     copyLink: 'Copiar link de convite',
+    leave: 'Sair da viagem',
+    left: 'Você saiu de “{{title}}”.',
+  },
+  activity: {
+    photos_one: 'adicionou {{count}} foto',
+    photos_other: 'adicionou {{count}} fotos',
+    photosDay_one: 'adicionou {{count}} foto no Dia {{day}}',
+    photosDay_other: 'adicionou {{count}} fotos no Dia {{day}}',
+    expense: 'lançou {{amount}} no {{name}}',
+    diary: 'escreveu no diário',
+    diaryDay: 'escreveu no diário do Dia {{day}}',
+    joined: 'entrou na viagem',
+  },
+  join: {
+    loading: 'Entrando na viagem…',
+    errorTitle: 'Esse link não funciona mais',
+    errorText:
+      'O convite pode ter expirado ou sido cancelado. Peça um link novo pra quem te convidou.',
   },
   retro: {
     overline: 'Retrospectiva · {{year}}',

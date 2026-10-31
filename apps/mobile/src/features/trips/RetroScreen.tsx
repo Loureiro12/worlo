@@ -6,7 +6,6 @@ import {
   Icon,
   IconButton,
   layout,
-  Photo,
   radius,
   Screen,
   StatTile,
@@ -16,15 +15,13 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { img } from '@/lib/images';
-import { TRIP_DETAILS } from '@/mocks/data.generated';
+import { useTripExpenses, useTrips } from '@/data/trips';
+import { TripCollage, useTripPhotoCount } from '@/features/photos/TripPhotos';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { formatAmount, summarizeMoney } from './money';
 
 const STORY_PARTS = 4;
 const STORY_CURRENT = 2;
-const NO_EXPENSES: never[] = [];
 
 /** C2 · Retrospectiva: carvão story with collage, stats and the best moment. */
 export function RetroScreen() {
@@ -32,17 +29,19 @@ export function RetroScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const trip = useStore((s) => s.trips.find((x) => x.id === id) ?? s.trips[0]);
-  const added = useStore((s) => (id ? s.expenses[id] : undefined)) ?? NO_EXPENSES;
+  const trips = useTrips();
+  const trip = trips.find((x) => x.id === id) ?? trips[0];
+  const added = useTripExpenses(trip?.id);
+  const photoCount = useTripPhotoCount(trip);
   const close = () => (router.canGoBack() ? router.back() : router.navigate(routes.trips));
 
   if (!trip) return null;
-  const details = TRIP_DETAILS[trip.id];
+  const details = trip.details ?? undefined;
   const money = summarizeMoney(trip, details, added);
   const total = money ? formatAmount(money.total, money.currency) : trip.total;
   const stats = [
     { value: String(trip.days), label: t('trips.retro.days', { count: trip.days }) },
-    { value: String(trip.photos), label: t('trips.retro.photos', { count: trip.photos }) },
+    { value: String(photoCount), label: t('trips.retro.photos', { count: photoCount }) },
     { value: String(trip.places), label: t('trips.retro.places', { count: trip.places }) },
     { value: total, label: t('trips.retro.expenses') },
   ];
@@ -98,30 +97,7 @@ export function RetroScreen() {
       <Text variant="statL" tone="inverse" style={{ fontSize: 44, lineHeight: 46 }}>
         {trip.title}
       </Text>
-      <View style={{ flexDirection: 'row', gap: 6, borderRadius: radius.r20, overflow: 'hidden' }}>
-        <Photo
-          uri={img(`${trip.id}-p0`, 500, 600)}
-          tint={trip.tint}
-          radius={0}
-          height={266}
-          width={0}
-          style={{ flex: 1.3 }}
-        />
-        <View style={{ flex: 1, gap: 6 }}>
-          <Photo
-            uri={img(`${trip.id}-p1`, 300, 300)}
-            tint={colors.border}
-            radius={0}
-            height={130}
-          />
-          <Photo
-            uri={img(`${trip.id}-p2`, 300, 300)}
-            tint={colors.accentSoft}
-            radius={0}
-            height={130}
-          />
-        </View>
-      </View>
+      <TripCollage trip={trip} />
       <TileGrid>
         {stats.map((stat) => (
           <StatTile

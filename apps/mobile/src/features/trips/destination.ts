@@ -1,5 +1,5 @@
+import { getCatalog } from '@/data/catalog';
 import { normalize } from '@/lib/format';
-import { COUNTRIES } from '@/mocks/data.generated';
 import type { CountryId } from '@/mocks/types';
 
 /** "Florianópolis, Brasil" → { place: "Florianópolis", country: "Brasil" }. */
@@ -10,7 +10,7 @@ export function splitDestination(dest: string): { place: string; country: string
 
 /**
  * Finds a known country in a free-text destination (any comma part, accents and
- * case ignored): mock countries first, then names learned from the globe.
+ * case ignored): catalog countries first, then names learned from the globe.
  */
 export function matchCountry(
   dest: string,
@@ -18,7 +18,7 @@ export function matchCountry(
 ): CountryId | undefined {
   const parts = dest.split(',').map(normalize).filter(Boolean);
   const names: [CountryId, string][] = [
-    ...Object.entries(COUNTRIES).map(([id, c]) => [id, c.name] as [CountryId, string]),
+    ...Object.entries(getCatalog().COUNTRIES).map(([id, c]) => [id, c.name] as [CountryId, string]),
     ...Object.entries(learned),
   ];
   return names.find(([, name]) => parts.includes(normalize(name)))?.[0];

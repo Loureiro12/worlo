@@ -1,4 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react-native';
+import { getCatalog } from '@/data/catalog';
+import { repos } from '@/data/repositories';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
@@ -30,25 +32,35 @@ describe('worldPercent', () => {
 });
 
 describe('ProfileScreen', () => {
-  it('shows the header, world percent and the 2×2 stats from the store', async () => {
+  it('shows the header, world percent and the 2×2 stats from the database', async () => {
     await renderWithProviders(<ProfileScreen />);
     expect(screen.getByTestId('profile-screen')).toBeOnTheScreen();
     expect(screen.getByText('Ana Ribeiro')).toBeOnTheScreen();
     expect(screen.getByText('@anaviaja · São Paulo')).toBeOnTheScreen();
-    const visited = Object.keys(useStore.getState().visitedMap).length;
+    const visited = Object.keys(repos.world.visitedMap()).length;
     expect(screen.getByTestId('profile-world-percent')).toHaveTextContent(
       worldPercent(visited, 'pt-BR'),
     );
     expect(screen.getByText(`${visited} de 195 países`)).toBeOnTheScreen();
     expect(screen.getByTestId('profile-stat-countries')).toHaveTextContent(`${visited}países`);
-    const trips = useStore.getState().trips;
+    const trips = repos.trips.list();
     expect(screen.getByTestId('profile-stat-trips')).toHaveTextContent(`${trips.length}viagens`);
     const places = trips.reduce((sum, trip) => sum + trip.places, 0);
     expect(screen.getByTestId('profile-stat-places')).toHaveTextContent(`${places}lugares`);
+    const cities = getCatalog().CITIES.length - 1;
+    expect(screen.getByTestId('profile-stat-cities')).toHaveTextContent(`${cities}cidades`);
   });
 
-  it('updates the percent when a country is added', async () => {
-    useStore.setState({ visitedMap: { '076': ['2020'] } });
+  it('shows the edited profile', async () => {
+    repos.profile.update({ name: 'Bia Souza', username: 'bia', city: '' });
+    await renderWithProviders(<ProfileScreen />);
+    expect(screen.getByTestId('profile-name')).toHaveTextContent('Bia Souza');
+    expect(screen.getByText('@bia')).toBeOnTheScreen();
+  });
+
+  it('updates the percent from the visited countries', async () => {
+    for (const iso of Object.keys(repos.world.visitedMap())) repos.world.toggleVisited(iso);
+    repos.world.markVisited('076', '2020');
     await renderWithProviders(<ProfileScreen />);
     expect(screen.getByTestId('profile-world-percent')).toHaveTextContent('0,5%');
     expect(screen.getByText('1 de 195 países')).toBeOnTheScreen();
@@ -89,7 +101,7 @@ describe('ProfileScreen', () => {
       ),
     ).toBeOnTheScreen();
     await fireEvent.press(screen.getByRole('tab', { name: 'Privado' }));
-    expect(useStore.getState().privacy).toBe('private');
+    expect(repos.profile.get()?.privacy).toBe('private');
     expect(screen.getByText('Só você vê suas viagens, fotos e mapa.')).toBeOnTheScreen();
   });
 

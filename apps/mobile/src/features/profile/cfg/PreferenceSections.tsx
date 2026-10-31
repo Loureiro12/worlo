@@ -1,8 +1,8 @@
 import { supportedLanguages, useTranslation } from '@worlo/i18n';
 import { RadioRow, useToast } from '@worlo/ui';
 import { View } from 'react-native';
+import { updatePrefs, useProfilePrefs } from '@/data/profile';
 import { usePreferences } from '@/providers/PreferencesProvider';
-import { useStore } from '@/store';
 import { CURRENCIES, UNITS } from '../options';
 import { GroupCard } from '../parts';
 import { CfgLayout } from './CfgLayout';
@@ -44,8 +44,7 @@ export function LanguageSection() {
 export function CurrencySection() {
   const { t } = useTranslation();
   const toast = useToast();
-  const currency = useStore((s) => s.currency);
-  const setSettings = useStore((s) => s.setSettings);
+  const { currency } = useProfilePrefs();
   return (
     <CfgLayout section="currency">
       <View accessibilityRole="radiogroup">
@@ -59,7 +58,7 @@ export function CurrencySection() {
               description={`${symbol} · ${code}`}
               checked={currency === code}
               onPress={() => {
-                setSettings({ currency: code });
+                updatePrefs({ currency: code });
                 toast.show(
                   t('profile.cfg.currency.toast', { value: t(`profile.currencies.${code}`) }),
                 );
@@ -76,8 +75,7 @@ export function CurrencySection() {
 export function UnitsSection() {
   const { t } = useTranslation();
   const toast = useToast();
-  const units = useStore((s) => s.units);
-  const setSettings = useStore((s) => s.setSettings);
+  const { units } = useProfilePrefs();
   return (
     <CfgLayout section="units">
       <View accessibilityRole="radiogroup">
@@ -91,7 +89,7 @@ export function UnitsSection() {
               description={t(`profile.units.${unit}Text`)}
               checked={units === unit}
               onPress={() => {
-                setSettings({ units: unit });
+                updatePrefs({ units: unit });
                 toast.show(t('profile.cfg.units.toast', { value: t(`profile.units.${unit}`) }));
               }}
             />

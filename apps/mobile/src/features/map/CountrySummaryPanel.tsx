@@ -12,10 +12,12 @@ import {
   useToast,
 } from '@worlo/ui';
 import { Pressable, View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
+import { world } from '@/data/world';
 import { countryFlag, useCountryName } from '@/lib/countries';
-import { COUNTRIES } from '@/mocks/data.generated';
 import type { CountryId } from '@/mocks/types';
-import { useStore } from '@/store';
 import { hasCountryPage, useCountryStatus } from './shared';
 
 export type CountrySummaryPanelProps = {
@@ -40,10 +42,10 @@ export function CountrySummaryPanel({
   const toast = useToast();
   const countryName = useCountryName();
   const status = useCountryStatus(id);
-  const isVisited = useStore((s) => Boolean(s.visitedMap[id]));
-  const isWish = useStore((s) => s.futures.some((f) => f.cid === id));
-  const toggleVisited = useStore((s) => s.toggleVisited);
-  const toggleWishlist = useStore((s) => s.toggleWishlist);
+  const isVisited = useQuery(() => Boolean(repos.world.visitedMap()[id]), [id]);
+  const isWish = useQuery(() => repos.world.wishes().some((w) => w.countryIso === id), [id]);
+  const { toggleVisited, toggleWishlist } = world;
+  const { COUNTRIES } = useCatalog();
 
   const info = COUNTRIES[id];
   const name = countryName(id);

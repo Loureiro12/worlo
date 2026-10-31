@@ -15,9 +15,9 @@ import {
 } from '@worlo/ui';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { tripsData } from '@/data/trips';
 import { firstName, joinNames } from '@/lib/people';
 import type { Trip } from '@/mocks/types';
-import { useStore } from '@/store';
 import { EXPENSE_CATEGORIES, type ExpenseCategoryKey, formatAmount, splitShare } from './money';
 
 type Draft = {
@@ -32,7 +32,7 @@ const blank: Draft = { value: '', name: '', cat: 'food', split: [], receipt: fal
 
 /**
  * Sheet "Novo gasto" (F5): amount, description, category, split with accepted
- * collaborators and receipt. Saves to the store; totals are derived from it.
+ * collaborators and receipt. Saved in SQLite; totals are derived from it.
  */
 export function ExpenseSheet({
   trip,
@@ -49,7 +49,6 @@ export function ExpenseSheet({
 }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const addExpense = useStore((s) => s.addExpense);
   const [draft, setDraft] = useState<Draft>(blank);
   const [error, setError] = useState<'value' | 'name' | null>(null);
 
@@ -75,7 +74,7 @@ export function ExpenseSheet({
     const category = EXPENSE_CATEGORIES.find((c) => c.key === draft.cat) ?? EXPENSE_CATEGORIES[1];
     const label = t(`trips.money.categories.${category.key}`);
     const names = joinNames(draft.split.map(firstName), and);
-    addExpense(trip.id, {
+    tripsData.addExpense(trip.id, {
       icon: category.icon,
       name: draft.name.trim(),
       meta: draft.split.length

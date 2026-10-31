@@ -135,6 +135,24 @@ const trips: TranslationSchema['trips'] = {
     inviteName: 'Invite {{name}}',
     invited: 'Invite sent to {{name}}.',
     copyLink: 'Copy invite link',
+    leave: 'Leave trip',
+    left: 'You left “{{title}}”.',
+  },
+  activity: {
+    photos_one: 'added {{count}} photo',
+    photos_other: 'added {{count}} photos',
+    photosDay_one: 'added {{count}} photo on Day {{day}}',
+    photosDay_other: 'added {{count}} photos on Day {{day}}',
+    expense: 'logged {{amount}} at {{name}}',
+    diary: 'wrote in the journal',
+    diaryDay: 'wrote in the Day {{day}} journal',
+    joined: 'joined the trip',
+  },
+  join: {
+    loading: 'Joining the trip…',
+    errorTitle: 'This link doesn’t work anymore',
+    errorText:
+      'The invite may have expired or been cancelled. Ask whoever invited you for a new link.',
   },
   retro: {
     overline: 'Recap · {{year}}',

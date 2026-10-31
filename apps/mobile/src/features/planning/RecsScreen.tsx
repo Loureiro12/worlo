@@ -16,9 +16,9 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
 import { img } from '@/lib/images';
 import { avatarFor } from '@/lib/people';
-import { RECS } from '@/mocks/data.generated';
 import type { Recommendation } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 
@@ -37,6 +37,7 @@ export function RecsScreen() {
   const router = useRouter();
   const s = useStyles();
   const [filter, setFilter] = useState<Filter>('all');
+  const { RECS } = useCatalog();
 
   const list = RECS.filter((r) => filter === 'all' || r.region === REGION[filter]);
   const back = () => router.back();

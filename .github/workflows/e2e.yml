@@ -2,8 +2,9 @@ name: E2E
 
 # Keeps E2E off the critical path:
 #   * PRs run only `smoke` flows, and only when the app or its packages change.
-#   * main and the nightly run every flow (tag `full`). The app is visual-only
-#     for now (mock data), so no backend is started.
+#   * main and the nightly run every flow (tag `full`).
+#   * Every flow signs in for real, so a local Supabase with the seeds
+#     (catalog + demo account ana@worlo.app) runs next to the emulator.
 #   * The native binary is cached by its Expo fingerprint. JS-only changes are
 #     repacked into the cached binary in seconds instead of a full Gradle build.
 on:
@@ -40,6 +41,17 @@ jobs:
           distribution: zulu
           java-version: "17"
       - run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start Supabase (migrations + seeds)
+        run: |
+          supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
+          eval "$(supabase status -o env)"
+          # Inlined into the JS bundle; 10.0.2.2 is the host as seen from the emulator.
+          echo "EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:56321" >> "$GITHUB_ENV"
+          echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
 
       - name: Native fingerprint
         id: fingerprint

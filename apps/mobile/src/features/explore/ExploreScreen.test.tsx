@@ -1,4 +1,8 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
+import { getItinerary, getLive, setLiveDay, startLive } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { TripsScreen } from '@/features/trips/TripsScreen';
+import { demoId } from '@/mocks/demo';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
@@ -37,11 +41,15 @@ describe('ExploreScreen', () => {
     expect(screen.getByText('42 fotos · 6 lugares')).toBeOnTheScreen();
   });
 
-  it('drops read notifications and answered invites from the badge', async () => {
-    useStore.getState().markRead('n2');
-    useStore.getState().setInvite('jeri', 'declined');
+  it('drops read notifications from the badge (repos.notifications.unreadCount)', async () => {
+    repos.notifications.markRead(demoId('notification:n2'));
+    repos.notifications.markRead(demoId('notification:n1'));
     await renderWithProviders(<ExploreScreen />);
     expect(screen.getByLabelText('Notificações, 7')).toBeOnTheScreen();
+    await act(() => {
+      repos.notifications.markAllRead();
+    });
+    expect(screen.queryByLabelText(/^Notificações, \d/)).not.toBeOnTheScreen();
   });
 
   it('filters "Lugares para conhecer" by category', async () => {
@@ -60,11 +68,23 @@ describe('ExploreScreen', () => {
   it('toggles "Quero ir" on a place with a toast', async () => {
     await renderWithProviders(<ExploreScreen />);
     await fireEvent.press(screen.getByTestId('explore-wish-Noronha'));
-    expect(useStore.getState().wishPlaces['Fernando de Noronha']).toBe(true);
+    const wish = () => repos.world.wishes().find((w) => w.name === 'Fernando de Noronha');
+    expect(wish()).toMatchObject({ countryIso: null, flag: '📍' });
     expect(screen.getByText('Noronha salvo em Quero ir.')).toBeOnTheScreen();
     expect(screen.getByLabelText('Na lista: Noronha')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('explore-wish-Noronha'));
-    expect(useStore.getState().wishPlaces['Fernando de Noronha']).toBe(false);
+    expect(wish()).toBeUndefined();
+  });
+
+  it('shows a place marked "Quero ir" in Viagens › Quero ir', async () => {
+    const explore = await renderWithProviders(<ExploreScreen />);
+    await fireEvent.press(screen.getByTestId('explore-wish-Noronha'));
+    await explore.unmount();
+
+    await renderWithProviders(<TripsScreen />);
+    await fireEvent.press(screen.getByTestId('trips-seg-wish'));
+    expect(screen.getByText('Fernando de Noronha')).toBeOnTheScreen();
+    expect(screen.getByText('Salvo agora')).toBeOnTheScreen();
   });
 
   it('opens the city, country or a "coming soon" toast from a place card', async () => {
@@ -84,19 +104,17 @@ describe('ExploreScreen', () => {
     expect(screen.getByText('Sua viagem começa hoje')).toBeOnTheScreen();
     expect(screen.getByText('Cusco e Machu Picchu')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('explore-live'));
-    expect(useStore.getState().live).toMatchObject({ on: true, itineraryId: 'peru' });
+    expect(getLive()).toMatchObject({ on: true, itineraryId: demoId('itinerary:peru') });
     expect(mockRouter.push).toHaveBeenCalledWith(routes.live);
     expect(screen.getByText('Viajando agora')).toBeOnTheScreen();
-    const { day } = useStore.getState().live;
-    const label = useStore.getState().itineraries.find((it) => it.id === 'peru')?.days[
-      day - 1
-    ]?.label;
+    const { day } = getLive();
+    const label = getItinerary(demoId('itinerary:peru'))?.days[day - 1]?.label;
     expect(screen.getByText(`Dia ${day} de 4 · ${label}`)).toBeOnTheScreen();
   });
 
   it('opens live mode directly when it is already on', async () => {
-    useStore.getState().startLive('peru');
-    useStore.getState().setLiveDay(2);
+    startLive(demoId('itinerary:peru'));
+    setLiveDay(2);
     await renderWithProviders(<ExploreScreen />);
     expect(screen.getByText('Dia 2 de 4 · Vale Sagrado')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('explore-live'));
@@ -114,7 +132,7 @@ describe('ExploreScreen', () => {
     await fireEvent.press(screen.getByTestId('explore-search'));
     expect(mockRouter.push).toHaveBeenLastCalledWith(routes.search);
     await fireEvent.press(screen.getByTestId('explore-memory'));
-    expect(mockRouter.push).toHaveBeenLastCalledWith(routes.trip('floripa'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith(routes.trip(demoId('trip:floripa')));
     await fireEvent.press(screen.getByTestId('explore-popular-620'));
     expect(mockRouter.push).toHaveBeenLastCalledWith(routes.country('620'));
     await fireEvent.press(screen.getByTestId('explore-tour-nata'));

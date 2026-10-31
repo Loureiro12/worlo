@@ -1,14 +1,13 @@
-import { useTranslation } from '@worlo/i18n';
-import { useToast } from '@worlo/ui';
 import { useRouter } from 'expo-router';
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
+import { type Catalog, getCatalog } from '@/data/catalog';
+import type { CommunityPost, Vote } from '@/data/community';
 import { img } from '@/lib/images';
 import { avatarFor } from '@/lib/people';
-import { CITIES, COUNTRIES, PASSEIOS, PLACES, POSTS, TRAVELERS } from '@/mocks/data.generated';
-import type { PostType } from '@/mocks/types';
+import { POSTS } from '@/mocks/data.generated';
+import { demoId } from '@/mocks/demo';
+import type { PlaceTip, PostType } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import type { CommunityPost, Vote } from '@/store/slices/community';
 
 export type TypeKey = 'tip' | 'review' | 'itinerary' | 'question';
 
@@ -47,49 +46,32 @@ export function postStats(post: Pick<CommunityPost, 'yes' | 'no'>, vote?: Vote):
   return { yes, no, total, pct, level };
 }
 
-/** Feed photo: mock posts get a seeded placeholder; own posts show their first photo. */
+/** Prototype key of a demo post ('p1'), else the id: stable testIDs and photo seeds. */
+const DEMO_POST_KEYS = new Map(
+  [...POSTS.map((p) => p.id), 'ana-28'].map((key) => [demoId(`post:${key}`), key]),
+);
+export function postKey(id: string): string {
+  return DEMO_POST_KEYS.get(id) ?? id;
+}
+
+/**
+ * Feed photo: the post's first uploaded photo; the prototype's posts keep their
+ * seeded placeholder (they had one in the approved visual phase).
+ */
 export function postPhoto(post: CommunityPost, width: number, height: number): string | null {
-  if (post.mine) return post.photo ?? null;
-  return img(`post-${post.id}`, width, height);
+  if (post.photo) return post.photo;
+  const key = postKey(post.id);
+  return POSTS.some((p) => p.id === key) ? img(`post-${key}`, width, height) : null;
 }
 
-/** My posts (newest first) on top of the mock feed. */
-export function useAllPosts(): CommunityPost[] {
-  const myPosts = useStore((s) => s.myPosts);
-  return useMemo(() => [...myPosts, ...POSTS], [myPosts]);
-}
-
-/** Vote handler with the own-post rule (toast instead of voting). */
-export function useVoteAction() {
-  const vote = useStore((s) => s.vote);
-  const toast = useToast();
-  const { t } = useTranslation();
-  return useCallback(
-    (post: CommunityPost, value: Vote) => {
-      if (post.mine) {
-        toast.show(t('community.vote.ownBlocked'), 'info');
-        return;
-      }
-      vote(post.id, value);
-    },
-    [vote, toast, t],
-  );
-}
-
-/** Author → public profile ('me' for own posts; only known travelers have one). */
+/** Author → public profile ('me' for own posts). */
 export function useOpenAuthor() {
   const router = useRouter();
   return useCallback(
-    (post: CommunityPost) => {
-      if (post.mine) router.push(routes.traveler('me'));
-      else if (TRAVELERS[post.author]) router.push(routes.traveler(post.author));
-    },
+    (post: Pick<CommunityPost, 'mine' | 'authorId'>) =>
+      router.push(routes.traveler(post.mine ? 'me' : post.authorId)),
     [router],
   );
-}
-
-export function hasProfile(post: CommunityPost): boolean {
-  return Boolean(post.mine || TRAVELERS[post.author]);
 }
 
 export function useGoBack(fallback = routes.community) {
@@ -114,7 +96,11 @@ export function normalize(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 }
 
-const PLACE_INDEX: PlaceOption[] = (() => {
+/** Countries, cities and tours of the catalog, deduped (rebuilt when the catalog changes). */
+let placeIndex: { catalog: Catalog; index: PlaceOption[] } | null = null;
+function placeIndexOf(catalog: Catalog): PlaceOption[] {
+  if (placeIndex?.catalog === catalog) return placeIndex.index;
+  const { CITIES, COUNTRIES, PASSEIOS, PLACES } = catalog;
   const seen = new Set<string>();
   const out: PlaceOption[] = [];
   const add = (title: string, kind: PlaceKind) => {
@@ -127,8 +113,9 @@ const PLACE_INDEX: PlaceOption[] = (() => {
   for (const c of CITIES) add(c.n, 'city');
   for (const p of PLACES) add(p.short, 'city');
   for (const p of PASSEIOS) add(p.name, 'tour');
+  placeIndex = { catalog, index: out };
   return out;
-})();
+}
 
 export const DEFAULT_PLACE_SUGGESTIONS: PlaceOption[] = [
   { title: 'Lisboa', kind: 'city' },
@@ -140,13 +127,27 @@ export const DEFAULT_PLACE_SUGGESTIONS: PlaceOption[] = [
 export function searchPlaces(query: string): PlaceOption[] {
   const words = normalize(query).split(/\s+/).filter(Boolean);
   if (!words.length) return DEFAULT_PLACE_SUGGESTIONS;
-  return PLACE_INDEX.filter((p) => {
-    const title = normalize(p.title);
-    return words.every((w) => title.includes(w));
-  }).slice(0, 5);
+  return placeIndexOf(getCatalog())
+    .filter((p) => {
+      const title = normalize(p.title);
+      return words.every((w) => title.includes(w));
+    })
+    .slice(0, 5);
 }
 
 /** Avatar props keeping the real name for screen readers (the user is coral). */
 export function personAvatar(name: string, isMe = false, photoUrl?: string | null) {
   return { ...avatarFor(isMe ? 'me' : name, photoUrl), name };
+}
+
+/** Feed post → the place/city tip card ('' pct = no votes yet). */
+export function toPlaceTip(post: CommunityPost): PlaceTip {
+  const stats = postStats(post, post.myVote);
+  return {
+    who: post.author,
+    ini: post.ini,
+    when: post.when,
+    text: post.text,
+    pct: stats.total ? `${stats.pct}%` : '',
+  };
 }

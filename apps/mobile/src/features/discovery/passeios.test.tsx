@@ -1,4 +1,11 @@
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
+import { schema } from '@worlo/db';
+import { eq } from 'drizzle-orm';
+import { dataEvents } from '@/data/events';
+import { repos } from '@/data/repositories';
+import { isSaved } from '@/data/saved';
+import { db } from '@/lib/database';
+import type { Tour } from '@/mocks/types';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { AnuncieScreen, anuncieError } from './AnuncieScreen';
@@ -84,9 +91,9 @@ describe('PasseiosScreen (E1)', () => {
     await renderWithProviders(<PasseiosScreen />);
     // "Vale Sagrado" is not in the mock saved list.
     await fireEvent.press(screen.getByTestId('passeio-card-save-valle'));
-    expect(useStore.getState().saved.find((s) => s.id === 'pas-valle')).toMatchObject({
+    expect(repos.saved.items().find((s) => s.refId === 'pas-valle')).toMatchObject({
       name: 'Vale Sagrado em um dia',
-      cat: 'Passeios',
+      category: 'Passeios',
       city: 'Cusco',
       flag: '🇵🇪',
     });
@@ -95,8 +102,28 @@ describe('PasseiosScreen (E1)', () => {
       'Remover dos salvos',
     );
     await fireEvent.press(screen.getByTestId('passeio-card-save-valle'));
-    expect(useStore.getState().isSaved('pas-valle')).toBe(false);
+    expect(isSaved('pas-valle')).toBe(false);
     expect(screen.getByText('Removido dos salvos.')).toBeOnTheScreen();
+  });
+
+  it('shows the tours stored in the catalog (SQLite), live', async () => {
+    await renderWithProviders(<PasseiosScreen />);
+    expect(screen.getByText('Pôr do sol de veleiro no Tejo')).toBeOnTheScreen();
+    // A content edit pulled from Supabase lands in the catalog table.
+    const row = db
+      .select()
+      .from(schema.catalog)
+      .where(eq(schema.catalog.id, 'passeios:tejo'))
+      .get();
+    await act(() => {
+      db.update(schema.catalog)
+        .set({ data: { ...(row?.data as Tour), name: 'Veleiro no Tejo ao entardecer' } })
+        .where(eq(schema.catalog.id, 'passeios:tejo'))
+        .run();
+      dataEvents.emit();
+    });
+    expect(screen.getByText('Veleiro no Tejo ao entardecer')).toBeOnTheScreen();
+    expect(screen.queryByText('Pôr do sol de veleiro no Tejo')).toBeNull();
   });
 
   it('opens a tour and the Anuncie screen', async () => {
@@ -182,10 +209,10 @@ describe('PasseioScreen (E2)', () => {
     await renderWithProviders(<PasseioScreen />);
     expect(screen.getByTestId('passeio-save')).toHaveAccessibleName('Remover dos salvos');
     await fireEvent.press(screen.getByTestId('passeio-save'));
-    expect(useStore.getState().isSaved('pas-tejo')).toBe(false);
+    expect(isSaved('pas-tejo')).toBe(false);
     expect(screen.getByTestId('passeio-save')).toHaveAccessibleName('Salvar passeio');
     await fireEvent.press(screen.getByTestId('passeio-save'));
-    expect(useStore.getState().isSaved('pas-tejo')).toBe(true);
+    expect(isSaved('pas-tejo')).toBe(true);
   });
 
   it('is blocked offline', async () => {

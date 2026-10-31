@@ -4,6 +4,7 @@ const shared = require('../../jest.shared');
 module.exports = {
   preset: 'jest-expo',
   setupFiles: ['./jest.setup.js'],
+  setupFilesAfterEnv: ['./jest.after-env.js'],
   transformIgnorePatterns: shared.transformIgnorePatterns,
   moduleNameMapper: {
     ...shared.moduleNameMapper,

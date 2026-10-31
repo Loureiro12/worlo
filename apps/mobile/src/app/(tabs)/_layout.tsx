@@ -1,7 +1,14 @@
+import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/tabs';
 import { AppTabBar } from '@/components/AppTabBar';
+import { routes } from '@/navigation/routes';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function TabsLayout() {
+  const { status } = useAuth();
+  // Signed out (sign-out, account deleted, session expired): back to the start.
+  if (status === 'signedOut') return <Redirect href={routes.welcome} />;
+
   return (
     <Tabs
       tabBar={(props) => <AppTabBar {...props} />}

@@ -1,7 +1,11 @@
 import { fireEvent, screen, within } from '@testing-library/react-native';
-import { palette } from '@worlo/ui';
+import { getItineraries } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { world } from '@/data/world';
+import { demoId } from '@/mocks/demo';
+import { userId } from '@/mocks/demoWorld';
 import { routes } from '@/navigation/routes';
-import { resetStore, useStore } from '@/store';
+import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { FutureScreen } from './FutureScreen';
 import { RetroScreen } from './RetroScreen';
@@ -26,7 +30,7 @@ beforeEach(() => {
 
 describe('FutureScreen', () => {
   beforeEach(() => {
-    mockParams = { id: '392' };
+    mockParams = { id: demoId('wish:392') };
   });
 
   it('shows the destination facts, note and people', async () => {
@@ -46,37 +50,32 @@ describe('FutureScreen', () => {
   it('starts an itinerary for the destination', async () => {
     await renderWithProviders(<FutureScreen />);
     await fireEvent.press(screen.getByTestId('future-start'));
-    const created = useStore.getState().itineraries[0];
+    const created = getItineraries()[0];
     expect(created).toMatchObject({ title: 'Viagem para Japão', place: 'Japão', sugKey: 'japao' });
     expect(mockRouter.push).toHaveBeenCalledWith(routes.roteiro(created?.id ?? ''));
   });
 
   it('invites people to a wishlist destination', async () => {
-    mockParams = { id: '352' };
+    mockParams = { id: demoId('wish:352') };
     await renderWithProviders(<FutureScreen />);
     expect(screen.getByText('Só você, por enquanto')).toBeOnTheScreen();
     expect(screen.getByText('Convide quem vai com você')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('future-people-invite'));
     const sheet = within(screen.getByTestId('people-sheet'));
     await fireEvent.press(sheet.getByRole('button', { name: 'Convidar Marina Costa' }));
-    expect(useStore.getState().futures.find((f) => f.id === '352')?.collab).toEqual([
-      { name: 'Marina Costa', status: 'pending' },
+    const wish = repos.world.wishes().find((w) => w.countryIso === '352');
+    expect(wish?.companions).toEqual([]);
+    expect(repos.collab.members('wish', wish?.id ?? '')).toEqual([
+      expect.objectContaining({ userId: userId('Marina Costa'), status: 'pending' }),
     ]);
     expect(screen.getByText('1 convite pendente')).toBeOnTheScreen();
   });
 
   it('hides facts for destinations without a known country', async () => {
-    useStore.getState().addFuture({
-      id: 'f1',
-      cid: '',
-      name: 'Comer pho',
-      flag: '📍',
-      note: '',
-      saved: 'Salvo agora',
-      tint: palette.coral100,
-    });
-    mockParams = { id: 'f1' };
+    const wish = world.addFuture({ name: 'Comer pho', flag: '📍' });
+    mockParams = { id: wish.id };
     await renderWithProviders(<FutureScreen />);
+    expect(screen.getByText('Salvo agora')).toBeOnTheScreen();
     expect(screen.queryByText('Capital')).not.toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('future-country'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.community);
@@ -85,7 +84,7 @@ describe('FutureScreen', () => {
 
 describe('RetroScreen', () => {
   it('shows the story with stats and shares it', async () => {
-    mockParams = { id: 'floripa' };
+    mockParams = { id: demoId('trip:floripa') };
     await renderWithProviders(<RetroScreen />);
     expect(screen.getByText('Retrospectiva · 2025')).toBeOnTheScreen();
     expect(screen.getByText('Inverno em Floripa')).toBeOnTheScreen();
@@ -93,13 +92,15 @@ describe('RetroScreen', () => {
     expect(screen.getByLabelText('R$ 4.860 gastos')).toBeOnTheScreen();
     expect(screen.getByText('Pôr do sol na Lagoa da Conceição')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('retro-share'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('retro', { tripId: 'floripa' }));
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      routes.share('retro', { tripId: demoId('trip:floripa') }),
+    );
     await fireEvent.press(screen.getByTestId('retro-close'));
     expect(mockRouter.back).toHaveBeenCalled();
   });
 
   it('falls back to the title when there is no best moment', async () => {
-    mockParams = { id: 'paris' };
+    mockParams = { id: demoId('trip:paris') };
     await renderWithProviders(<RetroScreen />);
     expect(screen.getAllByText('Primeira vez em Paris')).toHaveLength(2);
   });

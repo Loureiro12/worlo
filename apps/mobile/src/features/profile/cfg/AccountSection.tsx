@@ -14,20 +14,25 @@ import {
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { updateMe, useMe } from '@/data/profile';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
 import { img } from '@/lib/images';
-import { useStore } from '@/store';
+import { demoKey } from '@/mocks/demo';
 import { CfgLayout } from './CfgLayout';
 import { accountError, normalizeUser } from './validation';
 
 const BIO_MAX = 140;
+// Server limits (profiles.name / username).
+const NAME_MAX = 80;
+const USER_MAX = 30;
 
 /** K3 · Editar perfil. */
 export function AccountSection() {
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToast();
-  const me = useStore((s) => s.me);
-  const updateMe = useStore((s) => s.updateMe);
+  const me = useMe();
   const [form, setForm] = useState({ name: me.name, user: me.user, city: me.city, bio: me.bio });
   const [error, setError] = useState<'name' | 'user' | null>(null);
   const [photoSheet, setPhotoSheet] = useState(false);
@@ -73,6 +78,7 @@ export function AccountSection() {
           value={form.name}
           onChangeText={change('name')}
           invalid={error === 'name'}
+          maxLength={NAME_MAX}
           autoComplete="name"
           textContentType="name"
         />
@@ -85,6 +91,7 @@ export function AccountSection() {
             value={form.user}
             onChangeText={change('user')}
             invalid={error === 'user'}
+            maxLength={USER_MAX}
             autoCapitalize="none"
             autoCorrect={false}
             textContentType="username"
@@ -119,10 +126,12 @@ export function AccountSection() {
 function PhotoSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const toast = useToast();
-  const avatar = useStore((s) => s.me.avatar);
-  const trips = useStore((s) => s.trips);
-  const updateMe = useStore((s) => s.updateMe);
-  const choices = trips.slice(0, 6).map((trip, i) => img(`${trip.id}-p${i}`, 200, 200));
+  const { avatar } = useMe();
+  const trips = useQuery(() => repos.trips.list(), []);
+  // Demo trips keep their prototype photo seeds.
+  const choices = trips
+    .slice(0, 6)
+    .map((trip, i) => img(`${demoKey(trip.id, 'trip')}-p${i}`, 200, 200));
 
   const pick = (uri: string) => {
     updateMe({ avatar: uri });

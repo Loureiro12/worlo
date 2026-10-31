@@ -25,8 +25,11 @@ import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AddTripSheet } from '@/components/AddTripSheet';
 import { DemoGate, useIsEmpty } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
+import { useVisitedMap } from '@/data/world';
 import { countryFlag, useCountryName } from '@/lib/countries';
-import { CITIES } from '@/mocks/data.generated';
 import type { CountryId } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
@@ -34,8 +37,6 @@ import { CountrySummaryPanel } from './CountrySummaryPanel';
 import { PLANNED_COUNTRIES } from './shared';
 
 export type MapFilter = 'all' | 'visited' | 'wishlist';
-
-const GLOBE_CITIES = CITIES.map((c) => ({ name: c.n, coordinates: c.c, photos: c.ph }));
 
 /** Layers shown on the globe for a filter + year (prototype `globeOpts('main')`). */
 export function mapLayers(
@@ -83,9 +84,17 @@ function MapContent() {
   const globe = useRef<GlobeHandle>(null);
   const empty = useIsEmpty();
 
-  const visitedMap = useStore((s) => s.visitedMap);
-  const futures = useStore((s) => s.futures);
-  const tripsCount = useStore((s) => s.trips.length);
+  const visitedMap = useVisitedMap();
+  const wishIds = useQuery(
+    () => repos.world.wishes().flatMap((w) => (w.countryIso ? [w.countryIso] : [])),
+    [],
+  );
+  const tripsCount = useQuery(() => repos.trips.list().length, []);
+  const { CITIES } = useCatalog();
+  const globeCities = useMemo(
+    () => CITIES.map((c) => ({ name: c.n, coordinates: c.c, photos: c.ph })),
+    [CITIES],
+  );
   const selected = useStore((s) => s.mapSelection);
   const select = useStore((s) => s.selectMapCountry);
   const rememberCountryName = useStore((s) => s.rememberCountryName);
@@ -98,7 +107,7 @@ function MapContent() {
 
   // Empty demo state: the map is "apagado" (nothing marked).
   const shownVisitedMap = empty ? {} : visitedMap;
-  const wishlistIds = useMemo(() => (empty ? [] : futures.map((f) => f.cid)), [empty, futures]);
+  const wishlistIds = useMemo(() => (empty ? [] : wishIds), [empty, wishIds]);
   const layers = useMemo(() => {
     const l = mapLayers(shownVisitedMap, wishlistIds, filter, year);
     return empty ? { ...l, planned: [] } : l;
@@ -109,7 +118,7 @@ function MapContent() {
   );
 
   const visitedCount = Object.keys(shownVisitedMap).length;
-  const citiesCount = empty ? 0 : CITIES.length - 1;
+  const citiesCount = empty ? 0 : Math.max(0, CITIES.length - 1);
   const trips = empty ? 0 : tripsCount;
   const stats = [
     t('common.count.countries', { count: visitedCount }),
@@ -160,7 +169,7 @@ function MapContent() {
           scale={0.98}
           offsetY={sheetOpen ? -150 : 20}
           markers
-          cities={GLOBE_CITIES}
+          cities={globeCities}
           photosLabel={(n) => t('common.count.photos', { count: n })}
           glow
           centerOnPick

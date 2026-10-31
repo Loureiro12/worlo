@@ -1,3 +1,4 @@
+import type { Photo as PhotoRow, TripRow } from '@worlo/db';
 import { useTranslation } from '@worlo/i18n';
 import {
   alpha,
@@ -16,104 +17,167 @@ import {
   useToast,
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import { useIsEmpty } from '@/components/DemoGate';
+import {
+  assignPhotos,
+  autoOrganize,
+  pickPhotos,
+  suggestedTrip,
+  tripPhotoCount,
+  uploads,
+  useImportBatch,
+  useMyPhotos,
+  usePhotoFiles,
+  usePhotoUri,
+  useVisiblePhotos,
+} from '@/data/photos';
+import { updatePrefs, useProfilePrefs } from '@/data/profile';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
+import { PhotoTile } from '@/features/photos/PhotoTile';
+import { useSync } from '@/features/sync/SyncProvider';
 import { img } from '@/lib/images';
-import type { Trip } from '@/mocks/types';
+import { demoKey } from '@/mocks/demo';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { GroupCard, PageTitle, StackHeader, SwitchRow } from './parts';
 import { formatNumber } from './stats';
 
-/** Simulated import (04_INTERACTIONS → Importação de fotos). */
-export const IMPORT = {
-  total: 146,
-  inTrips: 123,
-  loose: 23,
-  /** Extra loose photos behind the "+15" tile. */
-  hidden: 15,
-  stepPct: 6,
-  stepMs: 140,
-  /** Where the upload stops when the connection drops (85 of 146). */
-  failPct: 58,
-  /** Trip that receives the organized photos and is suggested for the loose ones. */
-  matchTripId: 'floripa',
-} as const;
+/** Loose photos shown in the grid; the last tile shows "+N" for the rest. */
+const LOOSE_TILES = 8;
 
-type Phase = 'idle' | 'running' | 'failed' | 'done' | 'assigned';
+type Phase = 'idle' | 'running' | 'failed' | 'done';
 
-/** K1 · Importação de fotos. */
+const keyOf = (trip: TripRow) => demoKey(trip.id, 'trip');
+
+/** K1 · Fotos: import from the gallery, upload progress, loose photos and photos by trip. */
 export function PhotosScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const toast = useToast();
   const empty = useIsEmpty();
-  const allTrips = useStore((s) => s.trips);
-  const updateTrip = useStore((s) => s.updateTrip);
-  const autoOrganize = useStore((s) => s.autoOrganizePhotos);
-  const setSettings = useStore((s) => s.setSettings);
+  const { online } = useSync();
+  const allTrips = useQuery(() => repos.trips.list(), []);
   const trips = empty ? [] : allTrips;
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [pct, setPct] = useState(0);
+  const { autoOrganizePhotos: autoOrganizeOn } = useProfilePrefs();
+  const mine = useMyPhotos();
+  const visible = useVisiblePhotos();
+  const files = usePhotoFiles();
+  const session = useImportBatch();
   const [assigning, setAssigning] = useState(false);
-  const pctRef = useRef(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [picking, setPicking] = useState(false);
   const { width } = useWindowDimensions();
   const tile = (width - layout.gutter * 2 - 4 * 3) / 4;
-
-  const stop = () => {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = null;
-  };
-  useEffect(() => stop, []);
-
-  const setProgress = (value: number) => {
-    pctRef.current = value;
-    setPct(value);
-  };
-
-  const start = () => {
-    stop();
-    const demo = useStore.getState().demo;
-    const failAt = demo === 'offline' || demo === 'error' ? IMPORT.failPct : Infinity;
-    setProgress(phase === 'failed' ? IMPORT.failPct : 0);
-    setPhase('running');
-    timer.current = setInterval(() => {
-      const previous = pctRef.current;
-      const next = previous + IMPORT.stepPct;
-      if (next >= failAt && previous < failAt) {
-        stop();
-        setProgress(IMPORT.failPct);
-        setPhase('failed');
-        toast.show(t('common.toasts.connectionLost'), 'error');
-        return;
-      }
-      if (next >= 100) {
-        stop();
-        setProgress(100);
-        setPhase('done');
-        toast.show(t('profile.photos.done.toast'));
-        return;
-      }
-      setProgress(next);
-    }, IMPORT.stepMs);
-  };
-
-  const imported = phase === 'done' || phase === 'assigned';
-  const photosOf = (trip: Trip) =>
-    trip.photos + (imported && trip.id === IMPORT.matchTripId ? IMPORT.inTrips : 0);
-  const totalPhotos = trips.reduce((sum, trip) => sum + photosOf(trip), 0);
   const lang = i18n.language;
+
+  const byTrip = useMemo(() => {
+    const map = new Map<string, PhotoRow[]>();
+    for (const p of visible) {
+      if (!p.tripId) continue;
+      map.set(p.tripId, [...(map.get(p.tripId) ?? []), p]);
+    }
+    return map;
+  }, [visible]);
+  const loose = mine.filter((p) => !p.tripId);
+
+  // The import card follows this session's last pick; after a restart, what is
+  // still on the device waiting to upload.
+  const batch = session.length
+    ? session
+    : [...files.values()].filter((f) => f.state !== 'done').map((f) => f.photoId);
+  const states = batch.map((id) => files.get(id)?.state ?? 'done');
+  const total = batch.length;
+  const remaining = states.filter((s) => s !== 'done').length;
+  const failedN = states.filter((s) => s === 'failed').length;
+  const sent = total - remaining;
+  const phase: Phase =
+    total === 0 ? 'idle' : remaining === 0 ? 'done' : failedN > 0 || !online ? 'failed' : 'running';
+  const pct = total ? Math.round((sent / total) * 100) : 0;
+  const batchPhotos = mine.filter((p) => batch.includes(p.id));
+  const inTrips = batchPhotos.filter((p) => p.tripId).length;
+
+  const wasRemaining = useRef(remaining);
+  useEffect(() => {
+    if (wasRemaining.current > 0 && remaining === 0 && total > 0) {
+      toast.show(t('profile.photos.done.toast'));
+    }
+    wasRemaining.current = remaining;
+  }, [remaining, total, toast, t]);
+
   const photosLabel = (n: number) =>
     t('profile.photos.count', { count: n, n: formatNumber(n, lang) });
+  const countOf = (trip: TripRow) => tripPhotoCount(trip, byTrip.get(trip.id) ?? []);
+  const totalPhotos = trips.reduce((sum, trip) => sum + countOf(trip), 0) + loose.length;
 
-  const assign = (trip: Trip) => {
-    updateTrip(trip.id, { photos: trip.photos + IMPORT.loose });
-    setAssigning(false);
-    setPhase('assigned');
-    toast.show(t('profile.photos.assignSheet.done', { count: IMPORT.loose, trip: trip.title }));
+  const startImport = async () => {
+    if (picking) return;
+    setPicking(true);
+    try {
+      const result = await pickPhotos();
+      if (result.status === 'added' && result.organized > 0) {
+        toast.show(t('profile.photos.organized', { count: result.organized }));
+      }
+    } catch {
+      toast.show(t('profile.photos.pickError'), 'error');
+    } finally {
+      setPicking(false);
+    }
   };
+
+  const resume = () => {
+    if (!online) {
+      toast.show(t('common.states.offlineBanner'), 'error');
+      return;
+    }
+    void uploads.retry(batch);
+  };
+
+  const toggleAutoOrganize = (value: boolean) => {
+    updatePrefs({ autoOrganizePhotos: value });
+    if (!value) return;
+    const moved = autoOrganize();
+    if (moved > 0) toast.show(t('profile.photos.organized', { count: moved }));
+  };
+
+  const suggested = suggestedTrip(loose, trips);
+  const assign = (trip: TripRow) => {
+    const count = loose.length;
+    assignPhotos(
+      loose.map((p) => p.id),
+      trip.id,
+    );
+    setAssigning(false);
+    toast.show(t('profile.photos.assignSheet.done', { count, trip: trip.title }));
+  };
+
+  const dates = loose
+    .map((p) => p.takenAt)
+    .filter((d): d is string => Boolean(d))
+    .sort();
+  const fmt = (iso: string) =>
+    new Date(iso).toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric' });
+  const first = dates[0];
+  const last = dates.at(-1);
+  const sheetText =
+    first && last
+      ? fmt(first) === fmt(last)
+        ? t('profile.photos.assignSheet.textOne', { date: fmt(first) })
+        : t('profile.photos.assignSheet.text', { from: fmt(first), to: fmt(last) })
+      : t('profile.photos.assignSheet.textUndated');
+
+  const importButton = (
+    <View style={{ alignSelf: 'flex-start' }}>
+      <Button
+        testID="photos-start"
+        size="sm"
+        icon="upload-simple"
+        label={t('profile.photos.idle.cta')}
+        disabled={picking}
+        onPress={() => void startImport()}
+      />
+    </View>
+  );
 
   return (
     <Screen
@@ -131,7 +195,7 @@ export function PhotosScreen() {
       />
 
       <View
-        testID={`photos-import-${phase === 'assigned' ? 'done' : phase}`}
+        testID={`photos-import-${phase}`}
         style={{
           padding: 18,
           gap: 12,
@@ -147,15 +211,7 @@ export function PhotosScreen() {
             <Text variant="h3" tone="inverse">
               {t('profile.photos.idle.title')}
             </Text>
-            <View style={{ alignSelf: 'flex-start' }}>
-              <Button
-                testID="photos-start"
-                size="sm"
-                icon="upload-simple"
-                label={t('profile.photos.idle.cta')}
-                onPress={start}
-              />
-            </View>
+            {importButton}
           </>
         ) : null}
         {phase === 'running' ? (
@@ -164,10 +220,7 @@ export function PhotosScreen() {
               {t('profile.photos.running.overline', { pct })}
             </Text>
             <Text variant="h3" tone="inverse">
-              {t('profile.photos.running.title', {
-                done: Math.round((IMPORT.total * pct) / 100),
-                total: IMPORT.total,
-              })}
+              {t('profile.photos.running.title', { done: sent, total })}
             </Text>
             <ProgressBar
               value={pct / 100}
@@ -189,13 +242,10 @@ export function PhotosScreen() {
               </Text>
             </View>
             <Text variant="h3" tone="inverse">
-              {t('profile.photos.failed.title', {
-                sent: Math.round((IMPORT.total * IMPORT.failPct) / 100),
-                total: IMPORT.total,
-              })}
+              {t('profile.photos.failed.title', { sent, total })}
             </Text>
             <Text variant="caption" tone="inverseMuted">
-              {t('profile.photos.failed.text')}
+              {online ? t('profile.photos.failed.textError') : t('profile.photos.failed.text')}
             </Text>
             <View style={{ alignSelf: 'flex-start' }}>
               <Button
@@ -203,23 +253,20 @@ export function PhotosScreen() {
                 size="sm"
                 icon="arrow-clockwise"
                 label={t('profile.photos.failed.cta')}
-                onPress={start}
+                onPress={resume}
               />
             </View>
           </>
         ) : null}
-        {imported ? (
+        {phase === 'done' ? (
           <>
             <Text variant="overline" tone="accentOnDark">
               {t('profile.photos.done.overline')}
             </Text>
             <Text variant="h3" tone="inverse">
-              {t('profile.photos.done.title', {
-                total: IMPORT.total,
-                inTrips: IMPORT.inTrips,
-                loose: IMPORT.loose,
-              })}
+              {t('profile.photos.done.title', { total, inTrips, loose: total - inTrips })}
             </Text>
+            {importButton}
           </>
         ) : null}
       </View>
@@ -230,12 +277,12 @@ export function PhotosScreen() {
           icon="map-pin-line"
           label={t('profile.photos.autoOrganize')}
           sub={t('profile.photos.autoOrganizeText')}
-          value={autoOrganize}
-          onChange={(value) => setSettings({ autoOrganizePhotos: value })}
+          value={autoOrganizeOn}
+          onChange={toggleAutoOrganize}
         />
       </GroupCard>
 
-      {phase === 'done' ? (
+      {loose.length > 0 ? (
         <View style={{ gap: 10 }} testID="photos-loose">
           <View
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
@@ -243,15 +290,17 @@ export function PhotosScreen() {
             <Text variant="h3" accessibilityRole="header">
               {`${t('profile.photos.loose')} `}
               <Text variant="h3" tone="muted" weight={500}>
-                {`(${IMPORT.loose})`}
+                {`(${loose.length})`}
               </Text>
             </Text>
-            <Button
-              testID="photos-assign"
-              variant="ghost"
-              label={t('profile.photos.assign')}
-              onPress={() => setAssigning(true)}
-            />
+            {trips.length > 0 ? (
+              <Button
+                testID="photos-assign"
+                variant="ghost"
+                label={t('profile.photos.assign')}
+                onPress={() => setAssigning(true)}
+              />
+            ) : null}
           </View>
           <View
             style={{
@@ -262,30 +311,36 @@ export function PhotosScreen() {
               overflow: 'hidden',
             }}
           >
-            {Array.from({ length: 8 }, (_, i) => (
-              <Photo
-                key={i}
-                uri={img(`loose-${i}`, 200, 200)}
-                tint={colors.border}
-                width={tile}
-                height={tile}
-                radius={0}
-                accessibilityLabel={t('profile.photos.looseA11y')}
-              >
-                {i === 7 ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: alpha.overlay,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text variant="cardTitle" tone="inverse">{`+${IMPORT.hidden}`}</Text>
-                  </View>
-                ) : null}
-              </Photo>
-            ))}
+            {loose.slice(0, LOOSE_TILES).map((photo, i) => {
+              const hidden = loose.length - LOOSE_TILES;
+              const more = i === LOOSE_TILES - 1 && hidden > 0;
+              return (
+                <PhotoTile
+                  key={photo.id}
+                  testID={`photos-loose-${i}`}
+                  photo={photo}
+                  status={more ? null : files.get(photo.id)?.state}
+                  tint={colors.border}
+                  width={tile}
+                  height={tile}
+                  radius={0}
+                  accessibilityLabel={t('profile.photos.looseA11y')}
+                >
+                  {more ? (
+                    <View
+                      style={{
+                        flex: 1,
+                        backgroundColor: alpha.overlay,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Text variant="cardTitle" tone="inverse">{`+${hidden}`}</Text>
+                    </View>
+                  ) : null}
+                </PhotoTile>
+              );
+            })}
           </View>
         </View>
       ) : null}
@@ -295,20 +350,12 @@ export function PhotosScreen() {
           {t('profile.photos.byTrip')}
         </Text>
         {trips.map((trip) => (
-          <ListRow
+          <TripPhotosRow
             key={trip.id}
-            testID={`photos-trip-${trip.id}`}
-            title={trip.title}
-            meta={trip.period}
-            thumbUri={img(`${trip.id}-a`, 160, 160)}
-            thumbTint={colors.border}
-            thumbSize={56}
+            trip={trip}
+            cover={byTrip.get(trip.id)?.[0]}
+            label={photosLabel(countOf(trip))}
             onPress={() => router.push(routes.trip(trip.id))}
-            trailing={
-              <Text variant="label" weight={700} style={{ paddingRight: 4 }}>
-                {photosLabel(photosOf(trip))}
-              </Text>
-            }
           />
         ))}
       </View>
@@ -318,20 +365,20 @@ export function PhotosScreen() {
         visible={assigning}
         onClose={() => setAssigning(false)}
         closeLabel={t('common.actions.close')}
-        title={t('profile.photos.assignSheet.title', { count: IMPORT.loose })}
-        subtitle={t('profile.photos.assignSheet.text')}
+        title={t('profile.photos.assignSheet.title', { count: loose.length })}
+        subtitle={sheetText}
       >
         {trips.map((trip) => {
-          const suggested = trip.id === IMPORT.matchTripId;
+          const same = trip.id === suggested?.id;
           return (
             <Pressable
               key={trip.id}
-              testID={`photos-assign-${trip.id}`}
+              testID={`photos-assign-${keyOf(trip)}`}
               accessibilityRole="button"
               accessibilityLabel={[
                 trip.title,
                 trip.period,
-                suggested ? t('profile.photos.assignSheet.sameDate') : '',
+                same ? t('profile.photos.assignSheet.sameDate') : '',
               ]
                 .filter(Boolean)
                 .join(', ')}
@@ -343,17 +390,11 @@ export function PhotosScreen() {
                 padding: 10,
                 borderRadius: radius.r16,
                 borderWidth: 1,
-                borderColor: suggested ? colors.primary : colors.border,
+                borderColor: same ? colors.primary : colors.border,
                 backgroundColor: pressed ? colors.background : colors.surface,
               })}
             >
-              <Photo
-                uri={img(`${trip.id}-a`, 160, 160)}
-                tint={colors.border}
-                width={52}
-                height={52}
-                radius={12}
-              />
+              <TripThumb trip={trip} cover={byTrip.get(trip.id)?.[0]} size={52} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text variant="body" weight={700}>
                   {trip.title}
@@ -362,7 +403,7 @@ export function PhotosScreen() {
                   {trip.period}
                 </Text>
               </View>
-              {suggested ? (
+              {same ? (
                 <StatusChip
                   kind="visited"
                   icon="calendar-check"
@@ -375,5 +416,46 @@ export function PhotosScreen() {
         })}
       </Sheet>
     </Screen>
+  );
+}
+
+/** Cover of a trip: its newest real photo, else the demo placeholder. */
+function useCover(trip: TripRow, cover: PhotoRow | undefined, size: number) {
+  const uri = usePhotoUri(cover);
+  return cover ? uri : img(`${keyOf(trip)}-a`, size * 3, size * 3);
+}
+
+function TripThumb({ trip, cover, size }: { trip: TripRow; cover?: PhotoRow; size: number }) {
+  const uri = useCover(trip, cover, size);
+  return <Photo uri={uri} tint={colors.border} width={size} height={size} radius={12} />;
+}
+
+function TripPhotosRow({
+  trip,
+  cover,
+  label,
+  onPress,
+}: {
+  trip: TripRow;
+  cover?: PhotoRow;
+  label: string;
+  onPress: () => void;
+}) {
+  const uri = useCover(trip, cover, 56);
+  return (
+    <ListRow
+      testID={`photos-trip-${keyOf(trip)}`}
+      title={trip.title}
+      meta={trip.period}
+      thumbUri={uri ?? undefined}
+      thumbTint={colors.border}
+      thumbSize={56}
+      onPress={onPress}
+      trailing={
+        <Text variant="label" weight={700} style={{ paddingRight: 4 }}>
+          {label}
+        </Text>
+      }
+    />
   );
 }

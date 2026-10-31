@@ -51,6 +51,8 @@ const planning: TranslationSchema['planning'] = {
     empty: 'Todavía no hay itinerarios en esta región.',
   },
   live: {
+    noItinerary: 'No hay itinerario para viajar.',
+    noItineraryText: 'Crea un itinerario en Viajes › Itinerarios y empieza el viaje desde él.',
     travelingNow: 'Viajando ahora',
     end: 'Terminar',
     dayTitle: 'Día {{n}} · {{label}}',

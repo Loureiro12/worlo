@@ -6,6 +6,8 @@ export class MemoryRemoteStore implements RemoteStore {
   readonly tables = new Map<string, Map<string, RemoteRow>>();
   upsertCalls: { table: string; rows: Record<string, unknown>[] }[] = [];
   failNextUpsert: Error | null = null;
+  /** Rows the server refuses for good (like RLS): upserts containing them fail with 42501. */
+  forbiddenIds = new Set<string>();
   private clock = 0;
 
   upsert = async (table: string, rows: Record<string, unknown>[]) => {
@@ -13,6 +15,11 @@ export class MemoryRemoteStore implements RemoteStore {
       const error = this.failNextUpsert;
       this.failNextUpsert = null;
       throw error;
+    }
+    if (rows.some((r) => this.forbiddenIds.has(String(r.id)))) {
+      throw Object.assign(new Error('new row violates row-level security policy'), {
+        code: '42501',
+      });
     }
     this.upsertCalls.push({ table, rows });
     for (const row of rows) this.write(table, row as RemoteRow);
@@ -68,6 +75,12 @@ export class MemoryLocalStore implements LocalStore {
 
   failMutations = async (ids: number[]) => {
     for (const m of this.outbox) if (ids.includes(m.id)) m.attempts += 1;
+  };
+
+  rejected: Mutation[] = [];
+  rejectMutations = async (ids: number[]) => {
+    this.rejected.push(...this.outbox.filter((m) => ids.includes(m.id)));
+    this.outbox = this.outbox.filter((m) => !ids.includes(m.id));
   };
 
   countPendingMutations = async () => this.outbox.length;

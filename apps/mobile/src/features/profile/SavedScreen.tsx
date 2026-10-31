@@ -17,9 +17,9 @@ import { Pressable, ScrollView, View } from 'react-native';
 import { CollectionCover } from '@/components/CollectionCover';
 import { useIsEmpty } from '@/components/DemoGate';
 import { SaveToCollectionSheet } from '@/components/SaveToCollectionSheet';
+import { collectionKey, toggleSaved, useCollections, useSavedItems } from '@/data/saved';
 import type { SavedCategory, SavedItem } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { PageTitle, SAVED_CATEGORIES, SavedItemRow, StackHeader, useCategoryLabel } from './parts';
 
 type Filter = 'all' | SavedCategory;
@@ -30,9 +30,8 @@ export function SavedScreen() {
   const router = useRouter();
   const toast = useToast();
   const empty = useIsEmpty();
-  const allSaved = useStore((s) => s.saved);
-  const allCollections = useStore((s) => s.collections);
-  const toggleSaved = useStore((s) => s.toggleSaved);
+  const allSaved = useSavedItems();
+  const allCollections = useCollections();
   const categoryLabel = useCategoryLabel();
   const [filter, setFilter] = useState<Filter>('all');
   const [sheetItem, setSheetItem] = useState<SavedItem | null>(null);
@@ -82,7 +81,7 @@ export function SavedScreen() {
               return (
                 <Pressable
                   key={c.id}
-                  testID={`saved-collection-${c.id}`}
+                  testID={`saved-collection-${collectionKey(c.id)}`}
                   accessibilityRole="button"
                   accessibilityLabel={`${c.name}, ${count}`}
                   onPress={() => router.push(routes.collection(c.id))}

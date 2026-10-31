@@ -19,9 +19,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
 import { formatMoney } from '@/lib/format';
 import { img } from '@/lib/images';
-import { PDATES } from '@/mocks/data.generated';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 import {
@@ -41,7 +41,8 @@ export function PasseioScreen() {
   const toast = useToast();
   const styles = useStyles();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const tour = findTour(id);
+  const { PASSEIOS, PDATES } = useCatalog();
+  const tour = findTour(PASSEIOS, id);
   const booking = useStore((s) => s.bookings[tour.id]);
   const book = useStore((s) => s.book);
   const { saved, toggle } = useTourSave(tour);

@@ -1,5 +1,8 @@
 import { fireEvent, screen, within } from '@testing-library/react-native';
-import { resetStore, useStore } from '@/store';
+import { getItineraries, getItinerary, getLive, startLive } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { demoId } from '@/mocks/demo';
+import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { RoteiroScreen } from './RoteiroScreen';
 
@@ -10,12 +13,15 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
-const peru = () => useStore.getState().itineraries.find((i) => i.id === 'peru');
+const PERU = demoId('itinerary:peru');
+const JAPAO = demoId('itinerary:japao');
+/** Read straight from SQLite: what the screen wrote is what persists. */
+const peru = () => getItinerary(PERU);
 
 beforeEach(() => {
   resetStore();
   jest.clearAllMocks();
-  mockParams = { id: 'peru', mode: 'mine' };
+  mockParams = { id: PERU, mode: 'mine' };
 });
 
 describe('RoteiroScreen (mine)', () => {
@@ -89,13 +95,14 @@ describe('RoteiroScreen (mine)', () => {
   it('starts travel mode and opens it', async () => {
     await renderWithProviders(<RoteiroScreen />);
     await fireEvent.press(screen.getByTestId('roteiro-start'));
-    expect(useStore.getState().live).toMatchObject({ on: true, itineraryId: 'peru' });
+    expect(getLive()).toMatchObject({ on: true, itineraryId: PERU });
+    expect(repos.planning.currentSession()).toMatchObject({ active: true, itineraryId: PERU });
     expect(mockRouter.push).toHaveBeenCalledWith('/live');
     expect(screen.getByText('Modo viagem ligado. Boa viagem!')).toBeOnTheScreen();
   });
 
   it('labels the button "Abrir modo viagem" when live is already on for it', async () => {
-    useStore.getState().startLive('peru');
+    startLive(PERU);
     await renderWithProviders(<RoteiroScreen />);
     expect(screen.getByText('Abrir modo viagem')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('roteiro-start'));
@@ -103,13 +110,13 @@ describe('RoteiroScreen (mine)', () => {
   });
 
   it('starting another itinerary resets the live state', async () => {
-    mockParams = { id: 'japao', mode: 'mine' };
+    mockParams = { id: JAPAO, mode: 'mine' };
     await renderWithProviders(<RoteiroScreen />);
     expect(screen.getByText('Começar viagem agora')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('roteiro-start'));
-    expect(useStore.getState().live).toEqual({
+    expect(getLive()).toEqual({
       on: true,
-      itineraryId: 'japao',
+      itineraryId: JAPAO,
       day: 1,
       done: {},
       log: [],
@@ -122,7 +129,7 @@ describe('RoteiroScreen (mine)', () => {
     await fireEvent.press(screen.getByTestId('roteiro-share'));
     expect(mockRouter.push).toHaveBeenCalledWith({
       pathname: '/share',
-      params: { subject: 'roteiro', roteiroId: 'peru' },
+      params: { subject: 'roteiro', roteiroId: PERU },
     });
   });
 
@@ -151,11 +158,15 @@ describe('RoteiroScreen (rec)', () => {
 
   it('"Usar esse roteiro" copies it as a draft and opens the copy', async () => {
     await renderWithProviders(<RoteiroScreen />);
-    const before = useStore.getState().itineraries.length;
+    const before = getItineraries().length;
     await fireEvent.press(screen.getByText('Usar esse roteiro'));
-    const { itineraries } = useStore.getState();
+    const itineraries = getItineraries();
     expect(itineraries).toHaveLength(before + 1);
     const copy = itineraries[0];
+    expect(repos.planning.get(copy?.id ?? '')).toMatchObject({
+      sourceRecommendationId: 'rec-lisboa',
+      suggestionKey: 'lisboa',
+    });
     expect(copy).toMatchObject({
       title: 'Lisboa em 4 dias, sem correr',
       status: 'Rascunho',

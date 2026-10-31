@@ -10,6 +10,23 @@ jest.mock('@worlo/ui', () => {
   return { ...actual, Globe: (props: { testID?: string }) => <View testID={props.testID} /> };
 });
 
+// The real app layout (AppProviders) has no backend in tests, so the session
+// would be signed out and the tabs guard would redirect to Welcome: sign in as
+// the demo account (its data is seeded before each test).
+jest.mock('@/providers/AuthProvider', () => {
+  const actual = jest.requireActual('@/providers/AuthProvider');
+  const { DEMO_SESSION } = jest.requireActual('@/test-utils');
+  return {
+    ...actual,
+    AuthProvider: ({ children }: { children: React.ReactNode }) => (
+      <actual.AuthProvider initial={DEMO_SESSION}>{children}</actual.AuthProvider>
+    ),
+  };
+});
+
+// Online community data (feed, traveler pages) from the demo-world fake.
+jest.mock('@/data/communityApi', () => require('@/features/community/testServer').mockModule());
+
 beforeEach(() => resetStore());
 
 describe('navigation', () => {

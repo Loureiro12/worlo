@@ -1,22 +1,11 @@
 import type { TranslationSchema } from '@worlo/i18n';
 import type { Href } from 'expo-router';
+import { getCatalog } from '@/data/catalog';
 import { matchesQuery, normalize } from '@/lib/format';
 import { img } from '@/lib/images';
 import { firstName } from '@/lib/people';
-import {
-  CITY_TABS,
-  COUNTRIES,
-  COUNTRY_PAGES,
-  EXPERTS,
-  FRIENDS,
-  PASSEIOS,
-  PLACES,
-  RECS,
-  REGION,
-  SAVED,
-  TRAVELERS,
-} from '@/mocks/data.generated';
-import type { CountryId, Itinerary, PlaceToKnow, Trip } from '@/mocks/types';
+import { demoKey } from '@/mocks/demo';
+import type { CountryId, Itinerary, PlaceToKnow, SavedItem, Trip } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 
 export type SearchCategory = 'dest' | 'place' | 'tour' | 'people' | 'rot';
@@ -78,19 +67,21 @@ const CITY_LIST: readonly [string, string][] = [
 const CITY_PAGES = new Set(['Lisboa']);
 
 export function countryIdByName(name: string): CountryId | undefined {
-  return Object.entries(COUNTRIES).find(([, c]) => c.name === name)?.[0];
+  return Object.entries(getCatalog().COUNTRIES).find(([, c]) => c.name === name)?.[0];
 }
 
 /** Country page when the mock has one, otherwise the map focused on it. */
 export function countryTarget(id: CountryId): SearchTarget {
-  return COUNTRY_PAGES[id] ? { href: routes.country(id) } : { href: routes.map, mapCountry: id };
+  return getCatalog().COUNTRY_PAGES[id]
+    ? { href: routes.country(id) }
+    : { href: routes.map, mapCountry: id };
 }
 
 /** City page, else its country page, else "chega em breve". */
 export function cityTarget(city: string, country?: string): SearchTarget {
   if (CITY_PAGES.has(city)) return { href: routes.city(city) };
   const cid = country ? countryIdByName(country) : undefined;
-  if (cid && COUNTRY_PAGES[cid]) return { href: routes.country(cid) };
+  if (cid && getCatalog().COUNTRY_PAGES[cid]) return { href: routes.country(cid) };
   return { soon: city };
 }
 
@@ -100,7 +91,7 @@ export function placeToKnowTarget(place: PlaceToKnow): SearchTarget {
   if (place.go?.startsWith('c')) return { href: routes.country(place.go.slice(1)) };
   const country = place.name.split(', ')[1];
   const cid = country ? countryIdByName(country) : undefined;
-  if (cid && COUNTRY_PAGES[cid]) return { href: routes.country(cid) };
+  if (cid && getCatalog().COUNTRY_PAGES[cid]) return { href: routes.country(cid) };
   return { soon: place.short };
 }
 
@@ -108,12 +99,40 @@ export type SubKey = keyof TranslationSchema['explore']['search']['sub'];
 /** Builds a localized result subtitle (`explore.search.sub.*`). */
 export type SubLabel = (key: SubKey, vars?: Record<string, string | number>) => string;
 
+/** A person to search: synced `people` rows or `search_people` results. */
+export type SearchPerson = {
+  id: string;
+  name: string;
+  username: string;
+  city: string;
+  expertRole: string | null;
+};
+
 type IndexInput = {
   sub: SubLabel;
   visitedMap: Record<CountryId, string[]>;
   itineraries: Itinerary[];
   trips: Trip[];
+  saved: SavedItem[];
+  people: SearchPerson[];
 };
+
+/** People result → traveler page (experts too). Key by name: stable testIDs for demo people. */
+export function personItem(p: SearchPerson, label: SubLabel): SearchItem {
+  const handle = p.username ? `@${p.username}` : '';
+  return {
+    key: `${p.expertRole ? 'expert' : 'person'}-${p.name}`,
+    cat: 'people',
+    title: p.name,
+    sub: p.expertRole
+      ? label('expert', { role: p.expertRole })
+      : [handle, p.city].filter(Boolean).join(' · '),
+    lead: p.expertRole
+      ? { kind: 'person', name: p.name, expert: true }
+      : { kind: 'person', name: p.name },
+    target: { href: routes.traveler(p.id) },
+  };
+}
 
 /** Everything searchable (03_FLOWS → F10). Mock content stays pt-BR. */
 export function buildSearchIndex({
@@ -121,7 +140,10 @@ export function buildSearchIndex({
   visitedMap,
   itineraries,
   trips,
+  saved,
+  people,
 }: IndexInput): SearchItem[] {
+  const { COUNTRIES, PLACES, REGION, CITY_TABS, PASSEIOS, RECS } = getCatalog();
   const items: SearchItem[] = [];
   const seen = new Set<string>();
   const push = (item: SearchItem) => {
@@ -204,7 +226,7 @@ export function buildSearchIndex({
       target: { href: routes.passeio(p.id) },
     });
   }
-  for (const s of SAVED) {
+  for (const s of saved) {
     push({
       key: `saved-${s.id}`,
       cat: s.cat === 'Passeios' ? 'tour' : 'place',
@@ -214,27 +236,7 @@ export function buildSearchIndex({
       target: { href: routes.place(s.name) },
     });
   }
-  for (const f of FRIENDS) {
-    const traveler = TRAVELERS[f.name];
-    push({
-      key: `person-${f.name}`,
-      cat: 'people',
-      title: f.name,
-      sub: traveler ? `${f.handle} · ${traveler.city}` : f.handle,
-      lead: { kind: 'person', name: f.name },
-      target: { href: traveler ? routes.traveler(f.name) : routes.chat(f.name) },
-    });
-  }
-  for (const x of EXPERTS) {
-    push({
-      key: `expert-${x.id}`,
-      cat: 'people',
-      title: x.name,
-      sub: label('expert', { role: x.role }),
-      lead: { kind: 'person', name: x.name, expert: true, initials: x.ini },
-      target: { href: routes.community },
-    });
-  }
+  for (const p of people) push(personItem(p, label));
   for (const r of RECS) {
     push({
       key: `rec-${r.id}`,
@@ -249,22 +251,25 @@ export function buildSearchIndex({
     });
   }
   for (const r of itineraries) {
+    // Demo records keep their prototype key (stable testIDs / photo seeds).
+    const rKey = demoKey(r.id, 'itinerary');
     push({
-      key: `rot-${r.id}`,
+      key: `rot-${rKey}`,
       cat: 'rot',
       title: r.title,
       sub: label('mine', { place: r.place }),
-      lead: { kind: 'photo', uri: img(`rot-${r.id}`, 120, 120) },
+      lead: { kind: 'photo', uri: img(`rot-${rKey}`, 120, 120) },
       target: { href: routes.roteiro(r.id, 'mine') },
     });
   }
   for (const trip of trips) {
+    const tKey = demoKey(trip.id, 'trip');
     push({
-      key: `trip-${trip.id}`,
+      key: `trip-${tKey}`,
       cat: 'dest',
       title: trip.title,
       sub: label('trip', { place: trip.place, year: trip.year }),
-      lead: { kind: 'photo', uri: img(`${trip.id}-a`, 120, 120) },
+      lead: { kind: 'photo', uri: img(`${tKey}-a`, 120, 120) },
       target: { href: routes.trip(trip.id) },
     });
   }

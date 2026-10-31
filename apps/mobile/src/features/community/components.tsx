@@ -2,20 +2,31 @@ import { useTranslation } from '@worlo/i18n';
 import {
   Avatar,
   colors,
+  FullScreenState,
   Icon,
   IconButton,
   makeStyles,
   opacity,
   Photo,
   palette,
+  radius,
+  SkeletonBlock,
+  SkeletonScreen,
   StarRating,
   Text,
 } from '@worlo/ui';
+import { useRouter } from 'expo-router';
+import type { ReactNode } from 'react';
 import { Pressable, TextInput, View } from 'react-native';
-import type { Comment } from '@/mocks/types';
-import { useStore } from '@/store';
-import type { CommunityPost, Vote } from '@/store/slices/community';
-import { hasProfile, personAvatar, postPhoto, postStats, TYPE_KEYS, type TypeKey } from './model';
+import {
+  type CommunityPost,
+  isOfflineError,
+  OfflineError,
+  type PostComment,
+  type Vote,
+} from '@/data/community';
+import { routes } from '@/navigation/routes';
+import { personAvatar, postKey, postPhoto, postStats, TYPE_KEYS, type TypeKey } from './model';
 
 const useStyles = makeStyles((t) => ({
   typeChip: {
@@ -134,8 +145,7 @@ export function VoteButton({
 /** "seal-check 97% confirmam" (green when highly reliable) or "Aguardando confirmações". */
 export function ConfirmLine({ post, size = 13 }: { post: CommunityPost; size?: 12 | 13 }) {
   const { t } = useTranslation();
-  const v = useStore((s) => s.votes[post.id]);
-  const stats = postStats(post, v);
+  const stats = postStats(post, post.myVote);
   const color = stats.level === 'high' ? colors.success : colors.textMuted;
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 }}>
@@ -145,7 +155,7 @@ export function ConfirmLine({ post, size = 13 }: { post: CommunityPost; size?: 1
         weight={700}
         style={{ color, fontSize: size }}
         numberOfLines={1}
-        testID={`post-confirm-${post.id}`}
+        testID={`post-confirm-${postKey(post.id)}`}
       >
         {stats.total
           ? t('community.post.confirm', { pct: `${stats.pct}%` })
@@ -166,20 +176,24 @@ export type PostCardProps = {
 export function PostCard({ post, onOpen, onAuthor, onVote }: PostCardProps) {
   const styles = useStyles();
   const { t } = useTranslation();
-  const v = useStore((s) => s.votes[post.id]);
+  const v = post.myVote;
+  const key = postKey(post.id);
   const stats = postStats(post, v);
   const photo = postPhoto(post, 700, 400);
   const meta = t('community.post.meta', { place: post.where, when: post.when });
   return (
-    <View style={styles.card} testID={`post-card-${post.id}`}>
+    <View style={styles.card} testID={`post-card-${key}`}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${t('community.post.author', { name: post.author })}, ${meta}`}
-        disabled={!hasProfile(post)}
         onPress={onAuthor}
         style={styles.row}
       >
-        <Avatar {...personAvatar(post.author, post.mine)} initials={post.ini} size={40} />
+        <Avatar
+          {...personAvatar(post.author, post.mine, post.avatarUrl)}
+          initials={post.ini}
+          size={40}
+        />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text variant="body" weight={700} numberOfLines={1}>
             {post.author}
@@ -191,7 +205,7 @@ export function PostCard({ post, onOpen, onAuthor, onVote }: PostCardProps) {
         <TypeChip typeKey={TYPE_KEYS[post.type]} />
       </Pressable>
       <Pressable
-        testID={`post-open-${post.id}`}
+        testID={`post-open-${key}`}
         accessibilityRole="button"
         accessibilityLabel={t('community.post.open', { name: post.author })}
         accessibilityHint={post.text}
@@ -212,14 +226,14 @@ export function PostCard({ post, onOpen, onAuthor, onVote }: PostCardProps) {
         <ConfirmLine post={post} />
         <View style={{ flexDirection: 'row', gap: 6 }}>
           <VoteButton
-            testID={`vote-yes-${post.id}`}
+            testID={`vote-yes-${key}`}
             value="yes"
             selected={v === 'yes'}
             count={stats.yes}
             onPress={() => onVote('yes')}
           />
           <VoteButton
-            testID={`vote-no-${post.id}`}
+            testID={`vote-no-${key}`}
             value="no"
             selected={v === 'no'}
             count={stats.no}
@@ -232,11 +246,15 @@ export function PostCard({ post, onOpen, onAuthor, onVote }: PostCardProps) {
 }
 
 /** G1 · Comentário: avatar 32 + white bubble. */
-export function CommentRow({ comment, isMe }: { comment: Comment; isMe: boolean }) {
+export function CommentRow({ comment }: { comment: PostComment }) {
   const styles = useStyles();
   return (
     <View style={{ flexDirection: 'row', gap: 10 }} accessible>
-      <Avatar {...personAvatar(comment.who, isMe)} initials={comment.ini} size={32} />
+      <Avatar
+        {...personAvatar(comment.who, comment.mine, comment.avatarUrl)}
+        initials={comment.ini}
+        size={32}
+      />
       <View style={styles.bubble}>
         <Text variant="caption" weight={700}>
           {comment.who}{' '}
@@ -351,5 +369,115 @@ export function FollowPill({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+type QueryLike = {
+  data?: unknown;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  /** 'paused' = React Query is waiting for the connection to come back. */
+  fetchStatus: string;
+  refetch: () => unknown;
+};
+
+/** Nothing to show and no way to load it now: offline (paused) or failed. */
+export function queryFailure(query: QueryLike): { error: unknown } | null {
+  if (query.data !== undefined) return null;
+  if (query.isError) return { error: query.error };
+  if (query.fetchStatus === 'paused') return { error: new OfflineError() };
+  return null;
+}
+
+/** Offline / server-error full screen for online data (same copy as DemoGate). */
+export function OnlineErrorState({
+  error,
+  onRetry,
+  onBack,
+}: {
+  error: unknown;
+  onRetry: () => void;
+  onBack?: () => void;
+}) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  if (isOfflineError(error)) {
+    return (
+      <FullScreenState
+        kind="offline"
+        title={t('common.states.offlineTitle')}
+        text={t('common.states.offlineText')}
+        retryLabel={t('common.actions.retry')}
+        onRetry={onRetry}
+        secondary={{
+          label: t('common.states.offlineSecondary'),
+          onPress: () => router.navigate(routes.trips),
+        }}
+        onBack={onBack}
+        backLabel={t('common.actions.back')}
+      />
+    );
+  }
+  return (
+    <FullScreenState
+      kind="error"
+      title={t('common.states.errorTitle')}
+      text={t('common.states.errorText')}
+      retryLabel={t('common.actions.retry')}
+      onRetry={onRetry}
+      secondary={{
+        label: t('common.states.errorSecondary'),
+        onPress: () => router.push(routes.chat('support')),
+      }}
+      onBack={onBack}
+      backLabel={t('common.actions.back')}
+    />
+  );
+}
+
+/**
+ * Loading skeleton / offline / error for a screen whose content is online.
+ * Cached data wins: the screen keeps showing it while a refetch fails.
+ */
+export function QueryGate({
+  query,
+  onBack,
+  children,
+}: {
+  query: QueryLike;
+  onBack?: () => void;
+  children: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const failure = queryFailure(query);
+  if (failure) {
+    return (
+      <OnlineErrorState
+        error={failure.error}
+        onRetry={() => void query.refetch()}
+        onBack={onBack}
+      />
+    );
+  }
+  if (query.data === undefined && query.isLoading) {
+    return <SkeletonScreen label={t('common.states.loading')} />;
+  }
+  return children;
+}
+
+/** Inline list placeholder while a feed loads. */
+export function PostSkeletons({ count = 2, height = 220 }: { count?: number; height?: number }) {
+  const { t } = useTranslation();
+  return (
+    <View
+      style={{ gap: 14 }}
+      accessibilityLabel={t('common.states.loading')}
+      testID="posts-loading"
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <SkeletonBlock key={i} style={{ height, borderRadius: radius.r24 }} />
+      ))}
+    </View>
   );
 }

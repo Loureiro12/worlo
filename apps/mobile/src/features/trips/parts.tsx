@@ -12,12 +12,12 @@ import {
   Text,
 } from '@worlo/ui';
 import { Pressable, View } from 'react-native';
+import type { Person } from '@/data/people';
+import { useMe } from '@/data/profile';
 import { matchesQuery } from '@/lib/format';
 import { avatarFor, firstName, joinNames, ME } from '@/lib/people';
-import { FRIENDS } from '@/mocks/data.generated';
-import type { Activity, Friend } from '@/mocks/types';
-import { useStore } from '@/store';
 import type { Member } from '@/store/slices/trips';
+import type { ActivityView } from './activity';
 
 /** Dashed full-width action ("Adicionar destino", "Criar roteiro"). Promotion candidate. */
 export function DashedButton({
@@ -106,19 +106,26 @@ function InvitePill() {
   );
 }
 
-/** Friends not yet in the list, filtered by the search (3 without query, up to 6 with). */
-export function suggestFriends(exclude: readonly string[], query: string): Friend[] {
-  return FRIENDS.filter(
-    (f) => !exclude.includes(f.name) && matchesQuery(`${f.name} ${f.handle}`, query),
-  ).slice(0, query.trim() ? 6 : 3);
+/**
+ * People I follow not yet on the list (by user id), filtered by the search
+ * (3 without query, up to 6 with).
+ */
+export function suggestFriends(
+  following: readonly Person[],
+  exclude: readonly string[],
+  query: string,
+): Person[] {
+  return following
+    .filter((p) => !exclude.includes(p.id) && matchesQuery(`${p.name} @${p.username}`, query))
+    .slice(0, query.trim() ? 6 : 3);
 }
 
 export function FriendSuggestions({
   friends,
   onInvite,
 }: {
-  friends: readonly Friend[];
-  onInvite: (friend: Friend) => void;
+  friends: readonly Person[];
+  onInvite: (friend: Person) => void;
 }) {
   const { t } = useTranslation();
   if (friends.length === 0) return null;
@@ -126,8 +133,8 @@ export function FriendSuggestions({
     <View style={{ borderRadius: radius.r16, overflow: 'hidden' }}>
       {friends.map((friend, index) => (
         <Pressable
-          key={friend.name}
-          testID={`invite-${friend.handle}`}
+          key={friend.id}
+          testID={`invite-@${friend.username}`}
           accessibilityRole="button"
           accessibilityLabel={t('trips.people.inviteName', { name: friend.name })}
           onPress={() => onInvite(friend)}
@@ -142,13 +149,13 @@ export function FriendSuggestions({
             borderTopColor: colors.background,
           })}
         >
-          <Avatar {...avatarFor(friend.name)} size={36} />
+          <Avatar {...avatarFor(friend.name, friend.avatarUrl)} size={36} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text variant="body" weight={700}>
               {friend.name}
             </Text>
             <Text variant="caption" tone="muted" weight={400}>
-              {friend.handle}
+              {`@${friend.username}`}
             </Text>
           </View>
           <InvitePill />
@@ -177,13 +184,13 @@ export function PeopleCard({
 }: {
   collab: readonly Member[];
   future?: boolean;
-  activity?: readonly Activity[];
+  activity?: readonly ActivityView[];
   onOpen: () => void;
   testID?: string;
 }) {
   const { t } = useTranslation();
   const and = t('common.list.and');
-  const meAvatar = useStore((s) => s.me.avatar);
+  const meAvatar = useMe().avatar;
   const { owner, ok, pending } = memberGroups(collab);
 
   const names = collab.length
@@ -212,7 +219,7 @@ export function PeopleCard({
         ? t('trips.who.inviteGoes')
         : t('trips.who.inviteWent');
 
-  const recent = activity.filter((a) => ok.some((o) => o.name === a.who));
+  const recent = activity.filter((a) => ok.some((o) => o.userId === a.userId));
   const people = [avatarFor(ME, meAvatar), ...collab.map((c) => avatarFor(c.name))];
 
   return (
@@ -256,10 +263,11 @@ export function PeopleCard({
           </Text>
           {recent.map((a) => (
             <View
-              key={`${a.who}-${a.text}`}
+              key={a.id}
+              testID={`trip-activity-${a.kind}`}
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
             >
-              <Avatar {...avatarFor(a.who)} size={28} />
+              <Avatar {...avatarFor(a.who, a.avatarUrl)} size={28} />
               <Text variant="bodyS" weight={400} tone="support" style={{ flex: 1, lineHeight: 19 }}>
                 <Text variant="bodyS" weight={700}>
                   {firstName(a.who)}

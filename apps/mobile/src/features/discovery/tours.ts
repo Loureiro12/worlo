@@ -1,4 +1,3 @@
-import { PASSEIOS } from '@/mocks/data.generated';
 import type { SavedItem, Tour } from '@/mocks/types';
 
 export type TourFilter = 'all' | Tour['cat'];
@@ -22,8 +21,9 @@ export const DEFAULT_PEOPLE = 2;
 export const MIN_PEOPLE = 1;
 export const MAX_PEOPLE = 12;
 
-export function findTour(id: string | undefined): Tour {
-  return PASSEIOS.find((p) => p.id === id) ?? (PASSEIOS[0] as Tour);
+/** The tour with this id among the catalog's (`useCatalog().PASSEIOS`), else the first. */
+export function findTour(tours: readonly Tour[], id: string | undefined): Tour {
+  return tours.find((p) => p.id === id) ?? (tours[0] as Tour);
 }
 
 export const savedIdOf = (tourId: string) => `pas-${tourId}`;

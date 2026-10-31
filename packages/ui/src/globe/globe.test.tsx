@@ -5,6 +5,7 @@ import {
   angleDelta,
   buildPaths,
   countries,
+  countryAt,
   makeProjection,
   pickCountry,
   rotationFor,
@@ -25,6 +26,12 @@ describe('geo', () => {
     expect(pickCountry(projection, rotation, 195, 250)?.id).toBe('076');
     // Far outside the sphere = nothing.
     expect(pickCountry(projection, rotation, 2, 2)).toBeNull();
+  });
+
+  it('finds the country under a GPS point', () => {
+    expect(countryAt([-48.55, -27.6])?.id).toBe('076'); // Florianópolis
+    expect(countryAt([139.7, 35.7])?.id).toBe('392'); // Tóquio
+    expect(countryAt([-30, -20])).toBeNull(); // Atlântico
   });
 
   it('resolves layer precedence like the prototype', () => {

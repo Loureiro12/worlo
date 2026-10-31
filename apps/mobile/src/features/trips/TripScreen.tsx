@@ -1,17 +1,14 @@
 import { useTranslation } from '@worlo/i18n';
 import {
-  alpha,
   Button,
   Card,
   colors,
   EmptyState,
-  fontFamily,
   HeroScreen,
   Icon,
   IconButton,
   type IconName,
   layout,
-  Photo,
   Rating,
   radius,
   Screen,
@@ -22,12 +19,13 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { useTrip, useTripExpenses } from '@/data/trips';
+import { TripPhotoGrid } from '@/features/photos/TripPhotos';
 import { img } from '@/lib/images';
-import { TRIP_ACTIVITY, TRIP_DETAILS } from '@/mocks/data.generated';
+import { demoKey } from '@/mocks/demo';
 import type { Trip, TripDetails } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import type { Member, TripExpense } from '@/store/slices/trips';
+import { useTripActivity } from './activity';
 import { ExpenseSheet } from './ExpenseSheet';
 import { formatAmount, type MoneySummary, summarizeMoney, tripCurrency } from './money';
 import { PeopleSheet } from './PeopleSheet';
@@ -36,15 +34,14 @@ import { placeLabel, useWithText } from './TripsScreen';
 
 type TripTab = 'overview' | 'days' | 'money';
 
-const NO_EXPENSES: TripExpense[] = [];
-
 /** C1 · Página da viagem: hero, info card, "Quem foi" and the three tabs. */
 export function TripScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const trip = useStore((s) => s.trips.find((x) => x.id === id));
-  const added = useStore((s) => (id ? s.expenses[id] : undefined)) ?? NO_EXPENSES;
+  const trip = useTrip(id);
+  const added = useTripExpenses(id);
+  const activity = useTripActivity(id);
   const withText = useWithText();
   const [tab, setTab] = useState<TripTab>('overview');
   const [people, setPeople] = useState(false);
@@ -62,7 +59,9 @@ export function TripScreen() {
     );
   }
 
-  const details: TripDetails | undefined = TRIP_DETAILS[trip.id];
+  const details: TripDetails | undefined = trip.details ?? undefined;
+  // Demo trips keep their prototype key (photo seeds, social mocks); others use the uuid.
+  const key = demoKey(trip.id, 'trip');
   const money = summarizeMoney(trip, details, added);
   const total = money ? formatAmount(money.total, money.currency) : trip.total;
   const rows: { icon: IconName; text: string }[] = [
@@ -81,7 +80,7 @@ export function TripScreen() {
   return (
     <HeroScreen
       testID="trip-screen"
-      heroUri={img(`${trip.id}-a`, 700, 500)}
+      heroUri={img(`${key}-a`, 700, 500)}
       heroTint={trip.tint}
       heroHeight={320}
       onBack={back}
@@ -96,15 +95,17 @@ export function TripScreen() {
             label={t('common.actions.share')}
             onPress={() => router.push(routes.share('trip', { tripId: trip.id }))}
           />
-          <Button
-            testID="trip-edit"
-            variant="pill"
-            size="sm"
-            label={t('common.actions.edit')}
-            onPress={() =>
-              router.push(routes.tripForm({ mode: 'edit', kind: 'past', id: trip.id }))
-            }
-          />
+          {trip.canEdit ? (
+            <Button
+              testID="trip-edit"
+              variant="pill"
+              size="sm"
+              label={t('common.actions.edit')}
+              onPress={() =>
+                router.push(routes.tripForm({ mode: 'edit', kind: 'past', id: trip.id }))
+              }
+            />
+          ) : null}
         </>
       }
     >
@@ -122,8 +123,8 @@ export function TripScreen() {
       <View style={{ paddingHorizontal: layout.gutter, gap: 20, marginTop: -4 }}>
         <PeopleCard
           testID="trip-people"
-          collab={trip.collab as Member[]}
-          activity={TRIP_ACTIVITY[trip.id]}
+          collab={trip.collab}
+          activity={activity}
           onOpen={() => setPeople(true)}
         />
         <Segmented<TripTab>
@@ -139,7 +140,9 @@ export function TripScreen() {
         />
         {tab === 'overview' ? <Overview trip={trip} details={details} /> : null}
         {tab === 'days' ? <DayByDay details={details} /> : null}
-        {tab === 'money' ? <Money money={money} onAdd={() => setExpense(true)} /> : null}
+        {tab === 'money' ? (
+          <Money money={money} onAdd={trip.canEdit ? () => setExpense(true) : undefined} />
+        ) : null}
       </View>
       <PeopleSheet
         target={people ? { kind: 'trip', id: trip.id } : null}
@@ -156,61 +159,13 @@ export function TripScreen() {
   );
 }
 
-const photoTints = [colors.border, colors.accentSoft, colors.primaryPressed, colors.border];
-
 function Overview({ trip, details }: { trip: Trip; details?: TripDetails }) {
   const { t } = useTranslation();
   const router = useRouter();
   const places = details?.places ?? [];
   return (
     <View style={{ gap: 24 }}>
-      {trip.photos > 0 ? (
-        <View style={{ gap: 10 }}>
-          <Text variant="h3">
-            {t('trips.detail.photos')}{' '}
-            <Text variant="h3" color={colors.textMuted} style={{ fontFamily: fontFamily.title500 }}>
-              {`(${trip.photos})`}
-            </Text>
-          </Text>
-          <View
-            accessible
-            accessibilityRole="image"
-            accessibilityLabel={t('trips.detail.photosLabel', { count: trip.photos })}
-            style={{
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              gap: 4,
-              borderRadius: radius.r16,
-              overflow: 'hidden',
-            }}
-          >
-            {[0, 1, 2, 3, 4, 5].map((i) => (
-              <Photo
-                key={i}
-                uri={img(`${trip.id}-p${i}`, 300, 300)}
-                tint={i === 0 ? trip.tint : photoTints[i % photoTints.length]}
-                radius={0}
-                aspectRatio={1}
-                width="32.3%"
-                style={{ flexGrow: 1 }}
-              >
-                {i === 5 && trip.photos > 5 ? (
-                  <View
-                    style={{
-                      flex: 1,
-                      backgroundColor: alpha.overlay,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text variant="h3" tone="inverse">{`+${trip.photos - 5}`}</Text>
-                  </View>
-                ) : null}
-              </Photo>
-            ))}
-          </View>
-        </View>
-      ) : null}
+      <TripPhotoGrid trip={trip} />
       <View style={{ gap: 10 }}>
         <Text variant="h3">{t('trips.detail.placesTitle')}</Text>
         {places.length === 0 ? (
@@ -360,9 +315,9 @@ function DayByDay({ details }: { details?: TripDetails }) {
   );
 }
 
-function Money({ money, onAdd }: { money: MoneySummary | null; onAdd: () => void }) {
+function Money({ money, onAdd }: { money: MoneySummary | null; onAdd?: () => void }) {
   const { t } = useTranslation();
-  const addButton = (
+  const addButton = onAdd && (
     <Button
       testID="trip-add-expense"
       variant="outline"

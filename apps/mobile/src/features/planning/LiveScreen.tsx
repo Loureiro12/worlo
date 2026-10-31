@@ -6,6 +6,7 @@ import {
   Button,
   Chip,
   colors,
+  EmptyState,
   FormError,
   Icon,
   IconButton,
@@ -14,6 +15,8 @@ import {
   makeStyles,
   Photo,
   parseMoney,
+  Screen,
+  ScreenHeader,
   Sheet,
   StarRating,
   StatTile,
@@ -27,13 +30,23 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getCatalog } from '@/data/catalog';
+import { assignLivePhotos, takePhoto, usePhotoRef } from '@/data/photos';
+import {
+  addLiveLog,
+  endLive,
+  type LiveLogEntry,
+  setLiveDay,
+  startLive,
+  toggleStopDone,
+  useItineraries,
+  useLive,
+} from '@/data/planning';
+import { repos } from '@/data/repositories';
 import { img } from '@/lib/images';
 import { avatarFor, firstName, ME } from '@/lib/people';
-import { COUNTRIES, ROTS } from '@/mocks/data.generated';
 import type { Itinerary } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import type { LiveLogEntry } from '@/store/slices/planning';
 import {
   countryIdForFlag,
   EXCHANGE_RATE,
@@ -75,24 +88,14 @@ export function LiveScreen() {
   const insets = useSafeAreaInsets();
   const s = useStyles();
 
-  const live = useStore((st) => st.live);
-  const itineraries = useStore((st) => st.itineraries);
-  const visitedMap = useStore((st) => st.visitedMap);
-  const startLive = useStore((st) => st.startLive);
-  const endLive = useStore((st) => st.endLive);
-  const setLiveDay = useStore((st) => st.setLiveDay);
-  const toggleStopDone = useStore((st) => st.toggleStopDone);
-  const addLiveLog = useStore((st) => st.addLiveLog);
-  const addTrip = useStore((st) => st.addTrip);
-  const toggleVisited = useStore((st) => st.toggleVisited);
-
-  const it: Itinerary =
-    itineraries.find((i) => i.id === live.itineraryId) ?? itineraries[0] ?? (ROTS[0] as Itinerary);
+  const live = useLive();
+  const itineraries = useItineraries();
+  const found = itineraries.find((i) => i.id === live.itineraryId) ?? itineraries[0];
 
   // Opening the screen with travel mode off turns it on for the current itinerary.
+  // Only on mount: ending the trip turns it off and must not restart it.
   useEffect(() => {
-    if (!live.on) startLive(it.id);
-    // Only on mount: ending the trip turns it off and must not restart it.
+    if (!live.on && found) startLive(found.id);
   }, []);
 
   const [sheet, setSheet] = useState<SheetKind | null>(null);
@@ -102,6 +105,22 @@ export function LiveScreen() {
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategoryKey>('food');
   const [text, setText] = useState('');
+
+  if (!found) {
+    return (
+      <Screen
+        testID="live-screen"
+        header={<ScreenHeader onBack={() => router.back()} backLabel={t('common.actions.back')} />}
+      >
+        <EmptyState
+          icon="map-trifold"
+          title={t('planning.live.noItinerary')}
+          text={t('planning.live.noItineraryText')}
+        />
+      </Screen>
+    );
+  }
+  const it: Itinerary = found;
 
   const di = Math.max(0, Math.min(live.day - 1, it.days.length - 1));
   const day = it.days[di] ?? { label: '', items: [] };
@@ -124,7 +143,8 @@ export function LiveScreen() {
       author: COMPANION,
     },
   ];
-  const log = live.log.length ? live.log : seed;
+  // The prototype's sample entries always sit below the user's own (not persisted).
+  const log = [...live.log, ...seed];
 
   const doneKey = (i: number) => `${di}-${i}`;
   const doneN = day.items.filter((_, i) => live.done[doneKey(i)]).length;
@@ -145,11 +165,7 @@ export function LiveScreen() {
   };
 
   const log_ = (entry: Omit<LiveLogEntry, 'id' | 'time' | 'author'>, spent = 0) => {
-    addLiveLog(
-      { id: `log-${Date.now()}-${Math.random()}`, time: nowHHMM(), author: ME, ...entry },
-      spent,
-      seed,
-    );
+    addLiveLog({ time: nowHHMM(), author: ME, ...entry }, spent);
   };
 
   const submit = () => {
@@ -162,13 +178,8 @@ export function LiveScreen() {
       });
       toast.show(t('planning.live.toasts.checkin', { place: place.name }));
     } else if (sheet === 'photo') {
-      log_({
-        type: 'photo',
-        text: t('planning.live.log.photo', { place: herePlace }),
-        detail: text.trim() || undefined,
-        photo: img(`live-${Date.now() % 50}`, 600, 400),
-      });
-      toast.show(t('planning.live.toasts.photo'));
+      void addPhoto();
+      return;
     } else if (sheet === 'expense') {
       if (amountValue <= 0) return setError(true);
       log_(
@@ -188,21 +199,57 @@ export function LiveScreen() {
       log_({ type: 'note', text: t('planning.live.log.note'), detail: text.trim() });
       toast.show(t('planning.live.toasts.note'));
     } else if (sheet === 'end') {
-      const trip = tripFromLive(it, summary, live.spent);
-      if (!useStore.getState().trips.some((x) => x.id === trip.id)) addTrip(trip);
+      const input = tripFromLive(it, summary, live.spent);
+      // Ending the same trip again (same month) opens the trip created the first time.
+      const trip =
+        repos.trips
+          .list()
+          .find(
+            (x) => x.title === input.title && x.period === input.period && x.flag === input.flag,
+          ) ?? repos.trips.create(input);
       const cid = countryIdForFlag(it.flag);
-      if (cid && !visitedMap[cid]) toggleVisited(cid);
+      if (input.countryIso) repos.world.markVisited(input.countryIso, input.year);
+      assignLivePhotos(live.log, trip.id);
       endLive();
       setSheet(null);
       toast.show(
         t('planning.live.toasts.end', {
-          country: (cid && COUNTRIES[cid]?.name) || trip.country || trip.place,
+          country: (cid && getCatalog().COUNTRIES[cid]?.name) || trip.country || trip.place,
         }),
       );
       router.replace(routes.trip(trip.id));
       return;
     }
     setSheet(null);
+  };
+
+  /** Camera → photo of this trip (when it already exists, else "Sem viagem") → log entry. */
+  const addPhoto = async () => {
+    const input = tripFromLive(it, summary, live.spent);
+    const tripId =
+      repos.trips
+        .list()
+        .find((x) => x.title === input.title && x.period === input.period && x.flag === input.flag)
+        ?.id ?? null;
+    const caption = text.trim() || undefined;
+    try {
+      const result = await takePhoto({ tripId });
+      if (result.status === 'denied') {
+        toast.show(t('profile.photos.cameraDenied'), 'error');
+        return;
+      }
+      if (result.status === 'canceled') return;
+      log_({
+        type: 'photo',
+        text: t('planning.live.log.photo', { place: herePlace }),
+        detail: caption,
+        photo: result.photos[0]?.id,
+      });
+      toast.show(t('planning.live.toasts.photo'));
+      setSheet(null);
+    } catch {
+      toast.show(t('profile.photos.pickError'), 'error');
+    }
   };
 
   const togglePlan = (i: number) => {
@@ -661,14 +708,27 @@ function LogRow({ entry, who, last }: { entry: LiveLogEntry; who: string; last: 
             <Text variant="bodyS" weight={400}>{`“${entry.detail}”`}</Text>
           </View>
         ) : null}
-        {entry.photo ? (
-          <Photo uri={entry.photo} height={120} radius={12} style={{ marginTop: 6 }} />
-        ) : null}
+        {entry.photo ? <LogPhoto photoRef={entry.photo} /> : null}
       </View>
       <Text variant="caption" weight={600} tone="muted" style={{ fontSize: 12 }}>
         {entry.time}
       </Text>
     </View>
+  );
+}
+
+/** A log entry's photo: a picked photo (by id) or a URL from older entries. */
+function LogPhoto({ photoRef }: { photoRef: string }) {
+  const uri = usePhotoRef(photoRef);
+  return (
+    <Photo
+      testID="live-log-photo"
+      uri={uri}
+      tint={colors.border}
+      height={120}
+      radius={12}
+      style={{ marginTop: 6 }}
+    />
   );
 }
 

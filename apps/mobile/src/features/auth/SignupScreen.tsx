@@ -3,36 +3,53 @@ import { Button, FormError, Text, TextField } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { type AuthErrorCode, auth } from '@/lib/auth';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import { AuthFooter, AuthScreen, AuthTitle, PasswordHint, SocialLogin } from './AuthParts';
+import {
+  AuthFooter,
+  AuthScreen,
+  AuthTitle,
+  PasswordHint,
+  SocialLogin,
+  useSocialSignIn,
+} from './AuthParts';
+import { enterApp, failureCode } from './entry';
 import { type AuthField, signupError } from './validation';
 
-/** A3 · Criar conta. Success → onboarding map. */
+/**
+ * A3 · Criar conta. The server creates the profile (name from the sign-up
+ * metadata); the gate then sends the new account to the onboarding map.
+ */
 export function SignupScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const signIn = useStore((s) => s.signIn);
   const [values, setValues] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState<AuthField | null>(null);
+  const [serverError, setServerError] = useState<AuthErrorCode | null>(null);
+  const [busy, setBusy] = useState(false);
+  const social = useSocialSignIn(busy);
 
   const change = (field: AuthField) => (text: string) => {
     setValues((v) => ({ ...v, [field]: text }));
     setError(null);
+    setServerError(null);
   };
 
-  const enter = (patch?: { name: string; email: string }) => {
-    signIn(patch);
-    router.replace(routes.onboardingMap);
-  };
-
-  const submit = () => {
+  const submit = async () => {
+    if (busy || social.provider) return;
     const invalid = signupError(values);
     if (invalid) {
       setError(invalid);
       return;
     }
-    enter({ name: values.name.trim(), email: values.email.trim() });
+    setBusy(true);
+    const result = await auth.signUp(values.name, values.email, values.password);
+    setBusy(false);
+    if (result.ok) {
+      void enterApp(router);
+      return;
+    }
+    setServerError(failureCode(result));
   };
 
   const messages: Record<AuthField, string> = {
@@ -40,6 +57,11 @@ export function SignupScreen() {
     email: t('auth.errors.email'),
     password: t('auth.errors.passwordShort'),
   };
+  const message = error
+    ? messages[error]
+    : serverError
+      ? t(`auth.errors.server.${serverError}`)
+      : null;
 
   return (
     <AuthScreen
@@ -54,7 +76,7 @@ export function SignupScreen() {
       }
     >
       <AuthTitle title={t('auth.signup.title')} text={t('auth.signup.text')} />
-      <SocialLogin onPress={() => enter()} />
+      <SocialLogin onPress={social.signIn} busy={social.provider} disabled={busy} />
       <TextField
         testID="signup-name"
         label={t('auth.fields.name')}
@@ -100,12 +122,19 @@ export function SignupScreen() {
           autoComplete="new-password"
           textContentType="newPassword"
           returnKeyType="done"
-          onSubmitEditing={submit}
+          onSubmitEditing={() => void submit()}
         />
         <PasswordHint password={values.password} />
       </View>
-      {error ? <FormError testID="signup-error" message={messages[error]} /> : null}
-      <Button testID="signup-submit" label={t('auth.signup.submit')} fullWidth onPress={submit} />
+      {message ? <FormError testID="signup-error" message={message} /> : null}
+      <Button
+        testID="signup-submit"
+        label={t('auth.signup.submit')}
+        fullWidth
+        loading={busy}
+        disabled={social.provider !== null}
+        onPress={() => void submit()}
+      />
       <Text variant="caption" tone="muted" align="center" style={{ fontSize: 12 }}>
         {t('auth.signup.termsBefore')}
         <Text variant="caption" tone="link" weight={600} style={{ fontSize: 12 }}>

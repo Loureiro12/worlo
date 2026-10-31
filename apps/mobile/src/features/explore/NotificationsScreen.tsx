@@ -1,3 +1,4 @@
+import type { EntityType, MembershipStatus } from '@worlo/db';
 import { useTranslation } from '@worlo/i18n';
 import {
   Avatar,
@@ -19,30 +20,56 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useIsEmpty } from '@/components/DemoGate';
+import { inviteKey, myMembership } from '@/data/collab';
+import {
+  isEntityType,
+  type NotificationView,
+  notificationsData,
+  useNotifications,
+  useTimeAgo,
+} from '@/data/notifications';
+import { usePerson } from '@/data/people';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
 import { avatarFor } from '@/lib/people';
-import { FRIENDS, INVITES, NOTIFS, TRAVELERS } from '@/mocks/data.generated';
-import type { Notification } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import { isNotificationUnread } from '@/store/slices/notifications';
-import type { InviteStatus } from '@/store/slices/trips';
 import { useInviteActions } from './useInviteActions';
 
 type Seg = 'all' | 'invites';
-const GROUPS = [
-  { key: 'Hoje', label: 'today' },
-  { key: 'Esta semana', label: 'week' },
-] as const;
+const GROUPS = ['today', 'week', 'earlier'] as const;
 
 /** Icon bubbles for notifications without a person (prototype notifVals). */
 const SYSTEM_ICONS: Partial<
-  Record<Notification['type'], { icon: IconName; bg: string; fg: string }>
+  Record<NotificationView['type'], { icon: IconName; bg: string; fg: string }>
 > = {
   memory: { icon: 'clock-counter-clockwise', bg: palette.carvao, fg: palette.coral300 },
   community: { icon: 'seal-check', bg: palette.areia, fg: palette.sucesso },
   reminder: { icon: 'airplane-takeoff', bg: palette.coral100, fg: palette.coral700 },
 };
 const DEFAULT_ICON = { icon: 'bell' as IconName, bg: palette.areia, fg: palette.carvao };
+
+/** Small badge on a person's avatar, by type (and activity kind). */
+function badgeOf(n: NotificationView): IconName | undefined {
+  switch (n.type) {
+    case 'invite':
+      return 'envelope-simple';
+    case 'invite_accepted':
+      return 'check';
+    case 'invite_pending':
+      return 'hourglass';
+    case 'follow':
+      return 'user-plus';
+    case 'comment':
+      return 'chat-circle';
+    case 'activity':
+      return n.data.kind === 'expense' ? 'wallet' : n.data.kind === 'diary' ? 'notebook' : 'images';
+    default:
+      return undefined;
+  }
+}
+
+const num = (v: unknown, fallback = 1) =>
+  typeof v === 'number' && Number.isFinite(v) ? v : fallback;
 
 /** H1 · Notificações. */
 export function NotificationsScreen() {
@@ -51,11 +78,11 @@ export function NotificationsScreen() {
   const toast = useToast();
   const styles = useStyles();
   const empty = useIsEmpty();
-  const markAllRead = useStore((s) => s.markAllRead);
+  const notifications = useNotifications();
   const [seg, setSeg] = useState<Seg>('all');
 
-  const list = empty ? [] : NOTIFS.filter((n) => seg === 'all' || n.type === 'invite');
-  const groups = GROUPS.map((g) => ({ ...g, items: list.filter((n) => n.group === g.key) })).filter(
+  const list = empty ? [] : notifications.filter((n) => seg === 'all' || n.type === 'invite');
+  const groups = GROUPS.map((key) => ({ key, items: list.filter((n) => n.group === key) })).filter(
     (g) => g.items.length > 0,
   );
 
@@ -74,7 +101,7 @@ export function NotificationsScreen() {
               icon="checks"
               label={t('explore.notifs.markAll')}
               onPress={() => {
-                markAllRead(NOTIFS.map((n) => n.id));
+                notificationsData.markAllRead();
                 toast.show(t('explore.notifs.markedAll'), 'info');
               }}
             />
@@ -103,7 +130,7 @@ export function NotificationsScreen() {
         groups.map((g) => (
           <View key={g.key} style={styles.group}>
             <Text variant="overline" tone="muted" style={styles.groupLabel}>
-              {t(`explore.notifs.${g.label}`)}
+              {t(`explore.notifs.${g.key}`)}
             </Text>
             <View style={styles.card}>
               {g.items.map((n, i) => (
@@ -122,49 +149,114 @@ export function NotificationsScreen() {
   );
 }
 
+/** "convidou você pra a viagem “Réveillon em Jeri”." etc., from the row data. */
+function useNotificationText(n: NotificationView): { who: string; text: string } {
+  const { t } = useTranslation();
+  const title = n.entityName;
+  switch (n.type) {
+    case 'invite':
+      return {
+        who: '',
+        text: !title
+          ? t('explore.notifs.inviteGone')
+          : n.entityType === 'wish'
+            ? t('explore.notifs.inviteFuture', { title })
+            : t('explore.notifs.invitePast', { title }),
+      };
+    case 'invite_accepted':
+      return { who: '', text: t('explore.notifs.inviteAccepted', { title }) };
+    case 'invite_pending':
+      return { who: '', text: t('explore.notifs.invitePending', { title }) };
+    case 'activity':
+      return {
+        who: '',
+        text:
+          n.data.kind === 'expense'
+            ? t('explore.notifs.activityExpense', {
+                amount: typeof n.data.amount === 'string' ? n.data.amount : '',
+                title,
+              })
+            : n.data.kind === 'diary'
+              ? t('explore.notifs.activityDiary', { title })
+              : t('explore.notifs.activityPhotos', { count: num(n.data.count), title }),
+      };
+    case 'follow':
+      return { who: '', text: t('explore.notifs.follow') };
+    case 'comment':
+      return { who: '', text: t('explore.notifs.comment') };
+    case 'community': {
+      const count = num(n.data.count);
+      return {
+        who: t('explore.notifs.communityWho', { count }),
+        text: t('explore.notifs.community', { count }),
+      };
+    }
+    case 'memory':
+      return {
+        who: '',
+        text: t('explore.notifs.memory', { count: num(n.data.years), place: n.entityPlace }),
+      };
+    case 'reminder':
+      return { who: '', text: t('explore.notifs.reminder', { count: num(n.data.days), title }) };
+    default:
+      return { who: '', text: '' };
+  }
+}
+
+/** Where a tap goes (null: just marks it read). */
+function targetOf(n: NotificationView, inviteId: string | undefined): Href | null {
+  const id = n.entityId;
+  switch (n.type) {
+    case 'invite':
+      return inviteId ? routes.invite(inviteId) : null;
+    case 'follow':
+      return n.actorId ? routes.traveler(n.actorId) : null;
+    case 'comment':
+    case 'community':
+      return id ? routes.post(id) : null;
+    case 'reminder':
+      return id ? routes.roteiro(id) : null;
+    default:
+      if (!id) return null;
+      if (n.entityType === 'trip') return repos.trips.get(id) ? routes.trip(id) : null;
+      if (n.entityType === 'wish') return routes.future(id);
+      return null;
+  }
+}
+
 function NotificationRow({
   notification: n,
   last,
   navigate,
 }: {
-  notification: Notification;
+  notification: NotificationView;
   last: boolean;
   navigate: (href: Href) => void;
 }) {
   const { t } = useTranslation();
   const styles = useStyles();
-  const markRead = useStore((s) => s.markRead);
-  const trips = useStore((s) => s.trips);
-  const unread = useStore((s) => isNotificationUnread(n, s));
-  const inviteStatus = useStore((s) => (n.inv ? s.invites[n.inv] : undefined));
+  const timeAgo = useTimeAgo();
+  const actor = usePerson(n.actorId);
   const { accept, decline } = useInviteActions();
+  const invite =
+    n.type === 'invite' && isEntityType(n.entityType) && n.entityId
+      ? { type: n.entityType as EntityType, id: n.entityId }
+      : undefined;
+  const membership = useQuery(
+    () => (invite ? myMembership(invite.type, invite.id) : undefined),
+    [invite?.type, invite?.id],
+  );
 
-  const invite = n.type === 'invite' && n.inv ? INVITES[n.inv] : undefined;
-  const who = invite?.from ?? n.who ?? '';
-  const isPerson = Boolean(invite) || FRIENDS.some((f) => f.name === who);
-  const text = invite
-    ? t(invite.kind === 'past' ? 'explore.notifs.invitePast' : 'explore.notifs.inviteFuture', {
-        title: invite.title,
-      })
-    : (n.text ?? '');
-  const badge: IconName | undefined = invite ? 'envelope-simple' : isPerson ? n.badge : undefined;
-
-  const target = (): Href | null => {
-    if (invite) return routes.invite(invite.id);
-    if (isPerson) {
-      if (n.trip && trips.some((tr) => tr.id === n.trip)) return routes.trip(n.trip);
-      if (TRAVELERS[who]) return routes.traveler(who);
-      return null;
-    }
-    if (n.type === 'memory') return routes.trip(n.trip ?? 'floripa');
-    if (n.type === 'community') return routes.post('p1');
-    if (n.type === 'reminder') return routes.roteiro('peru');
-    return null;
-  };
+  const { who: label, text } = useNotificationText(n);
+  const isPerson = Boolean(n.actorId);
+  const who = isPerson ? (actor?.name ?? '') : label;
+  const badge = isPerson ? badgeOf(n) : undefined;
+  const unread = !n.read;
+  const time = timeAgo(n.createdAt);
 
   const onPress = () => {
-    markRead(n.id);
-    const href = target();
+    notificationsData.markRead(n.id);
+    const href = targetOf(n, membership?.id);
     if (href) navigate(href);
   };
 
@@ -174,15 +266,15 @@ function NotificationRow({
   return (
     <View style={[styles.row, !last && styles.rowDivider]}>
       <Pressable
-        testID={`notif-${n.id}`}
+        testID={`notif-${n.key}`}
         accessibilityRole="button"
-        accessibilityLabel={`${message} ${n.time}${unread ? `, ${t('explore.notifs.unread')}` : ''}`}
+        accessibilityLabel={`${message} ${time}${unread ? `, ${t('explore.notifs.unread')}` : ''}`}
         onPress={onPress}
         style={styles.main}
       >
         <View style={styles.lead}>
           {isPerson ? (
-            <Avatar {...avatarFor(who)} size={44} />
+            <Avatar {...avatarFor(who, actor?.avatarUrl)} size={44} />
           ) : (
             <View style={[styles.iconLead, { backgroundColor: sys.bg }]}>
               <Icon name={sys.icon} size={20} color={sys.fg} />
@@ -205,7 +297,7 @@ function NotificationRow({
             {text}
           </Text>
           <Text variant="caption" weight={600} tone="muted" style={styles.time}>
-            {n.time}
+            {time}
           </Text>
         </View>
         {unread ? (
@@ -214,17 +306,17 @@ function NotificationRow({
           </View>
         ) : null}
       </Pressable>
-      {invite && inviteStatus ? (
+      {invite && membership ? (
         <InviteActions
-          id={invite.id}
-          status={inviteStatus}
+          id={inviteKey(invite.type, invite.id)}
+          status={membership.status}
           onAccept={() => {
-            markRead(n.id);
-            accept(invite.id);
+            notificationsData.markRead(n.id);
+            accept(invite.type, invite.id);
           }}
           onDecline={() => {
-            markRead(n.id);
-            decline(invite.id);
+            notificationsData.markRead(n.id);
+            decline(invite.type, invite.id);
           }}
         />
       ) : null}
@@ -239,7 +331,7 @@ function InviteActions({
   onDecline,
 }: {
   id: string;
-  status: InviteStatus;
+  status: MembershipStatus;
   onAccept: () => void;
   onDecline: () => void;
 }) {

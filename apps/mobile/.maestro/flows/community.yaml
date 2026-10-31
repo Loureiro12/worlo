@@ -11,20 +11,22 @@ tags:
       id: community-screen
     timeout: 10000
 
-# Vote on Marina's tip (128 → 129) and open it.
+# Vote on Marina's tip (online: votes persist in the seeded backend, so the
+# flow doesn't assert counts — a rerun toggles the same vote off) and open it.
+- extendedWaitUntil:
+    visible:
+      id: vote-yes-p1
+    timeout: 10000
 - tapOn:
     id: vote-yes-p1
-# iOS merges the button's children into one label ("Confirmar, 129").
-- assertVisible:
-    id: vote-yes-p1
-    text: ".*129.*"
 - tapOn:
     id: post-open-p1
 - extendedWaitUntil:
     visible:
       id: post-screen
     timeout: 10000
-- assertVisible: Alta confiabilidade
+- assertVisible:
+    id: post-reliability
 
 # Comment.
 - tapOn:

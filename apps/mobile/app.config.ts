@@ -3,6 +3,18 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 // Brand colours (Identidade Visual v1); app.config can't import @worlo/ui.
 const carvao = '#131311';
 
+// Google Sign-In needs the reversed iOS OAuth client id as a URL scheme. Until
+// the Google Cloud clients exist the plugin is left out and the button hidden.
+const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+const googleSignIn: [string, { iosUrlScheme: string }][] = googleIosClientId
+  ? [
+      [
+        '@react-native-google-signin/google-signin',
+        { iosUrlScheme: googleIosClientId.split('.').reverse().join('.') },
+      ],
+    ]
+  : [];
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Worlo',
@@ -18,6 +30,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: 'com.worlo.app',
     // Phone-only layouts: avoids iPad screenshots and iPad review.
     supportsTablet: false,
+    usesAppleSignIn: true,
     config: {
       // Only standard HTTPS: skips the export-compliance question on every upload.
       usesNonExemptEncryption: false,
@@ -52,6 +65,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-localization',
       { supportedLocales: { ios: ['pt-BR', 'en', 'es'], android: ['pt-BR', 'en', 'es'] } },
     ],
+    'expo-apple-authentication',
+    [
+      'expo-image-picker',
+      {
+        // Shown by iOS when asking for access (pt-BR: the app's main market).
+        photosPermission:
+          'O Worlo usa suas fotos pra guardar as memórias de cada viagem e dividir com quem viajou com você.',
+        cameraPermission: 'O Worlo usa a câmera pra registrar momentos no modo viagem.',
+        microphonePermission: false,
+      },
+    ],
+    ...googleSignIn,
   ],
   owner: 'loureiro_12',
   extra: {

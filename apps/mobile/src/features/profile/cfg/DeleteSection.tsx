@@ -3,8 +3,9 @@ import { Button, colors, Icon, radius, Text, TextField, useToast } from '@worlo/
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { failureCode } from '@/features/auth/entry';
+import { auth } from '@/lib/auth';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { CfgLayout } from './CfgLayout';
 import { deleteConfirmed } from './validation';
 
@@ -15,8 +16,8 @@ export function DeleteSection() {
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToast();
-  const signOut = useStore((s) => s.signOut);
   const [input, setInput] = useState('');
+  const [busy, setBusy] = useState(false);
   const word = t('profile.cfg.delete.word');
   const ok = deleteConfirmed(input, word);
 
@@ -27,9 +28,19 @@ export function DeleteSection() {
         label: t('profile.cfg.delete.cta'),
         variant: 'destructiveSolid',
         disabled: !ok,
-        onPress: () => {
-          if (!ok) return;
-          signOut();
+        loading: busy,
+        onPress: async () => {
+          if (!ok || busy) return;
+          setBusy(true);
+          // Removes the account on the server, then signs out and wipes the device.
+          const result = await auth.deleteAccount();
+          setBusy(false);
+          const code = failureCode(result);
+          if (code) {
+            toast.show(t(`auth.errors.server.${code}`), 'error');
+            return;
+          }
+          if (!result.ok) return;
           router.replace(routes.welcome);
           toast.show(t('profile.cfg.delete.done'), 'info');
         },

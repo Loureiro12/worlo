@@ -37,6 +37,11 @@ export interface LocalStore {
   pendingMutations(limit: number): Promise<Mutation[]>;
   ackMutations(ids: number[]): Promise<void>;
   failMutations(ids: number[], error: string): Promise<void>;
+  /**
+   * The server refused these for good (permission, constraint): take them out
+   * of the queue (keep them aside for diagnosis) so the rest can sync.
+   */
+  rejectMutations(ids: number[], error: string): Promise<void>;
   countPendingMutations(): Promise<number>;
   /**
    * Upsert rows coming from the server and advance the table cursor, atomically.

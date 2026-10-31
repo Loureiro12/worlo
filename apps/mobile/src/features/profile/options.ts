@@ -1,4 +1,4 @@
-import type { Currency, Units } from '@/store/slices/settings';
+import type { Currency, Units } from '@/data/profile';
 import type { DemoState } from '@/store/slices/ui';
 
 /** Currency symbols (06_COPY → Formatos). Codes and symbols are not translated. */

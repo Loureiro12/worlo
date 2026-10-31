@@ -19,13 +19,15 @@ apps/
 packages/
   ui/                          Design system Worlo: tokens → componentes, globo 3D
   i18n/                        i18next tipado, um módulo por área (pt-BR, en, es)
-  db/, sync/, supabase/        Camada offline-first (ainda não ligada às telas)
-supabase/                      Migrations, RLS, testes pgTAP
+  db/, sync/, supabase/        Camada offline-first: SQLite + outbox + sync com Supabase
+supabase/                      Migrations, RLS, testes pgTAP, seeds (catálogo + conta demo)
 design_handoff_worlo_app/      Handoff de design (referência, não editar)
 docs/                          Decisões de arquitetura
 ```
 
-Fase atual: **visual**. As telas usam dados mock e estado local. A integração com `db`/`sync`/Supabase é a próxima etapa.
+Fase atual: **integração, fase 1**. Login real (e-mail, Apple, Google), dados pessoais (mapa, viagens, gastos, quero ir, roteiros, modo viagem, salvos, perfil e preferências) offline-first com sync, e o catálogo (países, cidades, passeios…) vindo do Supabase. A parte social (amigos, convites, notificações, comunidade, chat) ainda usa mocks: é a fase 2.
+
+Conta demo (local e hospedado): `ana@worlo.app` / `worlo1234`.
 
 ## Primeiros passos
 
@@ -38,22 +40,23 @@ cp apps/mobile/.env.example apps/mobile/.env.local   # cole a PUBLISHABLE_KEY ex
 pnpm --filter @worlo/mobile ios           # ou android (development build)
 ```
 
-Sem `.env.local` o app roda 100% local, sem sincronizar. Útil para trabalhar na UI.
+O `db:start` aplica as migrations e as seeds: entre com a conta demo. Para apontar o app de desenvolvimento para o Supabase hospedado, use os valores de `apps/mobile/eas.json` no `.env.local`.
 
 ## Scripts
 
-| Comando                                     | O que faz                                                     |
-| ------------------------------------------- | ------------------------------------------------------------- |
-| `pnpm lint` / `pnpm format`                 | Biome (lint + format + imports)                               |
-| `pnpm typecheck`                            | `tsc` em todos os workspaces (Turbo, com cache)               |
-| `pnpm test`                                 | Testes unitários e de componentes (Turbo, com cache)          |
-| `pnpm test:affected`                        | Só o que mudou em relação à `main`                            |
-| `pnpm db:start` / `db:stop` / `db:reset`    | Supabase local                                                |
-| `pnpm db:test`                              | Testes pgTAP (RLS, triggers)                                  |
-| `pnpm db:types`                             | Regenera `packages/supabase/src/database.types.ts`            |
-| `pnpm db:generate`                          | Gera migration SQLite após editar `packages/db/src/schema.ts` |
-| `pnpm --filter @worlo/mobile e2e:build ios` | Build Release para E2E (reaproveita o binário nativo)         |
-| `pnpm e2e:smoke` / `pnpm e2e`               | Maestro: smoke ou suíte completa                              |
+| Comando                                        | O que faz                                                            |
+| ---------------------------------------------- | -------------------------------------------------------------------- |
+| `pnpm lint` / `pnpm format`                    | Biome (lint + format + imports)                                      |
+| `pnpm typecheck`                               | `tsc` em todos os workspaces (Turbo, com cache)                      |
+| `pnpm test`                                    | Testes unitários e de componentes (Turbo, com cache)                 |
+| `pnpm test:affected`                           | Só o que mudou em relação à `main`                                   |
+| `pnpm db:start` / `db:stop` / `db:reset`       | Supabase local                                                       |
+| `pnpm db:test`                                 | Testes pgTAP (RLS, triggers)                                         |
+| `pnpm db:types`                                | Regenera `packages/supabase/src/database.types.ts`                   |
+| `pnpm db:generate`                             | Gera migration SQLite após editar `packages/db/src/schema.ts`        |
+| `pnpm --filter @worlo/mobile db:seed:generate` | Regenera `supabase/seeds` (catálogo + conta demo) a partir dos mocks |
+| `pnpm --filter @worlo/mobile e2e:build ios`    | Build Release para E2E (reaproveita o binário nativo)                |
+| `pnpm e2e:smoke` / `pnpm e2e`                  | Maestro: smoke ou suíte completa                                     |
 
 ## Documentação
 

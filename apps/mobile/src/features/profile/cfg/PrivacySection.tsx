@@ -1,12 +1,11 @@
 import { useTranslation } from '@worlo/i18n';
 import { colors, Icon, type IconName, Segmented, Text, useToast } from '@worlo/ui';
 import { View } from 'react-native';
-import { useStore } from '@/store';
-import type { Privacy, SettingsSlice } from '@/store/slices/settings';
+import { type Privacy, type PrivacyDetail, updatePrefs, useProfilePrefs } from '@/data/profile';
 import { GroupCard, MenuRow, Overline, SwitchRow } from '../parts';
 import { CfgLayout } from './CfgLayout';
 
-type DetailKey = keyof SettingsSlice['privacyDetail'];
+type DetailKey = keyof PrivacyDetail;
 
 const DETAILS: readonly { key: DetailKey; icon: IconName }[] = [
   { key: 'map', icon: 'globe-hemisphere-west' },
@@ -19,9 +18,7 @@ const DETAILS: readonly { key: DetailKey; icon: IconName }[] = [
 export function PrivacySection() {
   const { t } = useTranslation();
   const toast = useToast();
-  const privacy = useStore((s) => s.privacy);
-  const detail = useStore((s) => s.privacyDetail);
-  const setSettings = useStore((s) => s.setSettings);
+  const { privacy, privacyDetail: detail } = useProfilePrefs();
   const options: { value: Privacy; label: string }[] = [
     { value: 'private', label: t('profile.privacy.private') },
     { value: 'friends', label: t('profile.privacy.friends') },
@@ -37,7 +34,7 @@ export function PrivacySection() {
           label={t('profile.privacy.title')}
           options={options}
           value={privacy}
-          onChange={(value) => setSettings({ privacy: value })}
+          onChange={(value) => updatePrefs({ privacy: value })}
         />
         <Text variant="caption" tone="muted" weight={400} style={{ paddingHorizontal: 4 }}>
           {t(`profile.privacy.text.${privacy}`)}
@@ -53,7 +50,7 @@ export function PrivacySection() {
             label={t(`profile.cfg.privacy.${key}`)}
             sub={t(`profile.cfg.privacy.${key}Text`)}
             value={detail[key]}
-            onChange={(value) => setSettings({ privacyDetail: { ...detail, [key]: value } })}
+            onChange={(value) => updatePrefs({ privacyDetail: { ...detail, [key]: value } })}
           />
         ))}
         <View

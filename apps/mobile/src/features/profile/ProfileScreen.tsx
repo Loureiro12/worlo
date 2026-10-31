@@ -21,11 +21,12 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DemoGate, useIsEmpty } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
+import { type Privacy, updatePrefs, useMe, useProfilePrefs } from '@/data/profile';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
 import { WORLD_COUNTRIES } from '@/lib/countries';
-import { CITIES } from '@/mocks/data.generated';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import type { Privacy } from '@/store/slices/settings';
 import { ACHIEVEMENTS, type Achievement } from './achievements';
 import { GroupCard, MenuRow } from './parts';
 import { formatNumber, worldPercent } from './stats';
@@ -44,17 +45,17 @@ function ProfileContent() {
   const router = useRouter();
   const toast = useToast();
   const empty = useIsEmpty();
-  const me = useStore((s) => s.me);
-  const visitedMap = useStore((s) => s.visitedMap);
-  const futures = useStore((s) => s.futures);
-  const trips = useStore((s) => s.trips);
-  const savedCount = useStore((s) => s.saved.length);
-  const collectionsCount = useStore((s) => s.collections.length);
-  const privacy = useStore((s) => s.privacy);
-  const setSettings = useStore((s) => s.setSettings);
+  const me = useMe();
+  const { privacy } = useProfilePrefs();
+  const { CITIES } = useCatalog();
+  const visitedMap = useQuery(() => repos.world.visitedMap(), []);
+  const wishes = useQuery(() => repos.world.wishes(), []);
+  const trips = useQuery(() => repos.trips.list(), []);
+  const savedCount = useQuery(() => repos.saved.items().length, []);
+  const collectionsCount = useQuery(() => repos.saved.collections().length, []);
 
   const visited = empty ? [] : Object.keys(visitedMap);
-  const wishlist = empty ? [] : futures.map((f) => f.cid);
+  const wishlist = empty ? [] : wishes.flatMap((w) => (w.countryIso ? [w.countryIso] : []));
   const countries = visited.length;
   const stats = {
     countries,
@@ -271,7 +272,7 @@ function ProfileContent() {
           height={36}
           options={privacyOptions}
           value={privacy}
-          onChange={(value) => setSettings({ privacy: value })}
+          onChange={(value) => updatePrefs({ privacy: value })}
         />
         <Text variant="caption" tone="muted" weight={400}>
           {t(`profile.privacy.text.${privacy}`)}
@@ -308,7 +309,7 @@ function ProfileContent() {
 function ProfileHeader() {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
-  const me = useStore((s) => s.me);
+  const me = useMe();
   return (
     <View
       style={{

@@ -7,6 +7,7 @@ Objetivo: **confiança de ponta a ponta sem que os testes virem gargalo.** A mai
 | Lógica de sync, scheduler, i18n   | Vitest                  | `packages/sync`, `packages/i18n` | < 1s     | Todo PR (só os afetados)     |
 | SQLite real + engine              | Vitest + better-sqlite3 | `packages/db`                    | < 1s     | Todo PR (só os afetados)     |
 | Componentes e contraste WCAG      | Jest + RNTL             | `packages/ui`, `apps/mobile`     | ~3s      | Todo PR (só os afetados)     |
+| Repositórios ⇄ Supabase real      | Vitest                  | `packages/db`, `packages/sync`   | ~2s      | PRs que mexem no banco/sync  |
 | Banco: RLS, triggers, constraints | pgTAP                   | `supabase/tests`                 | ~5s      | PRs que mexem no banco       |
 | E2E `smoke` (Explorar + Viagens)  | Maestro                 | `apps/mobile/.maestro`           | ~2–3 min | PRs que mexem no app/pacotes |
 | E2E completo (8 áreas, `full`)    | Maestro                 | idem                             | ~12 min  | `main` e nightly             |
@@ -23,26 +24,24 @@ Objetivo: **confiança de ponta a ponta sem que os testes virem gargalo.** A mai
 
 ## Rodando E2E localmente
 
-```sh
-# iOS (simulador aberto) — primeira vez: build completo; depois: repack de JS
-pnpm --filter @worlo/mobile e2e:build ios
-pnpm --filter @worlo/mobile e2e:install ios
-pnpm e2e:smoke
+Todo fluxo faz login de verdade com a conta demo (`ana@worlo.app`) num Supabase local com as seeds. O build lê `apps/mobile/.env.local` (copie de `.env.example`).
 
-# Fluxo de sync (precisa de Supabase local e das envs no build)
-pnpm db:start
-EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:56321 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable> \
-  pnpm --filter @worlo/mobile e2e:build ios
-cd apps/mobile && maestro test --include-tags=sync -e SUPABASE_SERVICE_KEY=<secret> .maestro
+```sh
+pnpm db:start                                   # migrations + seeds (catálogo + conta demo)
+pnpm db:reset                                   # antes de cada rodada completa: os fluxos mudam os dados da conta demo
+pnpm --filter @worlo/mobile e2e:build ios       # simulador aberto; 1ª vez build completo, depois só repack de JS
+pnpm --filter @worlo/mobile e2e:install ios
+pnpm e2e:smoke                                  # ou pnpm e2e (os 8 fluxos)
 ```
 
-Tempos de referência (iPhone 16 Pro, iOS 18): build nativo completo ~9 min; build seguinte só com JS (repack) ~15 s; suíte completa ~1 min.
+Tempos de referência (iPhone 16 Pro, iOS 18): build nativo completo ~9 min; build seguinte só com JS (repack) ~15 s; suíte completa ~13 min.
 
 ### Escrevendo fluxos que funcionam no iOS
 
 Aprendido rodando a suíte no simulador. Cada item já causou uma falha real:
 
-- **Login compartilhado.** Todo fluxo começa com `runFlow: ../subflows/login.yaml`, que tem os testIDs combinados com `features/auth`.
+- **Login compartilhado.** Todo fluxo começa com `runFlow: ../subflows/login.yaml` (conta demo, login real), que tem os testIDs combinados com `features/auth`. O cadastro usa `inputRandomEmail` para não repetir conta.
+- **Testes de componente usam SQLite de verdade.** Cada teste Jest começa com um banco em memória (better-sqlite3 + as migrations reais) com a conta demo e o catálogo (`src/test/seed.ts`). Verifique o que foi gravado por `repos.*`, não por estado em memória.
 - **Sem `back`.** O comando só existe no Android. Use `tapOn: { id: header-back }`; todo header do design system tem esse testID.
 - **Campos de senha.** O XCUITest não digita em `secureTextEntry`. Revele antes (`<testID>-reveal`, o botão do olho) e depois digite.
 - **Teclado.** O `hideKeyboard` é instável no iOS e falha em teclados numéricos e campos multilinha. Feche o teclado tocando num texto não interativo, como o título da tela (as telas usam `keyboardShouldPersistTaps="handled"`). Nunca toque num campo coberto pelo teclado: o toque cai numa tecla.

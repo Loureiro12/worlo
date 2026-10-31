@@ -9,6 +9,8 @@ export type CfgCta = {
   onPress: () => void;
   variant?: ButtonVariant;
   disabled?: boolean;
+  /** Request running: spinner, no second tap. */
+  loading?: boolean;
 };
 
 /** K3 shell: header "Configurações" + H1 + sub + content + error + fixed CTA. */
@@ -39,6 +41,7 @@ export function CfgLayout({
               variant={cta.variant ?? 'primary'}
               label={cta.label}
               disabled={cta.disabled}
+              loading={cta.loading}
               onPress={cta.onPress}
             />
           </BottomBar>

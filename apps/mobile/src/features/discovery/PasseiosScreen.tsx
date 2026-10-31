@@ -19,9 +19,9 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
 import { formatMoney, matchesQuery } from '@/lib/format';
 import { img } from '@/lib/images';
-import { PASSEIOS } from '@/mocks/data.generated';
 import type { Tour } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
@@ -35,6 +35,7 @@ export function PasseiosScreen() {
   const styles = useStyles();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<TourFilter>('all');
+  const { PASSEIOS } = useCatalog();
   const back = () => (router.canGoBack() ? router.back() : router.navigate(routes.explore));
 
   const tours = useMemo(
@@ -43,7 +44,7 @@ export function PasseiosScreen() {
         (p) =>
           (filter === 'all' || p.cat === filter) && matchesQuery(`${p.name} ${p.place}`, query),
       ),
-    [filter, query],
+    [PASSEIOS, filter, query],
   );
 
   return (

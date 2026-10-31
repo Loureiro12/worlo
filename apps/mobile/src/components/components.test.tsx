@@ -1,5 +1,7 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import { resetStore, useStore } from '@/store';
+import { repos } from '@/data/repositories';
+import { demoId } from '@/mocks/demo';
+import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { SaveToCollectionSheet } from './SaveToCollectionSheet';
 
@@ -21,7 +23,8 @@ describe('SaveToCollectionSheet', () => {
     const option = screen.getByRole('checkbox', { name: 'Comer em Lisboa' });
     expect(option).not.toBeChecked();
     await fireEvent.press(option);
-    expect(useStore.getState().collections.find((c) => c.id === 'c1')?.ids).toContain('sv-ryokan');
+    const c1 = repos.saved.collections().find((c) => c.id === demoId('collection:c1'));
+    expect(c1?.itemIds).toContain('sv-ryokan');
   });
 
   it('requires a name to create a collection, then creates it with the item', async () => {
@@ -33,8 +36,8 @@ describe('SaveToCollectionSheet', () => {
 
     await fireEvent.changeText(screen.getByLabelText('Nome da nova coleção'), 'Ryokans');
     await fireEvent.press(screen.getByRole('button', { name: 'Criar' }));
-    const created = useStore.getState().collections.at(-1);
-    expect(created).toMatchObject({ name: 'Ryokans', ids: ['sv-ryokan'] });
+    const created = repos.saved.collections().at(-1);
+    expect(created).toMatchObject({ name: 'Ryokans', itemIds: ['sv-ryokan'] });
     expect(screen.getByRole('alert')).toHaveTextContent('Coleção "Ryokans" criada.');
   });
 });

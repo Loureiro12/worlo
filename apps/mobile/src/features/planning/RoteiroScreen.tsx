@@ -22,12 +22,20 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
+import {
+  addDay,
+  addStop,
+  createItinerary,
+  removeStop,
+  startLive,
+  useItinerary,
+  useLive,
+} from '@/data/planning';
 import { avatarFor } from '@/lib/people';
-import { RECS, SUG } from '@/mocks/data.generated';
 import type { Itinerary, Recommendation, Stop, Suggestion } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import { formatMoneyFlex, stopCount, totalCost } from './planning';
+import { copyDays, formatMoneyFlex, stopCount, totalCost } from './planning';
 
 type Params = { id?: string; mode?: 'mine' | 'rec' };
 
@@ -39,13 +47,9 @@ export function RoteiroScreen() {
   const id = String(params.id ?? '');
   const isRec = params.mode === 'rec';
 
-  const mine = useStore((s) => s.itineraries.find((it) => it.id === id));
-  const live = useStore((s) => s.live);
-  const addDay = useStore((s) => s.addDay);
-  const addStop = useStore((s) => s.addStop);
-  const removeStop = useStore((s) => s.removeStop);
-  const addItinerary = useStore((s) => s.addItinerary);
-  const startLive = useStore((s) => s.startLive);
+  const { RECS, SUG } = useCatalog();
+  const mine = useItinerary(isRec ? '' : id);
+  const live = useLive();
 
   const [dayIndex, setDayIndex] = useState(0);
   const [sugOpen, setSugOpen] = useState(false);
@@ -101,9 +105,8 @@ export function RoteiroScreen() {
   };
 
   const onUseRec = () => {
-    const newId = `r${Date.now()}`;
-    addItinerary({
-      id: newId,
+    if (!rec) return;
+    const copy = createItinerary({
       title: R.title,
       place: R.place,
       flag: R.flag,
@@ -111,9 +114,10 @@ export function RoteiroScreen() {
       dates: 'Datas a definir',
       status: 'Rascunho',
       sugKey: R.sugKey,
-      days: R.days.map((d) => ({ ...d, items: d.items.map((s) => ({ ...s })) })),
+      days: copyDays(R.days),
+      sourceRecommendationId: rec.id,
     });
-    router.replace(routes.roteiro(newId, 'mine'));
+    router.replace(routes.roteiro(copy.id, 'mine'));
     toast.show(t('planning.roteiro.copied'));
   };
 

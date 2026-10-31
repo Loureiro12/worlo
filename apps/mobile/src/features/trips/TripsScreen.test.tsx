@@ -1,4 +1,6 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
+import { getItineraries } from '@/data/planning';
+import { demoId } from '@/mocks/demo';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
@@ -25,7 +27,7 @@ describe('TripsScreen', () => {
     expect(screen.getByText('12 – 17 jul 2025 · com Marina e João')).toBeOnTheScreen();
     expect(screen.getByText('18 – 25 mai 2023 · Viagem solo')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('trip-card-floripa'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.trip('floripa'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.trip(demoId('trip:floripa')));
   });
 
   it('opens the add trip sheet from "+"', async () => {
@@ -40,7 +42,7 @@ describe('TripsScreen', () => {
     expect(screen.getByText('Japão')).toBeOnTheScreen();
     expect(screen.getAllByText('Melhor época: mar – mai')).toHaveLength(2); // Japão, Marrocos
     await fireEvent.press(screen.getByTestId('future-row-392'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.future('392'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.future(demoId('wish:392')));
     await fireEvent.press(screen.getByTestId('trips-add-destination'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.tripForm({ mode: 'new', kind: 'future' }));
   });
@@ -49,17 +51,17 @@ describe('TripsScreen', () => {
     await renderWithProviders(<TripsScreen />);
     await fireEvent.press(screen.getByTestId('trips-seg-rot'));
     expect(screen.getByText('Cusco e Machu Picchu')).toBeOnTheScreen();
-    const it = useStore.getState().itineraries[0];
+    const it = getItineraries()[0];
     const done = it?.days.filter((d) => d.items.length).length;
     expect(screen.getAllByText(`${done} de ${it?.days.length} dias`).length).toBeGreaterThan(0);
 
     await fireEvent.press(screen.getByTestId('trips-recs'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.recs);
 
-    const before = useStore.getState().itineraries.length;
+    const before = getItineraries().length;
     await fireEvent.press(screen.getByTestId('trips-create-rot'));
-    const created = useStore.getState().itineraries[0];
-    expect(useStore.getState().itineraries).toHaveLength(before + 1);
+    const created = getItineraries()[0];
+    expect(getItineraries()).toHaveLength(before + 1);
     expect(created).toMatchObject({ title: 'Novo roteiro', status: 'Rascunho' });
     expect(mockRouter.push).toHaveBeenCalledWith(routes.roteiro(created?.id ?? ''));
   });

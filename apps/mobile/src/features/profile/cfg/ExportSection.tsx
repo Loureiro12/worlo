@@ -2,7 +2,7 @@ import { useTranslation } from '@worlo/i18n';
 import { colors, type IconName, radius, Segmented, Text, useToast } from '@worlo/ui';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useStore } from '@/store';
+import { useMe } from '@/data/profile';
 import { CheckRow, GroupCard, Overline } from '../parts';
 import { CfgLayout } from './CfgLayout';
 
@@ -20,7 +20,7 @@ const ITEMS: readonly { key: ExportKey; icon: IconName }[] = [
 export function ExportSection() {
   const { t } = useTranslation();
   const toast = useToast();
-  const email = useStore((s) => s.me.email);
+  const { email } = useMe();
   const [include, setInclude] = useState<Record<ExportKey, boolean>>({
     trips: true,
     photos: true,

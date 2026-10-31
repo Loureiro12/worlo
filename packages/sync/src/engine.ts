@@ -3,6 +3,11 @@ import type { Cursor, LocalStore, Mutation, RemoteStore, SyncResult, SyncStatus 
 export type SyncEngineOptions = {
   local: LocalStore;
   remote: RemoteStore;
+  /**
+   * Errors that retrying won't fix (default: Postgres permission / integrity /
+   * data errors). The offending rows are rejected instead of blocking the queue.
+   */
+  isPermanentError?: (error: unknown) => boolean;
   /** Tables pulled from the server, in dependency order (parents first). */
   tables: readonly string[];
   batchSize?: number;
@@ -17,6 +22,7 @@ export class SyncEngine {
   private readonly tables: readonly string[];
   private readonly batchSize: number;
   private readonly now: () => Date;
+  private readonly isPermanentError: (error: unknown) => boolean;
 
   private inFlight: Promise<SyncResult> | null = null;
   private rerunRequested = false;
@@ -29,6 +35,7 @@ export class SyncEngine {
     this.tables = options.tables;
     this.batchSize = options.batchSize ?? 100;
     this.now = options.now ?? (() => new Date());
+    this.isPermanentError = options.isPermanentError ?? isPostgresPermanentError;
   }
 
   getStatus(): SyncStatus {
@@ -104,13 +111,39 @@ export class SyncEngine {
         try {
           await this.remote.upsert(table, latestSnapshotPerRecord(mutations));
         } catch (error) {
-          await this.local.failMutations(ids, errorMessage(error));
-          throw error;
+          if (!this.isPermanentError(error)) {
+            await this.local.failMutations(ids, errorMessage(error));
+            throw error;
+          }
+          // One bad row fails the whole statement: find it record by record.
+          pushed += await this.pushOneByOne(table, mutations);
+          continue;
         }
         await this.local.ackMutations(ids);
         pushed += mutations.length;
       }
     }
+  }
+
+  private async pushOneByOne(table: string, mutations: Mutation[]): Promise<number> {
+    let pushed = 0;
+    const byRecord = new Map<string, Mutation[]>();
+    for (const m of mutations) byRecord.set(m.recordId, [...(byRecord.get(m.recordId) ?? []), m]);
+    for (const group of byRecord.values()) {
+      const ids = group.map((m) => m.id);
+      try {
+        await this.remote.upsert(table, latestSnapshotPerRecord(group));
+        await this.local.ackMutations(ids);
+        pushed += group.length;
+      } catch (error) {
+        if (!this.isPermanentError(error)) {
+          await this.local.failMutations(ids, errorMessage(error));
+          throw error;
+        }
+        await this.local.rejectMutations(ids, errorMessage(error));
+      }
+    }
+    return pushed;
   }
 
   private async pull(): Promise<number> {
@@ -161,6 +194,16 @@ export function latestSnapshotPerRecord(mutations: Mutation[]): Record<string, u
     byRecord.set(mutation.recordId, mutation.payload);
   }
   return [...byRecord.values()];
+}
+
+/**
+ * Postgres SQLSTATE classes that won't succeed on retry: 42 (permission / RLS,
+ * syntax), 23 (integrity), 22 (data), P0 (raised by our triggers). Network
+ * errors, timeouts and expired JWTs have no such code and are retried.
+ */
+export function isPostgresPermanentError(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && /^(42|23|22|P0)/.test(code);
 }
 
 function errorMessage(error: unknown): string {

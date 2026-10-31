@@ -18,12 +18,11 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
+import { createItinerary } from '@/data/planning';
+import { useFuture } from '@/data/world';
 import { img } from '@/lib/images';
-import { COUNTRIES } from '@/mocks/data.generated';
-import type { Itinerary } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import type { Member } from '@/store/slices/trips';
 import { PeopleSheet } from './PeopleSheet';
 import { PeopleCard } from './parts';
 
@@ -33,8 +32,8 @@ export function FutureScreen() {
   const router = useRouter();
   const toast = useToast();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const future = useStore((s) => s.futures.find((f) => f.id === id));
-  const addItinerary = useStore((s) => s.addItinerary);
+  const future = useFuture(id);
+  const { COUNTRIES } = useCatalog();
   const [people, setPeople] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.navigate(routes.trips));
 
@@ -62,8 +61,7 @@ export function FutureScreen() {
   const openCountry = () => router.push(future.cid ? routes.country(future.cid) : routes.community);
 
   const startItinerary = () => {
-    const itinerary: Itinerary = {
-      id: `r${Date.now()}`,
+    const itinerary = createItinerary({
       title: t('trips.future.itineraryTitle', { name: future.name }),
       place: future.name,
       flag: future.flag,
@@ -71,8 +69,7 @@ export function FutureScreen() {
       status: t('trips.rot.newStatus'),
       sugKey: future.cid === '392' ? 'japao' : 'generic',
       days: [{ label: t('trips.future.itineraryDay'), items: [] }],
-    };
-    addItinerary(itinerary);
+    });
     router.push(routes.roteiro(itinerary.id));
     toast.show(t('trips.future.started'));
   };
@@ -107,7 +104,7 @@ export function FutureScreen() {
         <PeopleCard
           testID="future-people"
           future
-          collab={(future.collab ?? []) as Member[]}
+          collab={future.collab ?? []}
           onOpen={() => setPeople(true)}
         />
         {facts.length ? (

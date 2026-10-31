@@ -1,6 +1,8 @@
 import { fireEvent, screen, within } from '@testing-library/react-native';
 import { palette } from '@worlo/ui';
 import { Share, StyleSheet } from 'react-native';
+import { repos } from '@/data/repositories';
+import { demoId } from '@/mocks/demo';
 import type { ShareSubject } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
 import type { ShareFormat } from '@/store/slices/discovery';
@@ -68,11 +70,20 @@ const expectSubject: Record<ShareSubject, () => void> = {
 
 describe('ShareScreen (J)', () => {
   it('opens on the subject from the route', async () => {
-    mockParams = { subject: 'trip', tripId: 'floripa' };
+    mockParams = { subject: 'trip', tripId: demoId('trip:floripa') };
     await renderWithProviders(<ShareScreen />);
     expect(screen.getByTestId('share-screen')).toBeOnTheScreen();
     expect(screen.getByTestId('share-subject-trip')).toBeSelected();
     expectSubject.trip();
+  });
+
+  it('draws the trip of the route from SQLite', async () => {
+    const id = demoId('trip:patagonia');
+    repos.trips.update(id, { title: 'Patagônia sem pressa' });
+    mockParams = { subject: 'trip', tripId: id };
+    await renderWithProviders(<ShareScreen />);
+    expect(screen.getByText('Patagônia sem pressa')).toBeOnTheScreen();
+    expect(screen.queryByText('Inverno em Floripa')).toBeNull();
   });
 
   it('falls back to the map for an unknown subject', async () => {
@@ -110,7 +121,7 @@ describe('ShareScreen (J)', () => {
   });
 
   it('shows 4 itinerary days, 2 in 1:1', async () => {
-    mockParams = { subject: 'roteiro', roteiroId: 'peru' };
+    mockParams = { subject: 'roteiro', roteiroId: demoId('itinerary:peru') };
     await renderWithProviders(<ShareScreen />);
     expect(screen.getAllByTestId('share-preview-day')).toHaveLength(4);
     expect(screen.getByText('DIA 1')).toBeOnTheScreen();

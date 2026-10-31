@@ -1,35 +1,37 @@
+import type { EntityType } from '@worlo/db';
 import { useTranslation } from '@worlo/i18n';
 import { useToast } from '@worlo/ui';
 import { useCallback } from 'react';
+import { collab } from '@/data/collab';
+import { entityLabel } from '@/data/notifications';
+import { repos } from '@/data/repositories';
 import { firstName } from '@/lib/people';
-import { INVITES } from '@/mocks/data.generated';
-import { useStore } from '@/store';
 
-/** Accept/decline a collaboration invite with the F4 toasts (Notificações and Convite). */
+/**
+ * Accept/decline a collaboration invite with the F4 toasts (Notificações and
+ * Convite). Answers are memberships: offline OK, synced later.
+ */
 export function useInviteActions() {
   const { t } = useTranslation();
   const toast = useToast();
-  const acceptInvite = useStore((s) => s.acceptInvite);
-  const declineInvite = useStore((s) => s.declineInvite);
 
   const accept = useCallback(
-    (id: string) => {
-      const invite = INVITES[id];
-      if (!invite) return;
-      acceptInvite(id);
-      toast.show(t('explore.invite.joinedToast', { title: invite.title }));
+    (type: EntityType, id: string) => {
+      const title = entityLabel(type, id).name;
+      collab.accept(type, id);
+      toast.show(t('explore.invite.joinedToast', { title }));
     },
-    [acceptInvite, t, toast],
+    [t, toast],
   );
 
   const decline = useCallback(
-    (id: string) => {
-      const invite = INVITES[id];
-      if (!invite) return;
-      declineInvite(id);
-      toast.show(t('explore.invite.declinedToast', { name: firstName(invite.from) }), 'info');
+    (type: EntityType, id: string) => {
+      const inviter = repos.collab.mine(type, id)?.invitedBy ?? repos.collab.ownerOf(type, id);
+      const name = (inviter && repos.people.get(inviter)?.name) || '';
+      collab.decline(type, id);
+      toast.show(t('explore.invite.declinedToast', { name: firstName(name) }), 'info');
     },
-    [declineInvite, t, toast],
+    [t, toast],
   );
 
   return { accept, decline };

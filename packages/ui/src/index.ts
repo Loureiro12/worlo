@@ -88,6 +88,12 @@ export {
 export { HStack, Stack, type StackProps, VStack } from './components/Stack';
 export { Text, type TextProps, type TextTone, textTones } from './components/Text';
 export { Globe, type GlobeCity, type GlobeHandle, type GlobeProps } from './globe/Globe';
-export { type CountryFeature, countries, countryById, type LonLat } from './globe/geo';
+export {
+  type CountryFeature,
+  countries,
+  countryAt,
+  countryById,
+  type LonLat,
+} from './globe/geo';
 export { makeStyles, type Theme, theme } from './theme/theme';
 export * from './tokens';

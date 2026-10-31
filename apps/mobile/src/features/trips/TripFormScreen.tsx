@@ -19,10 +19,18 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
+import {
+  collab as collabData,
+  createInviteLink,
+  OfflineError,
+  useInviteCandidates,
+} from '@/data/collab';
+import { tripsData, useTrip } from '@/data/trips';
+import { world } from '@/data/world';
 import { avatarFor, firstName, joinNames } from '@/lib/people';
 import { links, useCopyLink } from '@/lib/useCopyLink';
-import { COUNTRIES } from '@/mocks/data.generated';
-import type { Collaborator, Trip } from '@/mocks/types';
+import type { Collaborator } from '@/mocks/types';
 import { routes, type TripFormParams } from '@/navigation/routes';
 import { useStore } from '@/store';
 import {
@@ -51,11 +59,11 @@ export function TripFormScreen() {
   const router = useRouter();
   const toast = useToast();
   const copyLink = useCopyLink();
+  const following = useInviteCandidates();
   const params = useLocalSearchParams<Params>();
   const mode: Mode = params.mode === 'onboarding' || params.mode === 'edit' ? params.mode : 'new';
-  const editing = useStore((s) =>
-    mode === 'edit' ? s.trips.find((x) => x.id === params.id) : undefined,
-  );
+  const editing = useTrip(mode === 'edit' ? params.id : undefined);
+  const { COUNTRIES } = useCatalog();
 
   const [kind, setKind] = useState<Kind>(
     mode === 'edit' ? 'past' : params.kind === 'future' ? 'future' : 'past',
@@ -69,7 +77,11 @@ export function TripFormScreen() {
   );
   const [name, setName] = useState(editing?.title ?? '');
   const [when, setWhen] = useState(editing?.period ?? '');
-  const [collab, setCollab] = useState<string[]>(editing?.collab.map((c) => c.name) ?? []);
+  // Who went / goes: accounts (user id) and legacy free-text names; the owner is not editable here.
+  const [collab, setCollab] = useState<Collaborator[]>(
+    editing?.collab.filter((c) => !c.owner) ?? [],
+  );
+  const names = collab.map((c) => c.name);
   const [query, setQuery] = useState('');
   const [types, setTypes] = useState<string[]>([]);
   const [food, setFood] = useState('');
@@ -92,6 +104,23 @@ export function TripFormScreen() {
   const toggle = (list: string[], value: string) =>
     list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 
+  // The link points at a saved trip: a new one has to exist on the server first.
+  const shareLink = async () => {
+    if (!editing) {
+      toast.show(t('tripForm.collab.saveFirst'), 'info');
+      return;
+    }
+    try {
+      const token = await createInviteLink('trip', editing.id);
+      await copyLink(links.tripInvite(token), t('tripForm.collab.linkCopied'));
+    } catch (e) {
+      toast.show(
+        e instanceof OfflineError ? t('common.states.offlineTitle') : t('common.states.errorTitle'),
+        'info',
+      );
+    }
+  };
+
   const close = () => (router.canGoBack() ? router.back() : router.replace(routes.trips));
 
   const save = () => {
@@ -105,74 +134,77 @@ export function TripFormScreen() {
     const { place, country } = splitDestination(dest);
     const firstNames = (names: string[]) => joinNames(names.map(firstName), and);
 
+    const accounts = collab.flatMap((c) => (c.userId ? [c.userId] : []));
+
     if (mode === 'edit' && editing) {
-      const old = editing.collab;
-      const added = collab.filter((n) => !old.some((c) => c.name === n));
+      const old = editing.collab.filter((c) => !c.owner);
+      const added = collab.filter((c) => !old.some((o) => o.name === c.name));
+      const removed = old.filter((o) => !collab.some((c) => c.name === o.name));
       const year = yearOf(when);
-      state.updateTrip(editing.id, {
+      tripsData.updateTrip(editing.id, {
         title: name.trim(),
         place,
         country,
         period: when.trim() || editing.period,
         year: year ?? editing.year,
-        collab: collab.map(
-          (n): Collaborator => old.find((c) => c.name === n) ?? { name: n, status: 'pending' },
-        ),
+        collab,
       });
+      if (editing.isOwner) {
+        for (const r of removed) if (r.userId) collabData.remove('trip', editing.id, r.userId);
+      }
+      if (editing.canEdit) collabData.invite('trip', editing.id, accounts);
       close();
       toast.show(
         added.length
-          ? t('tripForm.toasts.updatedInvited', { names: firstNames(added) })
+          ? t('tripForm.toasts.updatedInvited', { names: firstNames(added.map((c) => c.name)) })
           : t('tripForm.toasts.updated'),
       );
       return;
     }
 
-    const pending = collab.map((n): Collaborator => ({ name: n, status: 'pending' }));
-
     if (kind === 'future') {
-      state.addFuture({
-        id: `f${Date.now()}`,
-        cid: cid ?? '',
+      // Created first (offline OK), then the invites point at it.
+      const wish = world.addFuture({
+        countryIso: cid ?? null,
         name: name.trim(),
         flag: cid ? (COUNTRIES[cid]?.flag ?? '📍') : '📍',
         note: t('tripForm.defaults.destNote', { dest: dest.trim() }),
-        saved: t('tripForm.defaults.savedNow'),
         tint: palette.coral100,
-        collab: pending,
+        collab,
       });
+      collabData.invite('wish', wish.id, accounts);
       state.setTripsSegment('wish');
       router.replace(routes.trips);
       toast.show(
         collab.length
-          ? t('tripForm.toasts.futureInvited', { names: firstNames(collab) })
+          ? t('tripForm.toasts.futureInvited', { names: firstNames(names) })
           : t('tripForm.toasts.futureSaved'),
       );
       return;
     }
 
     const year = yearOf(when) ?? String(new Date().getFullYear());
-    const trip: Trip = {
-      id: `t${Date.now()}`,
+    const created = tripsData.addTrip({
       title: name.trim(),
       place,
       country,
+      countryIso: cid ?? null,
       flag: cid ? (COUNTRIES[cid]?.flag ?? '📍') : '📍',
       period: when.trim() || t('tripForm.defaults.period'),
       year,
       days: 1,
       photos: 0,
       places: 1,
-      collab: pending,
+      collab,
       people: '',
       total: '—',
       tint: palette.coral300,
-    };
-    state.addTrip(trip);
-    // Light up the countries on the map (only if not there yet: toggle).
+    });
+    collabData.invite('trip', created.id, accounts);
+    // Light up the countries on the map (the ones already visited stay as they are).
     const light = new Set<string>(cid ? [cid] : []);
     if (mode === 'onboarding') for (const id of state.onboardingVisited) light.add(id);
-    for (const id of light) if (!useStore.getState().visitedMap[id]) state.toggleVisited(id, year);
+    world.markManyVisited([...light], year);
     state.setTripsSegment('past');
 
     if (mode === 'onboarding') {
@@ -182,7 +214,7 @@ export function TripFormScreen() {
     router.replace(routes.trips);
     toast.show(
       collab.length
-        ? t('tripForm.toasts.pastInvited', { names: firstNames(collab) })
+        ? t('tripForm.toasts.pastInvited', { names: firstNames(names) })
         : t('tripForm.toasts.pastSaved'),
     );
   };
@@ -262,7 +294,7 @@ export function TripFormScreen() {
         <CollabNote />
         {collab.length ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {collab.map((person) => (
+            {names.map((person) => (
               <View
                 key={person}
                 testID={`trip-form-collab-${firstName(person)}`}
@@ -287,7 +319,7 @@ export function TripFormScreen() {
                   accessibilityRole="button"
                   accessibilityLabel={t('tripForm.collab.remove', { name: person })}
                   hitSlop={8}
-                  onPress={() => setCollab((c) => c.filter((x) => x !== person))}
+                  onPress={() => setCollab((c) => c.filter((x) => x.name !== person))}
                   style={{
                     width: 28,
                     height: 28,
@@ -315,9 +347,13 @@ export function TripFormScreen() {
           autoCorrect={false}
         />
         <FriendSuggestions
-          friends={suggestFriends(collab, query)}
+          friends={suggestFriends(
+            following,
+            collab.flatMap((c) => (c.userId ? [c.userId] : [])),
+            query,
+          )}
           onInvite={(f) => {
-            setCollab((c) => [...c, f.name]);
+            setCollab((c) => [...c, { name: f.name, status: 'pending', userId: f.id }]);
             setQuery('');
           }}
         />
@@ -325,9 +361,7 @@ export function TripFormScreen() {
           variant="ghost"
           icon="link"
           label={t('tripForm.collab.inviteLink')}
-          onPress={() =>
-            copyLink(links.tripInvite(params.id ?? 'nova'), t('tripForm.collab.linkCopied'))
-          }
+          onPress={() => void shareLink()}
         />
       </View>
 

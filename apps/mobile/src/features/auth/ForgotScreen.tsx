@@ -3,8 +3,10 @@ import { Button, colors, FormError, IconCircle, Text, TextField, useToast } from
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { type AuthErrorCode, auth } from '@/lib/auth';
 import { routes } from '@/navigation/routes';
 import { AuthScreen, AuthTitle } from './AuthParts';
+import { failureCode } from './entry';
 import { forgotError } from './validation';
 
 /** A5 · Esqueci a senha: e-mail form → "Confere seu e-mail". */
@@ -15,13 +17,33 @@ export function ForgotScreen() {
   const [email, setEmail] = useState('');
   const [invalid, setInvalid] = useState(false);
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [serverError, setServerError] = useState<AuthErrorCode | null>(null);
 
-  const submit = () => {
+  /** The e-mail links back to `reset-password` (see ResetPasswordScreen). */
+  const send = async () => {
+    setBusy(true);
+    const result = await auth.sendPasswordReset(email);
+    setBusy(false);
+    return failureCode(result);
+  };
+
+  const submit = async () => {
+    if (busy) return;
     if (forgotError({ email })) {
       setInvalid(true);
       return;
     }
-    setSent(true);
+    const code = await send();
+    if (code) setServerError(code);
+    else setSent(true);
+  };
+
+  const resend = async () => {
+    if (busy) return;
+    const code = await send();
+    if (code) toast.show(t(`auth.errors.server.${code}`), 'error');
+    else toast.show(t('auth.forgot.resent'));
   };
 
   const backToLogin = () => (router.canGoBack() ? router.back() : router.replace(routes.login));
@@ -49,7 +71,8 @@ export function ForgotScreen() {
               variant="ghost"
               color={colors.text}
               label={t('auth.forgot.resend')}
-              onPress={() => toast.show(t('auth.forgot.resent'))}
+              loading={busy}
+              onPress={() => void resend()}
             />
           </View>
         </View>
@@ -65,6 +88,7 @@ export function ForgotScreen() {
             onChangeText={(text) => {
               setEmail(text);
               setInvalid(false);
+              setServerError(null);
             }}
             invalid={invalid}
             keyboardType="email-address"
@@ -73,14 +97,24 @@ export function ForgotScreen() {
             autoComplete="email"
             textContentType="emailAddress"
             returnKeyType="send"
-            onSubmitEditing={submit}
+            onSubmitEditing={() => void submit()}
           />
-          {invalid ? <FormError testID="forgot-error" message={t('auth.errors.email')} /> : null}
+          {invalid || serverError ? (
+            <FormError
+              testID="forgot-error"
+              message={
+                invalid
+                  ? t('auth.errors.email')
+                  : t(`auth.errors.server.${serverError ?? 'unknown'}`)
+              }
+            />
+          ) : null}
           <Button
             testID="forgot-submit"
             label={t('auth.forgot.submit')}
             fullWidth
-            onPress={submit}
+            loading={busy}
+            onPress={() => void submit()}
           />
         </>
       )}

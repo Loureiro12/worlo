@@ -15,7 +15,10 @@ describe.runIf(url && key)('Supabase remote store', () => {
     const client = createClient(url as string, key as string, {
       auth: { persistSession: false },
     });
-    const { error } = await client.auth.signInAnonymously();
+    const { error } = await client.auth.signUp({
+      email: `sync-${randomUUID()}@example.com`,
+      password: randomUUID(),
+    });
     if (error) throw error;
     return createSupabaseRemoteStore(client);
   }
@@ -24,18 +27,17 @@ describe.runIf(url && key)('Supabase remote store', () => {
     const store = await signedInStore();
     const rows = Array.from({ length: 5 }, (_, i) => ({
       id: randomUUID(),
-      title: `task ${i}`,
-      completed: false,
+      title: `trip ${i}`,
       created_at: new Date().toISOString(),
     }));
 
-    await store.upsert('tasks', rows);
-    await store.upsert('tasks', [{ ...rows[0], completed: true }]);
+    await store.upsert('trips', rows);
+    await store.upsert('trips', [{ ...rows[0], period: 'edited' }]);
 
     const pulled = [];
     let cursor = null;
     for (;;) {
-      const page = await store.pull('tasks', cursor, 2);
+      const page = await store.pull('trips', cursor, 2);
       pulled.push(...page);
       const last = page.at(-1);
       if (!last || page.length < 2) break;
@@ -44,21 +46,16 @@ describe.runIf(url && key)('Supabase remote store', () => {
 
     expect(pulled).toHaveLength(5);
     expect(new Set(pulled.map((r) => r.id)).size).toBe(5);
-    expect(pulled.at(-1)).toMatchObject({ id: rows[0]?.id, completed: true });
+    expect(pulled.at(-1)).toMatchObject({ id: rows[0]?.id, period: 'edited' });
   });
 
   it('only sees rows of the signed-in user (RLS)', async () => {
     const alice = await signedInStore();
     const bob = await signedInStore();
-    await alice.upsert('tasks', [
-      {
-        id: randomUUID(),
-        title: 'private',
-        completed: false,
-        created_at: new Date().toISOString(),
-      },
+    await alice.upsert('trips', [
+      { id: randomUUID(), title: 'private', created_at: new Date().toISOString() },
     ]);
 
-    expect(await bob.pull('tasks', null, 100)).toEqual([]);
+    expect(await bob.pull('trips', null, 100)).toEqual([]);
   });
 });

@@ -1,11 +1,19 @@
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { schema } from '@worlo/db';
+import { launchImageLibraryAsync } from 'expo-image-picker';
+import { db } from '@/lib/database';
+import { DEMO_USER, demoId } from '@/mocks/demo';
+import { userId } from '@/mocks/demoWorld';
 import { routes } from '@/navigation/routes';
-import { resetStore, useStore } from '@/store';
-import { elapse, renderWithProviders, useFakeClock } from '@/test-utils';
-import { ChatScreen } from './ChatScreen';
+import { resetStore } from '@/store';
+import { renderWithProviders } from '@/test-utils';
 import { ComposeScreen } from './ComposeScreen';
-import { REPLY_DELAY_MS } from './data';
 import { TravelerScreen } from './TravelerScreen';
+import { communityServer, resetCommunityServer } from './testServer';
+
+jest.mock('@/data/communityApi', () => require('./testServer').mockModule());
+jest.mock('expo-image-picker', () => ({ launchImageLibraryAsync: jest.fn() }));
+const mockPicker = launchImageLibraryAsync as jest.Mock;
 
 const mockRouter = {
   push: jest.fn(),
@@ -20,10 +28,21 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
+const MARINA = userId('Marina Costa');
+const picked = (n: number) => ({
+  canceled: false,
+  assets: Array.from({ length: n }, (_, i) => ({
+    uri: `file:///photo-${i}.jpg`,
+    mimeType: 'image/jpeg',
+  })),
+});
+
 beforeEach(() => {
   resetStore();
+  resetCommunityServer();
   jest.clearAllMocks();
   mockParams = {};
+  mockPicker.mockResolvedValue(picked(1));
 });
 
 describe('ComposeScreen', () => {
@@ -45,44 +64,85 @@ describe('ComposeScreen', () => {
     await fireEvent.changeText(screen.getByTestId('compose-text'), 'Curto');
     await fireEvent.press(screen.getByTestId('compose-submit'));
     expect(error()).toHaveTextContent('Escreve um pouco mais (mínimo 10 caracteres).');
-    expect(useStore.getState().myPosts).toHaveLength(0);
+    expect(communityServer.published).toHaveLength(0);
   });
 
-  it('publishes, toasts and opens the new post', async () => {
+  it('publishes the post (photos uploaded, trip uuid, visibility), toasts and opens it', async () => {
     await renderWithProviders(<ComposeScreen />);
     await fireEvent.changeText(screen.getByTestId('compose-place'), 'kyo');
     await fireEvent.press(screen.getByTestId('compose-place-option-Kyoto'));
     await fireEvent.changeText(
       screen.getByTestId('compose-text'),
-      'Arashiyama cedo, antes das 8h, é outro passeio.',
+      '  Arashiyama cedo, antes das 8h, é outro passeio.  ',
     );
     await fireEvent.press(screen.getByTestId('compose-photo-add'));
+    expect(mockPicker).toHaveBeenCalledWith(
+      expect.objectContaining({ mediaTypes: ['images'], selectionLimit: 4 }),
+    );
+    expect(screen.getByTestId('compose-photo-add')).toHaveTextContent('1/4');
     await fireEvent.press(screen.getByTestId('compose-trip-lisboa'));
     await fireEvent.press(screen.getByTestId('compose-visibility-friends'));
     await fireEvent.press(screen.getByTestId('compose-submit'));
 
-    const [post] = useStore.getState().myPosts;
+    expect(await screen.findByText('Publicado. Agora é com a comunidade.')).toBeOnTheScreen();
+    const [post] = communityServer.published;
     expect(post).toMatchObject({
-      mine: true,
-      author: 'Ana Ribeiro',
-      where: 'Kyoto',
-      type: 'Dica',
-      yes: 0,
-      no: 0,
-      tripId: 'lisboa',
+      type: 'tip',
+      placeLabel: 'Kyoto',
+      text: 'Arashiyama cedo, antes das 8h, é outro passeio.',
+      rating: null,
+      tripId: demoId('trip:lisboa'),
       visibility: 'friends',
+      photoPaths: [`${DEMO_USER.id}/photo-1.jpg`],
     });
-    expect(post?.photos).toHaveLength(1);
-    expect(screen.getByText('Publicado. Agora é com a comunidade.')).toBeOnTheScreen();
+    expect(communityServer.uploads).toEqual(['file:///photo-0.jpg']);
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.post(post?.id ?? ''));
   });
 
-  it('limits photos to 4 and lets you remove them', async () => {
+  it('a review sends its rating', async () => {
+    mockParams = { type: 'Avaliação', place: 'Lisboa' };
     await renderWithProviders(<ComposeScreen />);
-    for (let i = 0; i < 4; i++) await fireEvent.press(screen.getByTestId('compose-photo-add'));
+    await fireEvent.press(screen.getByTestId('compose-rating-5'));
+    await fireEvent.changeText(screen.getByTestId('compose-text'), 'Valeu cada minuto da fila.');
+    await fireEvent.press(screen.getByTestId('compose-submit'));
+    await waitFor(() =>
+      expect(communityServer.published[0]).toMatchObject({
+        type: 'review',
+        rating: 5,
+        placeLabel: 'Lisboa',
+        visibility: 'public',
+        tripId: null,
+        photoPaths: [],
+      }),
+    );
+  });
+
+  it('offline: keeps the form, shows the offline copy and publishes nothing', async () => {
+    communityServer.online = false;
+    mockParams = { place: 'Lisboa' };
+    await renderWithProviders(<ComposeScreen />);
+    await fireEvent.changeText(screen.getByTestId('compose-text'), 'Dica que vai esperar a rede.');
+    await fireEvent.press(screen.getByTestId('compose-submit'));
+    expect(await screen.findByText('Você está sem internet')).toBeOnTheScreen();
+    expect(communityServer.published).toHaveLength(0);
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(screen.getByTestId('compose-text').props.value).toBe('Dica que vai esperar a rede.');
+  });
+
+  it('limits photos to 4 and lets you remove them', async () => {
+    mockPicker.mockResolvedValue(picked(4));
+    await renderWithProviders(<ComposeScreen />);
+    await fireEvent.press(screen.getByTestId('compose-photo-add'));
     expect(screen.queryByTestId('compose-photo-add')).toBeNull();
     await fireEvent.press(screen.getByTestId('compose-photo-remove-0'));
     expect(screen.getByTestId('compose-photo-add')).toHaveTextContent('3/4');
+  });
+
+  it('a cancelled picker adds nothing', async () => {
+    mockPicker.mockResolvedValue({ canceled: true, assets: null });
+    await renderWithProviders(<ComposeScreen />);
+    await fireEvent.press(screen.getByTestId('compose-photo-add'));
+    expect(screen.getByTestId('compose-photo-add')).toHaveTextContent('0/4');
   });
 
   it('opens as a question with a place from params', async () => {
@@ -95,33 +155,78 @@ describe('ComposeScreen', () => {
 });
 
 describe('TravelerScreen', () => {
-  it('shows another traveler with follow, message and shared trips', async () => {
-    mockParams = { id: 'Marina Costa' };
+  const followRows = () =>
+    db
+      .select()
+      .from(schema.follows)
+      .all()
+      .filter((f) => f.userId === DEMO_USER.id && f.followeeId === MARINA);
+
+  it('shows another traveler (user id) with follow, message and shared trips', async () => {
+    mockParams = { id: MARINA };
     await renderWithProviders(<TravelerScreen />);
+    expect(await screen.findByText('@marinaporai · Lisboa')).toBeOnTheScreen();
     expect(screen.getByText('Viajante')).toBeOnTheScreen();
-    expect(screen.getByText('@marinaporai · Lisboa')).toBeOnTheScreen();
+    expect(screen.getByTestId('traveler-name')).toHaveTextContent('Marina Costa');
     expect(screen.getByText('Mapa de Marina')).toBeOnTheScreen();
     expect(screen.queryByTestId('traveler-me-strip')).toBeNull();
-    // Floripa was shared with Marina, Ana (me) and João.
+    // Floripa is Ana's trip with Marina and João (accepted memberships).
     expect(screen.getByText('com Ana e João')).toBeOnTheScreen();
 
+    // Ana already follows Marina (demo world): unfollow, then follow again.
+    expect(screen.getByTestId('traveler-follow')).toHaveTextContent('Seguindo');
+    await fireEvent.press(screen.getByTestId('traveler-follow'));
+    expect(screen.getByTestId('traveler-follow')).toHaveTextContent('Seguir');
     await fireEvent.press(screen.getByTestId('traveler-follow'));
     expect(screen.getByTestId('traveler-follow')).toHaveTextContent('Seguindo');
     expect(screen.getByText('Agora você segue Marina.')).toBeOnTheScreen();
-    expect(useStore.getState().following['Marina Costa']).toBe(true);
+    expect(followRows().some((f) => !f.deletedAt)).toBe(true);
+    expect(
+      db
+        .select()
+        .from(schema.outbox)
+        .all()
+        .filter((o) => o.tableName === 'follows').length,
+    ).toBeGreaterThan(0);
 
     await fireEvent.press(screen.getByTestId('traveler-message'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.chat('Marina Costa'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.chat(MARINA));
     await fireEvent.press(screen.getByTestId('traveler-trip-floripa'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.trip('floripa'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.trip(demoId('trip:floripa')));
   });
 
-  it('lists the traveler tips', async () => {
-    mockParams = { id: 'Marina Costa' };
+  it('lists the traveler posts from the feed', async () => {
+    mockParams = { id: MARINA };
     await renderWithProviders(<TravelerScreen />);
-    await fireEvent.press(screen.getByTestId('traveler-tabs-tips'));
-    await fireEvent.press(screen.getByTestId('traveler-tip-p1'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.post('p1'));
+    await fireEvent.press(await screen.findByTestId('traveler-tabs-tips'));
+    await fireEvent.press(await screen.findByTestId('traveler-tip-p1'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.post(demoId('post:p1')));
+  });
+
+  it('respects privacy: a restricted profile hides the map and trips', async () => {
+    const kenji = userId('Kenji Tanaka');
+    const profile = communityServer.profiles.find((p) => p.id === kenji);
+    if (profile) profile.privacy = 'friends';
+    mockParams = { id: kenji };
+    await renderWithProviders(<TravelerScreen />);
+    expect(await screen.findByTestId('traveler-restricted')).toHaveTextContent(
+      /Só quem Kenji segue vê as viagens e o mapa./,
+    );
+    expect(screen.queryByText('Mapa de Kenji')).toBeNull();
+    expect(screen.getByText('Nenhuma viagem pública ainda.')).toBeOnTheScreen();
+  });
+
+  it('unknown or hidden profile: not found', async () => {
+    mockParams = { id: demoId('user:nobody') };
+    await renderWithProviders(<TravelerScreen />);
+    expect(await screen.findByTestId('traveler-not-found')).toBeOnTheScreen();
+  });
+
+  it('offline: shows the offline state', async () => {
+    communityServer.online = false;
+    mockParams = { id: MARINA };
+    await renderWithProviders(<TravelerScreen />);
+    expect(await screen.findByText('Você está sem internet')).toBeOnTheScreen();
   });
 
   it("'me' shows how others see the profile, with Editar perfil", async () => {
@@ -136,57 +241,7 @@ describe('TravelerScreen', () => {
     expect(screen.queryByTestId('traveler-message')).toBeNull();
     await fireEvent.press(screen.getByTestId('traveler-edit'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.cfg('account'));
-  });
-});
-
-describe('ChatScreen', () => {
-  useFakeClock();
-
-  it('shows the Marina conversation and replies after typing', async () => {
-    mockParams = { id: 'Marina Costa' };
-    await renderWithProviders(<ChatScreen />);
-    expect(screen.getByText('Online agora')).toBeOnTheScreen();
-    expect(screen.getByText('Anotado! Vou em outubro, quer ir junto?')).toBeOnTheScreen();
-    expect(screen.getByTestId('chat-send')).toBeDisabled();
-
-    await fireEvent.changeText(screen.getByTestId('chat-input'), 'Bora!');
-    await fireEvent(screen.getByTestId('chat-input'), 'submitEditing');
-    expect(screen.getByText('Bora!')).toBeOnTheScreen();
-    expect(screen.getByTestId('chat-typing')).toHaveTextContent('digitando…');
-    expect(screen.getByTestId('chat-input').props.value).toBe('');
-
-    await elapse(REPLY_DELAY_MS - 400);
-    expect(screen.queryByText('Haha, total!')).toBeNull();
-    await elapse(600);
-    expect(screen.queryByTestId('chat-typing')).toBeNull();
-    expect(screen.getByText('Haha, total!')).toBeOnTheScreen();
-    expect(useStore.getState().chats['Marina Costa']).toHaveLength(2);
-  });
-
-  it('support: headset header, quick chips and support replies', async () => {
-    mockParams = { id: 'support' };
-    await renderWithProviders(<ChatScreen />);
-    expect(screen.getByText('Suporte Worlo')).toBeOnTheScreen();
-    expect(screen.getByText('Responde em poucos minutos')).toBeOnTheScreen();
-    expect(
-      screen.getByText('Oi, Ana! Aqui é a Júlia, do suporte do Worlo. Como posso ajudar?'),
-    ).toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByTestId('chat-quick-booking'));
-    expect(screen.getByText('Minha reserva')).toBeOnTheScreen();
-    expect(screen.queryByTestId('chat-quick-photos')).toBeNull();
-    await elapse(REPLY_DELAY_MS + 200);
-    expect(screen.getByText('Entendi. Vou verificar aqui e já te respondo.')).toBeOnTheScreen();
-  });
-
-  it('cancels the pending reply on unmount', async () => {
-    mockParams = { id: 'Rafael Lima' };
-    await renderWithProviders(<ChatScreen />);
-    expect(screen.getByText('Oi! Tudo bem?')).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByTestId('chat-input'), 'Oi!');
-    await fireEvent.press(screen.getByTestId('chat-send'));
-    await act(() => screen.unmount());
-    await elapse(REPLY_DELAY_MS + 200);
-    expect(useStore.getState().chats['Rafael Lima']).toHaveLength(1);
+    await fireEvent.press(screen.getByTestId('traveler-tabs-tips'));
+    expect(await screen.findByTestId('traveler-tip-ana-28')).toBeOnTheScreen();
   });
 });

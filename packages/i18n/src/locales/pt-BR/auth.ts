@@ -36,6 +36,17 @@ const auth = {
     email: 'Confere o e-mail, parece incompleto.',
     passwordShort: 'A senha precisa ter pelo menos 8 caracteres.',
     passwordEmpty: 'Digite sua senha.',
+    server: {
+      invalidCredentials: 'E-mail ou senha não batem. Confere e tenta de novo.',
+      emailTaken: 'Já existe uma conta com esse e-mail. Que tal entrar?',
+      weakPassword: 'Essa senha é fácil de adivinhar. Tenta uma mais forte.',
+      emailNotConfirmed: 'Falta confirmar seu e-mail. Confere sua caixa de entrada.',
+      rateLimited: 'Muitas tentativas seguidas. Espera um pouquinho e tenta de novo.',
+      network: 'Não deu pra falar com o Worlo. Confere sua internet.',
+      notConfigured: 'Não deu pra conectar ao Worlo agora.',
+      invalidCode: 'Código incorreto ou vencido. Confere no app autenticador e tenta de novo.',
+      unknown: 'Não deu pra continuar agora. Tenta de novo daqui a pouco.',
+    },
   },
   signup: {
     title: 'Crie sua conta',
@@ -67,6 +78,37 @@ const auth = {
     backToLogin: 'Voltar pra entrar',
     resend: 'Não chegou? Enviar de novo',
     resent: 'Link reenviado.',
+  },
+  gate: {
+    offlineTitle: 'Você está sem internet',
+    offlineText:
+      'Pra abrir sua conta neste aparelho pela primeira vez, a gente precisa de conexão.',
+    errorTitle: 'Não deu pra carregar sua conta',
+    errorText: 'Algo deu errado do nosso lado. Tenta de novo daqui a pouco.',
+    signOut: 'Sair da conta',
+  },
+  twoFactor: {
+    title: 'Verificação em duas etapas',
+    text: 'Digite o código de 6 dígitos do seu app autenticador pra entrar.',
+    code: 'Código de 6 dígitos',
+    submit: 'Confirmar',
+    notYou: 'Não está com o app autenticador?',
+    signOut: 'Sair',
+    errors: {
+      code: 'O código tem 6 números.',
+    },
+  },
+  reset: {
+    title: 'Crie uma nova senha',
+    text: 'Escolha uma senha que você não usa em outro lugar.',
+    submit: 'Salvar nova senha',
+    saved: 'Senha nova salva.',
+    checking: 'Abrindo o link…',
+    invalidTitle: 'Esse link não vale mais',
+    invalidText:
+      'Links de nova senha valem por 30 minutos e só funcionam uma vez. Pede outro que a gente manda.',
+    newLink: 'Pedir outro link',
+    backToLogin: 'Voltar pra entrar',
   },
   onboarding: {
     step: 'Passo 1 de 2',

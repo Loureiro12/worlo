@@ -33,7 +33,8 @@ tags:
 - assertNotVisible: "Diz como a gente pode te chamar."
 - tapOn:
     id: signup-email
-- inputText: bia@email.com
+# Real sign-up against local Supabase: a new address every run.
+- inputRandomEmail
 - tapOn: "Crie sua conta" # dismisses the keyboard (non-interactive title)
 - tapOn:
     id: signup-password-reveal
@@ -44,11 +45,11 @@ tags:
 - tapOn:
     id: signup-submit
 
-# Onboarding map: Continuar needs a country
+# Onboarding map (new account → first sync → onboarding): Continuar needs a country
 - extendedWaitUntil:
     visible:
       id: onboarding-map-screen
-    timeout: 10000
+    timeout: 30000
 # The counter card is one accessible element: match inside its label.
 - assertVisible: ".*Nenhum ainda.*"
 # Continuar without countries must not advance. (The toast itself is covered
@@ -89,7 +90,7 @@ tags:
 - tapOn: "Esqueci minha senha"
 - tapOn:
     id: forgot-email
-- inputText: ana@gmail.com
+- inputText: ana@worlo.app
 - tapOn: "Esqueceu a senha?" # dismisses the keyboard (non-interactive title)
 - tapOn:
     id: forgot-submit
@@ -97,18 +98,19 @@ tags:
 - tapOn: "Voltar pra entrar"
 - tapOn:
     id: login-email
-- inputText: ana@gmail.com
+- inputText: ana@worlo.app
 - tapOn: "Que bom te ver de novo" # dismisses the keyboard (non-interactive title)
 - tapOn:
     id: login-password-reveal
 - tapOn:
     id: login-password
-- inputText: senha1234
+- inputText: worlo1234
 - tapOn: "Que bom te ver de novo" # dismisses the keyboard (non-interactive title)
 - tapOn:
     id: login-submit
-- assertVisible: "Bem-vinda de volta, Ana."
+# Sign-in + first pull, then the greeting on Explorar.
 - extendedWaitUntil:
     visible:
       id: explore-screen
-    timeout: 10000
+    timeout: 30000
+- assertVisible: "Bem-vinda de volta, Ana."

@@ -21,9 +21,13 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { AddTripSheet } from '@/components/AddTripSheet';
 import { DemoGate, useIsEmpty } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
+import { createItinerary, useItineraries } from '@/data/planning';
+import { useTrips } from '@/data/trips';
+import { useFutures, wishKey } from '@/data/world';
 import { img } from '@/lib/images';
 import { firstName, joinNames } from '@/lib/people';
-import { COUNTRIES } from '@/mocks/data.generated';
+import { demoKey } from '@/mocks/demo';
 import type { Future, Itinerary, Trip } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
@@ -34,10 +38,8 @@ import { DashedButton } from './parts';
 export function useCreateItinerary() {
   const { t } = useTranslation();
   const router = useRouter();
-  const addItinerary = useStore((s) => s.addItinerary);
   return () => {
-    const itinerary: Itinerary = {
-      id: `r${Date.now()}`,
+    const itinerary = createItinerary({
       title: t('trips.rot.newTitle'),
       place: t('trips.rot.newPlace'),
       flag: '📍',
@@ -45,8 +47,7 @@ export function useCreateItinerary() {
       status: t('trips.rot.newStatus'),
       sugKey: 'generic',
       days: [{ label: t('trips.rot.newDay'), items: [] }],
-    };
-    addItinerary(itinerary);
+    });
     router.push(routes.roteiro(itinerary.id));
   };
 }
@@ -102,7 +103,7 @@ export function TripsScreen() {
 function PastSegment() {
   const { t } = useTranslation();
   const router = useRouter();
-  const trips = useStore((s) => s.trips);
+  const trips = useTrips();
   const empty = useIsEmpty() || trips.length === 0;
 
   if (empty) {
@@ -174,9 +175,11 @@ function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
     days: t('common.count.days', { count: trip.days }),
   });
   const period = t('trips.card.period', { period: trip.period, people: withText(trip) });
+  // Demo trips keep their prototype key (testIDs, photo seeds); others use the uuid.
+  const key = demoKey(trip.id, 'trip');
   return (
     <Card
-      testID={`trip-card-${trip.id}`}
+      testID={`trip-card-${key}`}
       radius={24}
       padding={10}
       style={{ paddingBottom: 16 }}
@@ -185,8 +188,8 @@ function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
     >
       <Mosaic
         photos={[
-          { uri: img(`${trip.id}-a`, 700, 500), tint: trip.tint },
-          { uri: img(`${trip.id}-b`, 400, 400) },
+          { uri: img(`${key}-a`, 700, 500), tint: trip.tint },
+          { uri: img(`${key}-b`, 400, 400) },
         ]}
         extra={Math.max(0, trip.photos - 3) || undefined}
       />
@@ -206,7 +209,7 @@ function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
 function WishSegment() {
   const { t } = useTranslation();
   const router = useRouter();
-  const futures = useStore((s) => s.futures);
+  const futures = useFutures();
   const empty = useIsEmpty() || futures.length === 0;
 
   return (
@@ -249,11 +252,12 @@ function WishSegment() {
 
 function FutureRow({ future, onPress }: { future: Future; onPress: () => void }) {
   const { t } = useTranslation();
+  const { COUNTRIES } = useCatalog();
   const best = COUNTRIES[future.cid]?.best;
   const meta = best ? t('trips.wish.best', { value: best }) : future.saved;
   return (
     <Card
-      testID={`future-row-${future.id}`}
+      testID={`future-row-${wishKey(future.id)}`}
       onPress={onPress}
       padding={14}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 }}
@@ -287,7 +291,7 @@ function FutureRow({ future, onPress }: { future: Future; onPress: () => void })
 function RotSegment() {
   const { t } = useTranslation();
   const router = useRouter();
-  const itineraries = useStore((s) => s.itineraries);
+  const itineraries = useItineraries();
   const empty = useIsEmpty() || itineraries.length === 0;
   const create = useCreateItinerary();
 
@@ -355,7 +359,7 @@ function ItineraryCard({ itinerary, onPress }: { itinerary: Itinerary; onPress: 
   const place = `${itinerary.flag} ${itinerary.place} · ${itinerary.dates}`;
   return (
     <Card
-      testID={`rot-card-${itinerary.id}`}
+      testID={`rot-card-${demoKey(itinerary.id, 'itinerary')}`}
       radius={24}
       padding={10}
       style={{ paddingBottom: 16 }}
@@ -363,7 +367,7 @@ function ItineraryCard({ itinerary, onPress }: { itinerary: Itinerary; onPress: 
       accessibilityLabel={`${itinerary.title}. ${place}. ${itinerary.status}. ${progressText}`}
     >
       <Photo
-        uri={img(`rot-${itinerary.id}`, 700, 300)}
+        uri={img(`rot-${demoKey(itinerary.id, 'itinerary')}`, 700, 300)}
         tint={colors.border}
         height={120}
         radius={radius.r16}

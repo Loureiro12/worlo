@@ -1,8 +1,21 @@
-import { fireEvent, screen, within } from '@testing-library/react-native';
-import { resetStore, useStore } from '@/store';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { getItinerary, getLive } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { asset } from '@/features/photos/testing';
+import { demoId } from '@/mocks/demo';
+import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { LiveScreen } from './LiveScreen';
-import { formatMoneyFlex, localTime, tripFromLive } from './planning';
+import {
+  copyDays,
+  formatMoneyFlex,
+  localTime,
+  tripFromLive,
+  withDay,
+  withoutStop,
+  withStop,
+} from './planning';
 
 const mockRouter = { push: jest.fn(), replace: jest.fn(), back: jest.fn() };
 jest.mock('expo-router', () => ({
@@ -10,7 +23,20 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({}),
 }));
 
-const live = () => useStore.getState().live;
+jest.mock('expo-file-system', () => require('@/features/photos/testing').fileSystemMock());
+jest.mock('expo-image-picker', () => ({
+  launchImageLibraryAsync: jest.fn(),
+  launchCameraAsync: jest.fn(),
+  requestCameraPermissionsAsync: jest.fn(() => Promise.resolve({ granted: true })),
+}));
+const picker = jest.mocked(ImagePicker);
+const shoot = () =>
+  picker.launchCameraAsync.mockResolvedValueOnce({ canceled: false, assets: [asset('pisac')] });
+
+const PERU = demoId('itinerary:peru');
+/** Travel mode as persisted in SQLite (session + logs, newest first). */
+const live = () => getLive();
+const logOf = (type: string) => live().log.find((l) => l.type === type);
 const submit = () => fireEvent.press(screen.getByTestId('live-sheet-submit'));
 
 beforeEach(() => {
@@ -20,9 +46,13 @@ beforeEach(() => {
 
 describe('LiveScreen', () => {
   it('turns travel mode on when opened and shows the current day', async () => {
-    expect(live().on).toBe(false);
+    expect(live()).toMatchObject({ on: false, itineraryId: PERU, day: 2 });
     await renderWithProviders(<LiveScreen />);
     expect(live().on).toBe(true);
+    expect(repos.planning.currentSession()).toMatchObject({
+      id: demoId('live:peru'),
+      active: true,
+    });
     expect(screen.getByTestId('live-screen')).toBeOnTheScreen();
     expect(screen.getByText('🇵🇪 Cusco e Machu Picchu')).toBeOnTheScreen();
     expect(screen.getByText('Dia 2 · Vale Sagrado')).toBeOnTheScreen();
@@ -37,6 +67,14 @@ describe('LiveScreen', () => {
     expect(log.getByText(/fez check-in no hotel em San Blas\./)).toBeOnTheScreen();
     expect(log.getByText(/adicionou 6 fotos em Pisac\./)).toBeOnTheScreen();
     expect(screen.getByText('Salvo no aparelho')).toBeOnTheScreen();
+    // samples are only shown, never persisted
+    expect(live().log).toHaveLength(0);
+  });
+
+  it('shows an empty state when there is no itinerary to travel with', async () => {
+    for (const it of repos.planning.itineraries()) repos.planning.remove(it.id);
+    await renderWithProviders(<LiveScreen />);
+    expect(screen.getByText('Nenhum roteiro pra viajar.')).toBeOnTheScreen();
   });
 
   it('switches day with the day bars', async () => {
@@ -62,11 +100,14 @@ describe('LiveScreen', () => {
     expect(screen.getByTestId('live-progress')).toHaveTextContent('1 de 1 feitos');
     expect(screen.getByText('Feito')).toBeOnTheScreen();
     expect(live().log[0]?.text).toBe('concluiu Vale Sagrado em um dia.');
-    // seeds stay below the first real entry
-    expect(live().log).toHaveLength(3);
+    expect(live().log).toHaveLength(1);
+    // the samples stay below the first real entry
+    const rows = within(screen.getByTestId('live-log'));
+    expect(rows.getByText(/concluiu Vale Sagrado/)).toBeOnTheScreen();
+    expect(rows.getByText(/fez check-in no hotel em San Blas\./)).toBeOnTheScreen();
     await fireEvent.press(item);
     expect(live().done['1-0']).toBe(false);
-    expect(live().log).toHaveLength(3);
+    expect(live().log).toHaveLength(1);
   });
 
   it('check-in requires a place, then logs it with the rating', async () => {
@@ -99,7 +140,16 @@ describe('LiveScreen', () => {
     await fireEvent.press(screen.getByTestId('live-cat-transport'));
     await submit();
     expect(live().spent).toBeCloseTo(19);
-    expect(live().log[0]?.text).toBe('gastou S/ 12,50 em transporte (≈ R$ 19).');
+    expect(live().log[0]).toMatchObject({
+      type: 'expense',
+      text: 'gastou S/ 12,50 em transporte (≈ R$ 19).',
+    });
+    expect(repos.planning.logs(demoId('live:peru'))[0]?.amount).toBeCloseTo(19);
+    // a second expense adds up
+    await fireEvent.press(screen.getByTestId('live-expense'));
+    await fireEvent.changeText(screen.getByLabelText('Valor em soles'), '10');
+    await submit();
+    expect(live().spent).toBeCloseTo(19 + 15.2);
     expect(screen.getByText('Gasto anotado.')).toBeOnTheScreen();
   });
 
@@ -110,14 +160,52 @@ describe('LiveScreen', () => {
     expect(screen.getByText('Escreva alguma coisa.')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByTestId('live-text'), 'Que dia lindo');
     await submit();
-    expect(live().log[0]).toMatchObject({ type: 'note', detail: 'Que dia lindo' });
+    expect(logOf('note')).toMatchObject({ detail: 'Que dia lindo' });
     expect(screen.getByText('“Que dia lindo”')).toBeOnTheScreen();
 
+    shoot();
     await fireEvent.press(screen.getByTestId('live-photo'));
     await submit();
-    expect(live().log[0]).toMatchObject({ type: 'photo', text: 'tirou uma foto em Pisac.' });
-    expect(live().log[0]?.photo).toBeTruthy();
+    await waitFor(() => expect(logOf('photo')).toBeDefined());
+    expect(picker.launchCameraAsync).toHaveBeenCalledWith(expect.objectContaining({ exif: true }));
+    expect(logOf('photo')).toMatchObject({ text: 'tirou uma foto em Pisac.' });
+    // The entry points at the picked photo (loose: the Peru trip doesn't exist yet).
+    const photo = repos.photos.get(logOf('photo')?.photo ?? '');
+    expect(photo).toMatchObject({ tripId: null, uploaded: false });
+    expect(repos.photos.file(photo?.id ?? '')?.state).toBe('pending');
+    expect(live().log).toHaveLength(2);
     expect(screen.getByText('Foto salva na viagem.')).toBeOnTheScreen();
+    expect(screen.getByTestId('live-log-photo')).toBeOnTheScreen();
+  });
+
+  it('keeps the photo sheet open when the camera is canceled or denied', async () => {
+    await renderWithProviders(<LiveScreen />);
+    picker.launchCameraAsync.mockResolvedValueOnce({ canceled: true, assets: null });
+    await fireEvent.press(screen.getByTestId('live-photo'));
+    await submit();
+    expect(logOf('photo')).toBeUndefined();
+    expect(screen.getByTestId('live-sheet-submit')).toBeOnTheScreen();
+
+    picker.requestCameraPermissionsAsync.mockResolvedValueOnce({ granted: false } as never);
+    await submit();
+    expect(
+      await screen.findByText('Sem acesso à câmera. Libere nos ajustes do aparelho.'),
+    ).toBeOnTheScreen();
+    expect(repos.photos.list()).toHaveLength(0);
+  });
+
+  it('ending the trip moves the photos taken in travel mode into the new trip', async () => {
+    await renderWithProviders(<LiveScreen />);
+    shoot();
+    await fireEvent.press(screen.getByTestId('live-photo'));
+    await submit();
+    await waitFor(() => expect(logOf('photo')).toBeDefined());
+    const photoId = logOf('photo')?.photo ?? '';
+    await fireEvent.press(screen.getByTestId('live-end'));
+    await fireEvent.press(screen.getByText('Encerrar e criar viagem'));
+    const trip = repos.trips.list()[0];
+    expect(trip?.title).toBe('Cusco e Machu Picchu');
+    expect(repos.photos.get(photoId)?.tripId).toBe(trip?.id);
   });
 
   it('ending the trip creates a past trip, lights Peru and opens the trip', async () => {
@@ -129,19 +217,20 @@ describe('LiveScreen', () => {
     expect(screen.getByTestId('live-end-photos')).toHaveTextContent(/^6/);
     expect(screen.getByTestId('live-end-places')).toHaveTextContent(/^4/);
     await fireEvent.press(screen.getByText('Encerrar e criar viagem'));
-    const state = useStore.getState();
-    expect(state.live.on).toBe(false);
-    expect(state.trips[0]).toMatchObject({
-      id: 'peru-trip',
+    expect(live().on).toBe(false);
+    const trip = repos.trips.list()[0];
+    expect(trip).toMatchObject({
       title: 'Cusco e Machu Picchu',
       place: 'Cusco',
       country: 'Peru',
       days: 4,
       photos: 6,
       places: 4,
+      countryIso: '604',
+      companions: [{ name: 'Marina Costa', status: 'ok' }],
     });
-    expect(state.visitedMap['604']).toBeDefined();
-    expect(mockRouter.replace).toHaveBeenCalledWith('/trip/peru-trip');
+    expect(repos.world.visitedMap()['604']).toBeDefined();
+    expect(mockRouter.replace).toHaveBeenCalledWith(`/trip/${trip?.id}`);
     expect(screen.getByText('Viagem encerrada. O Peru acendeu no seu mapa.')).toBeOnTheScreen();
   });
 });
@@ -158,9 +247,25 @@ describe('planning helpers', () => {
   });
 
   it('builds the past trip total from costs + spent', () => {
-    const it = useStore.getState().itineraries[0];
+    const it = getItinerary(PERU);
     if (!it) throw new Error('missing itinerary');
     const trip = tripFromLive(it, { days: 4, photos: 6, places: 4 }, 100, new Date(2026, 9, 1));
     expect(trip).toMatchObject({ total: 'R$ 1.810', period: 'out 2026', year: '2026' });
+  });
+
+  it('edits days and stops without touching the input', () => {
+    const stop = { time: '09:00', icon: 'map-pin' as const, title: 'A', note: '', cost: 0 };
+    const days = [{ label: 'Um', items: [stop] }];
+    expect(withDay(days, 'Dois')).toEqual([...days, { label: 'Dois', items: [] }]);
+    expect(withStop(days, 0, { ...stop, title: 'B' })[0]?.items.map((s) => s.title)).toEqual([
+      'A',
+      'B',
+    ]);
+    expect(withStop(days, 5, stop)).toEqual(days);
+    expect(withoutStop(days, 0, 0)).toEqual([{ label: 'Um', items: [] }]);
+    expect(days[0]?.items).toHaveLength(1);
+    const copy = copyDays(days);
+    expect(copy).toEqual(days);
+    expect(copy[0]?.items[0]).not.toBe(stop);
   });
 });

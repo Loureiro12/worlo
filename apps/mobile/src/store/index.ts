@@ -1,10 +1,5 @@
 import { create } from 'zustand';
-import { createCommunitySlice } from './slices/community';
 import { createDiscoverySlice } from './slices/discovery';
-import { createNotificationsSlice } from './slices/notifications';
-import { createPlanningSlice } from './slices/planning';
-import { createSavedSlice } from './slices/saved';
-import { createSessionSlice } from './slices/session';
 import { createSettingsSlice } from './slices/settings';
 import { createTripsSlice } from './slices/trips';
 import { createUiSlice } from './slices/ui';
@@ -18,15 +13,10 @@ export type { AppStore } from './types';
  * tabs, open sheets) stays in components; this holds what crosses screens.
  */
 export const useStore = create<AppStore>()((...a) => ({
-  ...createSessionSlice(...a),
   ...createUiSlice(...a),
   ...createWorldSlice(...a),
   ...createTripsSlice(...a),
-  ...createPlanningSlice(...a),
   ...createDiscoverySlice(...a),
-  ...createSavedSlice(...a),
-  ...createCommunitySlice(...a),
-  ...createNotificationsSlice(...a),
   ...createSettingsSlice(...a),
 }));
 

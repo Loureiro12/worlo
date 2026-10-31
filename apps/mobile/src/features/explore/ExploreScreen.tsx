@@ -23,13 +23,17 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { AddTripSheet } from '@/components/AddTripSheet';
 import { DemoGate, useIsEmpty } from '@/components/DemoGate';
+import { useCatalog } from '@/data/catalog';
+import { useUnreadCount } from '@/data/notifications';
+import { startLive, useItineraries, useLive } from '@/data/planning';
+import { useMe } from '@/data/profile';
+import { useTrips } from '@/data/trips';
+import { usePlaceWished, world } from '@/data/world';
 import { img } from '@/lib/images';
 import { firstName } from '@/lib/people';
-import { EXPERIENCES, PLACES, POPULAR, TRIPS } from '@/mocks/data.generated';
+import { demoKey } from '@/mocks/demo';
 import type { PlaceToKnow } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import { selectUnreadCount } from '@/store/slices/notifications';
 import { placeToKnowTarget } from './searchIndex';
 
 type Category = 'all' | 'beaches' | 'cities' | 'trails';
@@ -59,8 +63,9 @@ function ExploreContent() {
   const toast = useToast();
   const styles = useStyles();
   const empty = useIsEmpty();
-  const me = useStore((s) => s.me);
-  const unread = useStore(selectUnreadCount);
+  const { EXPERIENCES, PLACES, POPULAR } = useCatalog();
+  const me = useMe();
+  const unread = useUnreadCount();
   const [category, setCategory] = useState<Category>('all');
   const [addOpen, setAddOpen] = useState(false);
 
@@ -237,9 +242,8 @@ function LiveCard() {
   const router = useRouter();
   const toast = useToast();
   const styles = useStyles();
-  const live = useStore((s) => s.live);
-  const itineraries = useStore((s) => s.itineraries);
-  const startLive = useStore((s) => s.startLive);
+  const live = useLive();
+  const itineraries = useItineraries();
   const itinerary = itineraries.find((it) => it.id === live.itineraryId) ?? itineraries[0];
   if (!itinerary) return null;
 
@@ -298,8 +302,9 @@ function MemoryCard() {
   const { t } = useTranslation();
   const router = useRouter();
   const styles = useStyles();
-  const trips = useStore((s) => s.trips);
-  const trip = trips.find((x) => x.id === 'floripa') ?? TRIPS.find((x) => x.id === 'floripa');
+  const trips = useTrips();
+  // The prototype memory is Florianópolis; other accounts get their latest trip.
+  const trip = trips.find((x) => demoKey(x.id, 'trip') === 'floripa') ?? trips[0];
   if (!trip) return null;
   const title = t('explore.memory.title', { place: trip.place });
   const meta = `${t('common.count.photos', { count: trip.photos })} · ${t('common.count.places', { count: trip.places })}`;
@@ -312,7 +317,7 @@ function MemoryCard() {
       style={[styles.memoryCard, styles.cardDark]}
     >
       <Photo
-        uri={img(`${trip.id}-mem`, 200, 200)}
+        uri={img(`${demoKey(trip.id, 'trip')}-mem`, 200, 200)}
         tint={colors.primaryPressed}
         width={84}
         height={84}
@@ -338,8 +343,8 @@ function PlaceCard({ place, onOpen }: { place: PlaceToKnow; onOpen: () => void }
   const { t } = useTranslation();
   const toast = useToast();
   const styles = useStyles();
-  const wished = useStore((s) => Boolean(s.wishPlaces[place.name]));
-  const toggleWishPlace = useStore((s) => s.toggleWishPlace);
+  // "Quero ir" here is a wish destination without a country (shows in Viagens › Quero ir).
+  const wished = usePlaceWished(place.name);
   const wishLabel = wished ? t('explore.places.wished') : t('explore.places.wish');
   return (
     <View style={styles.placeCard}>
@@ -365,7 +370,7 @@ function PlaceCard({ place, onOpen }: { place: PlaceToKnow; onOpen: () => void }
         accessibilityLabel={`${wishLabel}: ${place.short}`}
         hitSlop={6}
         onPress={() => {
-          toggleWishPlace(place.name);
+          world.togglePlaceWish(place.name, place.meta, place.tint);
           if (!wished) toast.show(t('explore.places.wishedToast', { name: place.short }));
         }}
         style={[styles.wish, wished ? styles.wishOn : styles.wishOff]}

@@ -4,7 +4,7 @@ import Storage from 'expo-sqlite/kv-store';
 
 /** User preferences, read synchronously at startup so the first frame is right. */
 
-const KEYS = { language: 'pref.language' } as const;
+const KEYS = { language: 'pref.language', lastUserId: 'session.lastUserId' } as const;
 
 export const preferences = {
   getLanguage(): Language | null {
@@ -13,5 +13,13 @@ export const preferences = {
   },
   setLanguage(language: Language) {
     Storage.setItemSync(KEYS.language, language);
+  },
+  /** Account whose data is in the local database (a different one wipes it). */
+  getLastUserId(): string | null {
+    return Storage.getItemSync(KEYS.lastUserId);
+  },
+  setLastUserId(id: string | null) {
+    if (id) Storage.setItemSync(KEYS.lastUserId, id);
+    else Storage.removeItemSync(KEYS.lastUserId);
   },
 };

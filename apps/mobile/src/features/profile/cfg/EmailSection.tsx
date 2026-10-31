@@ -3,44 +3,68 @@ import { Card, colors, Icon, StatusChip, Text, TextField, useToast } from '@worl
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
-import { useStore } from '@/store';
+import { useMe } from '@/data/profile';
+import { failureCode } from '@/features/auth/entry';
+import { type AuthErrorCode, auth } from '@/lib/auth';
 import { CfgLayout } from './CfgLayout';
 import { emailError } from './validation';
 
-type EmailError = NonNullable<ReturnType<typeof emailError>>;
+type EmailError = NonNullable<ReturnType<typeof emailError>> | 'wrongPassword';
 
 /** K3 · Trocar e-mail. */
 export function EmailSection() {
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToast();
-  const email = useStore((s) => s.me.email);
-  const updateMe = useStore((s) => s.updateMe);
+  const { email } = useMe();
   const [form, setForm] = useState({ newEmail: '', password: '' });
   const [error, setError] = useState<EmailError | null>(null);
+  const [serverError, setServerError] = useState<AuthErrorCode | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const change = (field: keyof typeof form) => (text: string) => {
     setForm((f) => ({ ...f, [field]: text }));
     setError(null);
+    setServerError(null);
   };
 
-  const save = () => {
+  /** Confirms the password, then Supabase mails a confirmation link to the new address. */
+  const save = async () => {
+    if (busy) return;
     const invalid = emailError(form, email);
     if (invalid) {
       setError(invalid);
       return;
     }
     const next = form.newEmail.trim();
-    updateMe({ email: next });
+    setBusy(true);
+    const result = await auth.updateEmail(email, form.password, next);
+    setBusy(false);
+    const code = failureCode(result);
+    if (code === 'invalidCredentials') {
+      setError('wrongPassword');
+      return;
+    }
+    if (code) {
+      setServerError(code);
+      return;
+    }
+    if (!result.ok) return;
     toast.show(t('profile.cfg.email.sent', { email: next }));
     router.back();
   };
 
+  const message = error
+    ? t(`profile.cfg.email.errors.${error}`)
+    : serverError
+      ? t(`auth.errors.server.${serverError}`)
+      : null;
+
   return (
     <CfgLayout
       section="email"
-      cta={{ label: t('profile.cfg.email.cta'), onPress: save }}
-      error={error ? t(`profile.cfg.email.errors.${error}`) : null}
+      cta={{ label: t('profile.cfg.email.cta'), onPress: () => void save(), loading: busy }}
+      error={message}
     >
       <View style={{ gap: 18 }}>
         <Card padding={16} style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -79,7 +103,7 @@ export function EmailSection() {
           ]}
           value={form.password}
           onChangeText={change('password')}
-          invalid={error === 'password'}
+          invalid={error === 'password' || error === 'wrongPassword'}
           textContentType="password"
         />
       </View>

@@ -43,7 +43,7 @@ tags:
 - assertVisible:
     id: notif-result-jeri
 
-# Convite (future trip): open from the row and decline.
+# Convite (future trip): open from the row and decline (final: no "accept anyway").
 - tapOn:
     id: notif-n3
 - assertVisible:
@@ -51,4 +51,4 @@ tags:
 - tapOn:
     id: invite-decline
 - assertVisible:
-    id: invite-accept-anyway
+    id: invite-declined

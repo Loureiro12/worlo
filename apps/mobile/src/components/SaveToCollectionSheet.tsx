@@ -2,8 +2,11 @@ import { useTranslation } from '@worlo/i18n';
 import { Button, colors, Icon, Sheet, Text, TextField, useToast } from '@worlo/ui';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useStore } from '@/store';
+import { collectionKey, createCollection, toggleInCollection, useCollections } from '@/data/saved';
 import { CollectionCover } from './CollectionCover';
+
+/** Server/repository limit for a collection name. */
+const MAX_COLLECTION_NAME = 60;
 
 export type SaveToCollectionSheetProps = {
   visible: boolean;
@@ -22,15 +25,13 @@ export function SaveToCollectionSheet({
 }: SaveToCollectionSheetProps) {
   const { t } = useTranslation();
   const toast = useToast();
-  const collections = useStore((s) => s.collections);
-  const toggleInCollection = useStore((s) => s.toggleInCollection);
-  const createCollection = useStore((s) => s.createCollection);
+  const collections = useCollections();
   const [name, setName] = useState('');
   const [invalid, setInvalid] = useState(false);
 
   const create = () => {
     const trimmed = name.trim();
-    if (!trimmed) {
+    if (!trimmed || trimmed.length > MAX_COLLECTION_NAME) {
       setInvalid(true);
       return;
     }
@@ -55,7 +56,7 @@ export function SaveToCollectionSheet({
             return (
               <Pressable
                 key={c.id}
-                testID={`collection-option-${c.id}`}
+                testID={`collection-option-${collectionKey(c.id)}`}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: inside }}
                 accessibilityLabel={c.name}

@@ -1,6 +1,8 @@
 # iOS secure fields reject XCUITest typing: dismiss the keyboard, reveal, then type.
-# Fresh install → skip splash → "Já tenho conta" → sign in → Explorar.
+# Fresh install → skip splash → "Já tenho conta" → real sign-in with the demo
+# account (local Supabase, seeded) → first sync → Explorar.
 # Every feature flow starts here. testIDs are a contract with features/auth.
+# Flows change the demo account's data: `pnpm db:reset` before a full run.
 appId: com.worlo.app
 ---
 - launchApp:
@@ -16,17 +18,18 @@ appId: com.worlo.app
     id: welcome-login
 - tapOn:
     id: login-email
-- inputText: ana@gmail.com
+- inputText: ana@worlo.app
 - hideKeyboard
 - tapOn:
     id: login-password-reveal
 - tapOn:
     id: login-password
-- inputText: senha1234
+- inputText: worlo1234
 - hideKeyboard
 - tapOn:
     id: login-submit
+# Sign-in + first pull (profile, catalog, personal data).
 - extendedWaitUntil:
     visible:
       id: explore-screen
-    timeout: 10000
+    timeout: 30000

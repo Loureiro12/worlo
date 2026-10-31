@@ -1,7 +1,13 @@
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
+import { createLocalStore } from '@worlo/db';
+import * as Clipboard from 'expo-clipboard';
+import { collab } from '@/data/collab';
+import { repos } from '@/data/repositories';
+import { db } from '@/lib/database';
+import { demoId } from '@/mocks/demo';
+import { userId } from '@/mocks/demoWorld';
 import { routes } from '@/navigation/routes';
-import { resetStore, useStore } from '@/store';
-import type { Member } from '@/store/slices/trips';
+import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { TripScreen } from './TripScreen';
 
@@ -12,7 +18,15 @@ const mockRouter = {
   back: jest.fn(),
   canGoBack: () => true,
 };
-let mockParams: Record<string, string> = { id: 'floripa' };
+const FLORIPA = demoId('trip:floripa');
+const PATAGONIA = demoId('trip:patagonia');
+const JERI = demoId('trip:jeri');
+const mockCreateInviteLink = jest.fn(async (_type: string, _id: string) => 'tok123');
+jest.mock('@/data/collab', () => ({
+  ...jest.requireActual('@/data/collab'),
+  createInviteLink: (type: string, id: string) => mockCreateInviteLink(type, id),
+}));
+let mockParams: Record<string, string> = { id: FLORIPA };
 jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
@@ -21,7 +35,7 @@ jest.mock('expo-router', () => ({
 beforeEach(() => {
   resetStore();
   jest.clearAllMocks();
-  mockParams = { id: 'floripa' };
+  mockParams = { id: FLORIPA };
 });
 
 const openTab = (tab: 'overview' | 'days' | 'money') =>
@@ -42,12 +56,12 @@ describe('TripScreen', () => {
     expect(screen.getByText(/Chegamos tarde/)).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByTestId('trip-open-retro'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.retro('floripa'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.retro(FLORIPA));
     await fireEvent.press(screen.getByTestId('trip-share'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('trip', { tripId: 'floripa' }));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('trip', { tripId: FLORIPA }));
     await fireEvent.press(screen.getByTestId('trip-edit'));
     expect(mockRouter.push).toHaveBeenCalledWith(
-      routes.tripForm({ mode: 'edit', kind: 'past', id: 'floripa' }),
+      routes.tripForm({ mode: 'edit', kind: 'past', id: FLORIPA }),
     );
   });
 
@@ -95,14 +109,17 @@ describe('TripScreen', () => {
     await fireEvent.press(screen.getByTestId('expense-receipt'));
     await fireEvent.press(screen.getByTestId('expense-save'));
 
-    expect(useStore.getState().expenses.floripa?.[0]).toMatchObject({
+    expect(repos.trips.expenses(FLORIPA)[0]).toMatchObject({
       name: 'Sequência de camarão',
       amount: 210,
-      cat: 'Comida',
+      amountLabel: 'R$ 210',
+      category: 'Comida',
       receipt: true,
       split: ['Marina Costa', 'João Pereira'],
       meta: 'Comida · hoje · dividido com Marina e João',
     });
+    const pending = await createLocalStore(db).pendingMutations(100);
+    expect(pending.map((m) => m.table)).toEqual(['trip_expenses']);
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Gasto salvo. Marina e João devem R$ 70 cada.',
     );
@@ -112,7 +129,7 @@ describe('TripScreen', () => {
   });
 
   it('renders a trip without details gracefully and logs its first expense', async () => {
-    mockParams = { id: 'patagonia' };
+    mockParams = { id: PATAGONIA };
     await renderWithProviders(<TripScreen />);
     expect(
       screen.getByText('Nenhum lugar registrado ainda. Bora adicionar o primeiro?'),
@@ -134,6 +151,21 @@ describe('TripScreen', () => {
     ).toBeOnTheScreen();
   });
 
+  it('keeps an added expense after the screen is opened again (SQLite)', async () => {
+    const first = await renderWithProviders(<TripScreen />);
+    await openTab('money');
+    await fireEvent.press(screen.getByTestId('trip-add-expense'));
+    await fireEvent.changeText(screen.getByTestId('expense-amount'), '90');
+    await fireEvent.changeText(screen.getByTestId('expense-name'), 'Açaí na praia');
+    await fireEvent.press(screen.getByTestId('expense-save'));
+    await first.unmount();
+
+    await renderWithProviders(<TripScreen />);
+    await openTab('money');
+    expect(screen.getByText('Açaí na praia')).toBeOnTheScreen();
+    expect(screen.getByTestId('trip-money-total')).toHaveTextContent('R$ 4.950');
+  });
+
   it('renders a not found state for unknown trips', async () => {
     mockParams = { id: 'nope' };
     await renderWithProviders(<TripScreen />);
@@ -142,8 +174,8 @@ describe('TripScreen', () => {
 });
 
 describe('PeopleSheet (trip)', () => {
-  it('lets the owner invite and remove collaborators', async () => {
-    mockParams = { id: 'patagonia' };
+  it('lets the owner invite (pending membership) and remove collaborators', async () => {
+    mockParams = { id: PATAGONIA };
     await renderWithProviders(<TripScreen />);
     expect(screen.getByText('2 colaboradores · 1 convite pendente')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('trip-people-invite'));
@@ -158,24 +190,37 @@ describe('PeopleSheet (trip)', () => {
     await fireEvent.changeText(screen.getByTestId('people-search'), 'rafa');
     await fireEvent.press(screen.getByRole('button', { name: 'Convidar Rafael Lima' }));
     expect(screen.getByRole('alert')).toHaveTextContent('Convite enviado pra Rafael.');
-    const collab = () => useStore.getState().trips.find((t) => t.id === 'patagonia')?.collab;
-    expect(collab()).toContainEqual({ name: 'Rafael Lima', status: 'pending' });
+    const status = (name: string) =>
+      repos.collab.members('trip', PATAGONIA).find((m) => m.userId === userId(name))?.status;
+    expect(status('Rafael Lima')).toBe('pending');
+    expect(
+      within(screen.getByTestId('member-Rafael Lima')).getByText('Convite enviado · aguardando'),
+    ).toBeOnTheScreen();
+    const pending = await createLocalStore(db).pendingMutations(100);
+    expect(pending.map((m) => m.table)).toEqual(['memberships']);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Remover João Pereira' }));
-    expect(collab()?.map((c) => c.name)).not.toContain('João Pereira');
+    expect(status('João Pereira')).toBe('removed');
+    expect(screen.queryByTestId('member-João Pereira')).not.toBeOnTheScreen();
     expect(screen.getByRole('alert')).toHaveTextContent('João saiu da viagem.');
 
     await fireEvent.press(screen.getByTestId('people-copy-link'));
+    expect(mockCreateInviteLink).toHaveBeenCalledWith('trip', PATAGONIA);
     expect(screen.getByRole('alert')).toHaveTextContent('Link copiado.');
+    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('worlo://join/tok123');
   });
 
-  it('does not let a collaborator remove anyone', async () => {
-    const collab: Member[] = [
-      { name: 'Bia Souza', status: 'ok', owner: true },
-      { name: 'Caio Ramos', status: 'ok' },
-    ];
-    await act(() => useStore.getState().setCollaborators('floripa', collab));
+  it('accepting the Jeri invite makes it editable; a collaborator cannot remove anyone', async () => {
+    mockParams = { id: JERI };
+    expect(repos.collab.canEdit('trip', JERI)).toBe(false);
+    await act(() => {
+      collab.accept('trip', JERI);
+    });
+    expect(repos.collab.canEdit('trip', JERI)).toBe(true);
+    expect(repos.world.visitedMap()['076']).toContain('2025');
+
     await renderWithProviders(<TripScreen />);
+    expect(screen.getByTestId('trip-edit')).toBeOnTheScreen();
     expect(screen.getByText('Criada por Bia · você é colaboradora')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('trip-people-open'));
     expect(
@@ -185,5 +230,34 @@ describe('PeopleSheet (trip)', () => {
       within(screen.getByTestId('member-me')).getByText('Colaboradora · pode editar tudo'),
     ).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: /^Remover/ })).not.toBeOnTheScreen();
+
+    // "Sair da viagem": the trip leaves this device.
+    await fireEvent.press(screen.getByTestId('people-leave'));
+    expect(repos.collab.mine('trip', JERI)?.status).toBe('removed');
+    expect(repos.trips.get(JERI)).toBeUndefined();
+    expect(mockRouter.navigate).toHaveBeenCalledWith(routes.trips);
+  });
+
+  it('a pending invite preview is read only', async () => {
+    mockParams = { id: JERI };
+    await renderWithProviders(<TripScreen />);
+    expect(screen.getByText('Réveillon em Jeri')).toBeOnTheScreen();
+    expect(screen.queryByTestId('trip-edit')).not.toBeOnTheScreen();
+  });
+});
+
+describe('Trip activity', () => {
+  it("lists collaborators' activity with templates and relative time", async () => {
+    await renderWithProviders(<TripScreen />);
+    expect(screen.getByText('Atividade recente')).toBeOnTheScreen();
+    expect(
+      within(screen.getByTestId('trip-activity-photos')).getByText(/adicionou 12 fotos no Dia 2/),
+    ).toBeOnTheScreen();
+    expect(within(screen.getByTestId('trip-activity-photos')).getByText('ontem')).toBeOnTheScreen();
+    expect(
+      within(screen.getByTestId('trip-activity-expense')).getByText(
+        /lançou R\$ 210 no Bar do Arante/,
+      ),
+    ).toBeOnTheScreen();
   });
 });

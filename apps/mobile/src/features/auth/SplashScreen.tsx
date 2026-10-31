@@ -1,12 +1,17 @@
 import { useTranslation } from '@worlo/i18n';
-import { alpha, colors, fontFamily, palette, Text } from '@worlo/ui';
-import { useRouter } from 'expo-router';
+import { alpha, colors, FullScreenState, fontFamily, palette, Text, useToast } from '@worlo/ui';
+import { type Href, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { useProfile } from '@/data/profile';
+import { useSync } from '@/features/sync/SyncProvider';
+import { auth, mfa } from '@/lib/auth';
+import { firstName } from '@/lib/people';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
+import { useAuth } from '@/providers/AuthProvider';
+import { clearEntry, peekEntry } from './entry';
 
 /** Total time on screen before moving on (04_INTERACTIONS → Splash). */
 export const SPLASH_MS = 3000;
@@ -58,24 +63,78 @@ const KEYS = [
   'skip',
 ] as const;
 
-/** A1 · Splash: pin drops, orbits spin, rings pulse; 3s or a tap moves on. */
+/**
+ * A1 · Splash and the app's entry gate: pin drops, orbits spin, rings pulse.
+ * Leaves after 3s (or a tap) once the destination is known: Welcome when signed
+ * out; otherwise it waits for the first sync (profile + catalog on the device),
+ * then goes to onboarding (new account) or Explorar.
+ */
 export function SplashScreen() {
   const { t } = useTranslation();
   const router = useRouter();
-  const signedIn = useStore((s) => s.signedIn);
+  const toast = useToast();
+  const session = useAuth();
+  const sync = useSync();
+  const profile = useProfile();
   const left = useRef(false);
   const a = useValues(KEYS);
+  // Coming from login/signup: the brand intro was already seen.
+  const [introDone, setIntroDone] = useState(() => peekEntry() !== null);
+  // A session stuck at AAL1 with 2FA on: the database answers nothing until the code.
+  const userId = session.user?.id ?? null;
+  const [mfaGate, setMfaGate] = useState<{ user: string; required: boolean } | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    void mfa.needsChallenge().then((required) => {
+      if (alive) setMfaGate({ user: userId, required });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+  const gate = mfaGate && mfaGate.user === userId ? mfaGate : null;
+
+  let destination: Href | null = null;
+  if (session.status === 'signedOut') destination = routes.welcome;
+  else if (session.status === 'signedIn' && gate?.required) destination = routes.twoFactor;
+  else if (session.status === 'signedIn' && gate && sync.ready && profile) {
+    destination = profile.onboardedAt ? routes.explore : routes.onboardingMap;
+  }
 
   const leave = useCallback(() => {
-    if (left.current) return;
+    if (left.current || !destination) return;
     left.current = true;
-    router.replace(signedIn ? routes.explore : routes.welcome);
-  }, [router, signedIn]);
+    if (destination === routes.twoFactor) {
+      // The code screen comes back here through `enterApp`.
+      router.replace(destination);
+      return;
+    }
+    const entry = peekEntry();
+    clearEntry();
+    router.replace(destination);
+    if (entry?.greet && destination === routes.explore && profile?.name) {
+      toast.show(t('auth.login.welcomeBack', { name: firstName(profile.name) }));
+    }
+  }, [router, destination, profile, toast, t]);
 
   useEffect(() => {
-    const timer = setTimeout(leave, SPLASH_MS);
+    if (introDone) return;
+    const timer = setTimeout(() => setIntroDone(true), SPLASH_MS);
     return () => clearTimeout(timer);
-  }, [leave]);
+  }, [introDone]);
+
+  useEffect(() => {
+    if (introDone) leave();
+  }, [introDone, leave]);
+
+  // Still no account data after the intro and the first pull can't run / failed.
+  const stuck =
+    introDone &&
+    session.status === 'signedIn' &&
+    gate?.required === false &&
+    !sync.ready &&
+    (!sync.online || sync.status.state === 'error');
 
   useEffect(() => {
     if (!ANIMATE) return;
@@ -113,6 +172,21 @@ export function SplashScreen() {
     opacity: v,
     transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
   });
+
+  if (stuck) {
+    const kind = sync.online ? 'error' : 'offline';
+    return (
+      <FullScreenState
+        kind={kind}
+        onDark
+        title={t(`auth.gate.${kind}Title`)}
+        text={t(`auth.gate.${kind}Text`)}
+        retryLabel={t('common.actions.retry')}
+        onRetry={sync.retry}
+        secondary={{ label: t('auth.gate.signOut'), onPress: () => void auth.signOut() }}
+      />
+    );
+  }
 
   return (
     <Pressable

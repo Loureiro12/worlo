@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { completeOnboarding } from '@/data/profile';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 
@@ -14,7 +15,6 @@ export function FirstMapScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const visited = useStore((s) => s.onboardingVisited);
-  const completeOnboarding = useStore((s) => s.completeOnboarding);
 
   // The onboarding trip is the first one: 1 trip, 1 city.
   const stats = [

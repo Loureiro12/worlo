@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { completeOnboarding } from '@/data/profile';
 import { useCountryName } from '@/lib/countries';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
@@ -19,7 +20,6 @@ export function OnboardingMapScreen() {
   const { width } = useWindowDimensions();
   const visited = useStore((s) => s.onboardingVisited);
   const toggle = useStore((s) => s.toggleOnboardingCountry);
-  const completeOnboarding = useStore((s) => s.completeOnboarding);
   const countryName = useCountryName();
 
   const count = visited.length;

@@ -20,11 +20,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { SaveToCollectionSheet } from '@/components/SaveToCollectionSheet';
+import { useCatalog } from '@/data/catalog';
+import { usePlacePosts } from '@/data/community';
+import { isSaved } from '@/data/saved';
+import { postStats } from '@/features/community/model';
 import { img } from '@/lib/images';
-import { CITY_TABS, PLACE_TIPS } from '@/mocks/data.generated';
 import type { CityItem, CityTabKey } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import {
   Breadcrumb,
   CITY_TAB_KEYS,
@@ -44,6 +46,7 @@ const THUMB_TINTS = [palette.coral100, palette.linha, palette.coral300, palette.
  * prototype (the place page is where a stop is really added).
  */
 export function CityScreen() {
+  const { CITY_TABS } = useCatalog();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = decodeParam(rawId) || LISBOA.name;
   const { t } = useTranslation();
@@ -53,12 +56,15 @@ export function CityScreen() {
   const [collectionFor, setCollectionFor] = useState<CityItem | null>(null);
   const toggleSaved = useToggleSaved();
   const known = id === LISBOA.name;
-  const tip = PLACE_TIPS[0];
+  // "Dica da comunidade": the most confirmed post by someone else about the city (online).
+  const tip = (usePlacePosts(known ? id : undefined).data ?? [])
+    .map((post) => ({ post, stats: postStats(post, post.myVote) }))
+    .sort((a, b) => Number(a.post.mine) - Number(b.post.mine) || b.stats.yes - a.stats.yes)[0];
 
   const openCollections = (item: CityItem) => {
     const saved = savedItemFor(item, tab);
     // Collections hold saved items, so long-press saves first when needed.
-    if (!useStore.getState().saved.some((x) => x.id === saved.id)) toggleSaved(saved);
+    if (!isSaved(saved.id)) toggleSaved(saved);
     setCollectionFor(item);
   };
 
@@ -146,8 +152,12 @@ export function CityScreen() {
                 <Text variant="h3" accessibilityRole="header">
                   {t('map.city.tipTitle')}
                 </Text>
-                <View
+                <Pressable
                   testID="city-tip"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('community.post.open', { name: tip.post.author })}
+                  accessibilityHint={tip.post.text}
+                  onPress={() => router.push(routes.post(tip.post.id))}
                   style={{
                     padding: 16,
                     gap: 12,
@@ -156,24 +166,41 @@ export function CityScreen() {
                   }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <Avatar name={tip.who} initials={tip.ini} size={36} />
+                    <Avatar
+                      name={tip.post.author}
+                      initials={tip.post.ini}
+                      photoUrl={tip.post.avatarUrl}
+                      size={36}
+                    />
                     <View>
                       <Text variant="label" weight={700}>
-                        {tip.who}
+                        {tip.post.author}
                       </Text>
                       <Text variant="caption" tone="muted" style={{ fontSize: 12 }}>
-                        {tip.when}
+                        {tip.post.when}
                       </Text>
                     </View>
                   </View>
-                  <Text variant="body">{tip.text}</Text>
+                  <Text variant="body">{tip.post.text}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Icon name="seal-check" size={16} color={colors.success} />
-                    <Text variant="caption" weight={700} tone="success">
-                      {`${t('map.city.reliabilityHigh')} · ${t('map.city.confirm', { pct: tip.pct })}`}
+                    <Icon
+                      name="seal-check"
+                      size={16}
+                      color={tip.stats.level === 'high' ? colors.success : colors.textMuted}
+                    />
+                    <Text
+                      variant="caption"
+                      weight={700}
+                      tone={tip.stats.level === 'high' ? 'success' : 'muted'}
+                    >
+                      {tip.stats.level === 'high'
+                        ? `${t('map.city.reliabilityHigh')} · ${t('map.city.confirm', { pct: `${tip.stats.pct}%` })}`
+                        : tip.stats.total
+                          ? `${t(`community.reliability.${tip.stats.level}`)} · ${t('map.city.confirm', { pct: `${tip.stats.pct}%` })}`
+                          : t('community.reliability.waiting')}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
               </View>
             ) : null}
 

@@ -1,11 +1,17 @@
 import type { Cursor, LocalStore, RemoteRow } from '@worlo/sync';
 import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import type { LocalDatabase } from './database';
-import { outbox, syncCursors } from './schema';
+import { outbox, photoFiles, rejected, syncCursors } from './schema';
 import { isSyncedTable, syncedTables } from './synced-tables';
 
-/** SQLite implementation of the sync engine's LocalStore. */
-export function createLocalStore(db: LocalDatabase): LocalStore {
+/**
+ * SQLite implementation of the sync engine's LocalStore. `onChange` fires after
+ * pulled rows are applied, so the UI can refresh.
+ */
+export function createLocalStore(
+  db: LocalDatabase,
+  { onChange }: { onChange?: (tables: string[]) => void } = {},
+): LocalStore {
   return {
     async pendingMutations(limit) {
       const rows = db.select().from(outbox).orderBy(asc(outbox.id)).limit(limit).all();
@@ -30,6 +36,26 @@ export function createLocalStore(db: LocalDatabase): LocalStore {
         .set({ attempts: sql`${outbox.attempts} + 1`, lastError: error })
         .where(inArray(outbox.id, ids))
         .run();
+    },
+
+    async rejectMutations(ids, error) {
+      if (ids.length === 0) return;
+      db.transaction((tx) => {
+        const rows = tx.select().from(outbox).where(inArray(outbox.id, ids)).all();
+        const rejectedAt = new Date().toISOString();
+        for (const row of rows) {
+          tx.insert(rejected)
+            .values({
+              tableName: row.tableName,
+              recordId: row.recordId,
+              payload: row.payload,
+              error,
+              rejectedAt,
+            })
+            .run();
+        }
+        tx.delete(outbox).where(inArray(outbox.id, ids)).run();
+      });
     },
 
     async countPendingMutations() {
@@ -74,6 +100,7 @@ export function createLocalStore(db: LocalDatabase): LocalStore {
           .onConflictDoUpdate({ target: syncCursors.tableName, set: position })
           .run();
       });
+      if (rows.length) onChange?.([tableName]);
     },
 
     async getCursor(tableName) {
@@ -81,4 +108,18 @@ export function createLocalStore(db: LocalDatabase): LocalStore {
       return row ? { updatedAt: row.updatedAt, id: row.recordId } : null;
     },
   };
+}
+
+/**
+ * Erases every local row, pending change and cursor (sign out / account
+ * deletion), so the next account starts from a clean device.
+ */
+export function wipeLocalData(db: LocalDatabase) {
+  db.transaction((tx) => {
+    for (const { table } of Object.values(syncedTables)) tx.delete(table).run();
+    tx.delete(photoFiles).run();
+    tx.delete(outbox).run();
+    tx.delete(rejected).run();
+    tx.delete(syncCursors).run();
+  });
 }

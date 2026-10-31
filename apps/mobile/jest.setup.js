@@ -11,6 +11,39 @@ jest.mock('expo-sqlite/kv-store', () => {
   return { __esModule: true, default: Storage };
 });
 
+// The app's SQLite database, backed by better-sqlite3 in memory with the real
+// migrations. jest.after-env.js reseeds it before every test.
+jest.mock('@/lib/database', () => {
+  const path = require('node:path');
+  const Database = require('better-sqlite3');
+  const { drizzle } = require('drizzle-orm/better-sqlite3');
+  const { migrate } = require('drizzle-orm/better-sqlite3/migrator');
+  const { schema } = require('@worlo/db');
+  const db = drizzle(new Database(':memory:'), { schema });
+  migrate(db, {
+    migrationsFolder: path.join(path.dirname(require.resolve('@worlo/db')), '../drizzle'),
+  });
+  return { db };
+});
+
+// No backend in unit tests: auth state comes from test-utils, sync stays offline.
+jest.mock('expo-sqlite/localStorage/install', () => ({}));
+
+jest.mock('@react-native-community/netinfo', () =>
+  require('@react-native-community/netinfo/jest/netinfo-mock.js'),
+);
+
+jest.mock('expo-apple-authentication', () => ({
+  signInAsync: jest.fn(),
+  AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 },
+}));
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: { configure: jest.fn(), hasPlayServices: jest.fn(), signIn: jest.fn() },
+  isErrorWithCode: () => false,
+  statusCodes: {},
+}));
+
 // The real hook waits for native font loading; screens only need "loaded".
 jest.mock('expo-font', () => ({
   ...jest.requireActual('expo-font'),
@@ -20,4 +53,16 @@ jest.mock('expo-font', () => ({
 jest.mock('expo-clipboard', () => ({
   setStringAsync: jest.fn(() => Promise.resolve(true)),
   getStringAsync: jest.fn(() => Promise.resolve('')),
+}));
+
+// The native module is absent in Jest: repositories need real ids for new rows.
+jest.mock('expo-crypto', () => ({
+  ...jest.requireActual('expo-crypto'),
+  randomUUID: () => require('node:crypto').randomUUID(),
+}));
+
+// jest-expo stubs the native module (randomUUID → undefined); repositories need real ids.
+jest.mock('expo-crypto', () => ({
+  ...jest.requireActual('expo-crypto'),
+  randomUUID: () => require('node:crypto').randomUUID(),
 }));

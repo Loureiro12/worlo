@@ -149,6 +149,35 @@ export function pickCountry(
   return countries().find((c) => geoContains(c, lonLat)) ?? null;
 }
 
+const containing = (point: LonLat) => countries().find((c) => geoContains(c, point)) ?? null;
+/** Rings of nearby points tried when a point misses the coarse 110m coastline. */
+const NUDGES = [0.5, 1].flatMap((d) =>
+  [
+    [d, 0],
+    [-d, 0],
+    [0, d],
+    [0, -d],
+    [d, d],
+    [-d, d],
+    [d, -d],
+    [-d, -d],
+  ].map(([x, y]) => [x, y] as LonLat),
+);
+
+/**
+ * Country at a lon/lat (e.g. a photo's GPS). Points just off the simplified
+ * coastline (islands, beaches) snap to the land within ~1°; open sea is null.
+ */
+export function countryAt([lon, lat]: LonLat): CountryFeature | null {
+  const exact = containing([lon, lat]);
+  if (exact) return exact;
+  for (const [dx, dy] of NUDGES) {
+    const near = containing([lon + dx, lat + dy]);
+    if (near) return near;
+  }
+  return null;
+}
+
 /** Rotation that faces a lon/lat to the viewer. */
 export function rotationFor([lon, lat]: LonLat): LonLat {
   return [-lon, -lat];

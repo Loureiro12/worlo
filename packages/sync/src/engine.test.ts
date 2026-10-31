@@ -123,3 +123,32 @@ describe('SyncEngine coordination', () => {
     });
   });
 });
+
+describe('SyncEngine rejected rows', () => {
+  it('sets aside rows the server refuses for good and syncs the rest', async () => {
+    const { local, remote, engine } = setup();
+    local.enqueue('tasks', { id: 'ok-1' });
+    local.enqueue('tasks', { id: 'forbidden' });
+    local.enqueue('tasks', { id: 'ok-2' });
+    remote.forbiddenIds.add('forbidden');
+    remote.write('tasks', { id: 'from-server' });
+
+    const result = await engine.sync();
+
+    expect([...remote.rowsOf('tasks').keys()].sort()).toEqual(['from-server', 'ok-1', 'ok-2']);
+    expect(local.rejected.map((m) => m.recordId)).toEqual(['forbidden']);
+    expect(local.outbox).toEqual([]);
+    // The pull still ran: the queue is not blocked.
+    expect(result.pulled).toBeGreaterThan(0);
+  });
+
+  it('keeps retrying network errors (nothing is rejected)', async () => {
+    const { local, remote, engine } = setup();
+    local.enqueue('tasks', { id: 'a' });
+    remote.failNextUpsert = new Error('Network request failed');
+
+    await expect(engine.sync()).rejects.toThrow('Network request failed');
+    expect(local.rejected).toEqual([]);
+    expect(local.outbox).toHaveLength(1);
+  });
+});

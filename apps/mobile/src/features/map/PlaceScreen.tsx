@@ -14,10 +14,12 @@ import {
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
+import { usePlacePosts } from '@/data/community';
+import { updateItinerary, useItineraries } from '@/data/planning';
+import { postKey, toPlaceTip } from '@/features/community/model';
 import { img } from '@/lib/images';
-import { CITY_TABS, PLACE_INFO, PLACE_TIPS } from '@/mocks/data.generated';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import {
   Breadcrumb,
   decodeParam,
@@ -36,14 +38,16 @@ const DEFAULT_PLACE = 'Miradouro da Senhora do Monte';
  * built from their CITY_TABS row (type · price · hours).
  */
 export function PlaceScreen() {
+  const { CITY_TABS, PLACE_INFO } = useCatalog();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const name = decodeParam(rawId) || DEFAULT_PLACE;
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToast();
   const toggleSaved = useToggleSaved();
-  const itineraries = useStore((s) => s.itineraries);
-  const updateItinerary = useStore((s) => s.updateItinerary);
+  const itineraries = useItineraries();
+  // "Dicas de quem foi": community posts about this place (online).
+  const tips = usePlacePosts(name).data ?? [];
 
   const found = findCityItem(name);
   const item = found?.item ?? { name, meta: '', rating: '4,6' };
@@ -179,14 +183,25 @@ export function PlaceScreen() {
           ))}
         </View>
 
-        <View style={{ gap: 10 }}>
-          <Text variant="h3" accessibilityRole="header">
-            {t('map.place.tipsTitle')}
-          </Text>
-          {PLACE_TIPS.map((tip) => (
-            <TipCard key={tip.who} tip={tip} />
-          ))}
-        </View>
+        {tips.length ? (
+          <View style={{ gap: 10 }}>
+            <Text variant="h3" accessibilityRole="header">
+              {t('map.place.tipsTitle')}
+            </Text>
+            {tips.map((post) => (
+              <Pressable
+                key={post.id}
+                testID={`place-tip-${postKey(post.id)}`}
+                accessibilityRole="button"
+                accessibilityLabel={t('community.post.open', { name: post.author })}
+                accessibilityHint={post.text}
+                onPress={() => router.push(routes.post(post.id))}
+              >
+                <TipCard tip={toPlaceTip(post)} />
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
 
         <Pressable
           testID="place-tours"

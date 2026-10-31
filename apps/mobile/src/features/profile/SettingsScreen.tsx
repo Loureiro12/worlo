@@ -2,14 +2,17 @@ import { isLanguage, useTranslation } from '@worlo/i18n';
 import { Button, RadioRow, Screen, Text } from '@worlo/ui';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { View } from 'react-native';
+import { type NotificationPrefs, updatePrefs, useMe, useProfilePrefs } from '@/data/profile';
+import { useTwoFactor } from '@/data/twoFactor';
+import { auth } from '@/lib/auth';
 import { type CfgSection, routes } from '@/navigation/routes';
 import { useStore } from '@/store';
-import type { SettingsSlice } from '@/store/slices/settings';
 import { currencySymbol, DEMO_STATES } from './options';
 import { GroupCard, MenuRow, PageTitle, StackHeader, SwitchRow } from './parts';
 
-type NotificationKey = keyof SettingsSlice['notifications'];
+type NotificationKey = keyof NotificationPrefs;
 
 const NOTIFICATIONS: readonly {
   key: NotificationKey;
@@ -26,16 +29,19 @@ const NOTIFICATIONS: readonly {
 export function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const me = useStore((s) => s.me);
-  const twoFactor = useStore((s) => s.twoFactor);
-  const currency = useStore((s) => s.currency);
-  const units = useStore((s) => s.units);
-  const privacy = useStore((s) => s.privacy);
-  const notifications = useStore((s) => s.notifications);
-  const setSettings = useStore((s) => s.setSettings);
+  const me = useMe();
+  const twoFactor = useTwoFactor().factorId !== null;
+  const { currency, units, privacy, notifications } = useProfilePrefs();
   const demo = useStore((s) => s.demo);
   const setDemo = useStore((s) => s.setDemo);
-  const signOut = useStore((s) => s.signOut);
+  const [signingOut, setSigningOut] = useState(false);
+
+  const signOut = async () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    await auth.signOut();
+    router.replace(routes.welcome);
+  };
 
   const language = isLanguage(i18n.language) ? i18n.language : 'pt-BR';
   const open = (section: CfgSection) => () => router.push(routes.cfg(section));
@@ -113,7 +119,7 @@ export function SettingsScreen() {
                 : undefined
             }
             value={notifications[key]}
-            onChange={(value) => setSettings({ notifications: { ...notifications, [key]: value } })}
+            onChange={(value) => updatePrefs({ notifications: { ...notifications, [key]: value } })}
           />
         ))}
       </GroupCard>
@@ -179,10 +185,8 @@ export function SettingsScreen() {
         testID="settings-sign-out"
         variant="destructive"
         label={t('profile.settings.signOut')}
-        onPress={() => {
-          signOut();
-          router.replace(routes.welcome);
-        }}
+        loading={signingOut}
+        onPress={() => void signOut()}
       />
 
       <Text variant="caption" tone="muted" align="center" style={{ fontSize: 12 }}>

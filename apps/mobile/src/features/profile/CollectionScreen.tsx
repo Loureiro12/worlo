@@ -16,9 +16,9 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { CollectionCover } from '@/components/CollectionCover';
 import { useIsEmpty } from '@/components/DemoGate';
+import { toggleInCollection, useCollections, useSavedItems } from '@/data/saved';
 import { img } from '@/lib/images';
 import { links, useCopyLink } from '@/lib/useCopyLink';
-import { useStore } from '@/store';
 import { SavedItemRow, StackHeader, useCategoryLabel } from './parts';
 
 /** F3 · Coleção: mosaic, items with remove and "Adicionar dos salvos". */
@@ -28,9 +28,9 @@ export function CollectionScreen() {
   const copyLink = useCopyLink();
   const { id } = useLocalSearchParams<{ id: string }>();
   const empty = useIsEmpty();
-  const collection = useStore((s) => (empty ? undefined : s.collections.find((c) => c.id === id)));
-  const saved = useStore((s) => s.saved);
-  const toggleInCollection = useStore((s) => s.toggleInCollection);
+  const collections = useCollections();
+  const collection = empty ? undefined : collections.find((c) => c.id === id);
+  const saved = useSavedItems();
   const categoryLabel = useCategoryLabel();
   const [adding, setAdding] = useState(false);
 

@@ -1,4 +1,7 @@
 import { fireEvent, screen, within } from '@testing-library/react-native';
+import { createLocalStore } from '@worlo/db';
+import { repos } from '@/data/repositories';
+import { db } from '@/lib/database';
 import { DEFAULT_VISITED } from '@/mocks/data.generated';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
@@ -52,7 +55,7 @@ describe('MapScreen', () => {
     await renderWithProviders(<MapScreen />);
     expect(screen.getByTestId('map-screen')).toBeOnTheScreen();
     expect(screen.getByText('Seu mapa')).toBeOnTheScreen();
-    const trips = useStore.getState().trips.length;
+    const trips = repos.trips.list().length;
     expect(screen.getByTestId('map-stats')).toHaveTextContent(
       new RegExp(`^6 países · \\d+ cidades · ${trips} viagens$`),
     );
@@ -68,7 +71,7 @@ describe('MapScreen', () => {
 
   it('summarises the visible layers in the globe label and updates it with filters', async () => {
     await renderWithProviders(<MapScreen />);
-    const wishCount = useStore.getState().futures.length;
+    const wishCount = repos.world.wishes().filter((w) => w.countryIso).length;
     expect(
       screen.getByLabelText(
         `Globo do seu mapa. Visitados: 6. Quero ir: ${wishCount}. Em planejamento: 1.`,
@@ -157,24 +160,28 @@ describe('CountrySummaryPanel', () => {
     expect(screen.queryByTestId('map-country-page')).toBeNull();
 
     await fireEvent.press(screen.getByRole('switch', { name: 'Quero ir' }));
-    expect(useStore.getState().futures.some((f) => f.cid === '724')).toBe(true);
+    expect(repos.world.wishes().find((w) => w.countryIso === '724')).toMatchObject({
+      name: 'Spain',
+    });
+    const pending = await createLocalStore(db).pendingMutations(100);
+    expect(pending.map((m) => m.table)).toEqual(['wish_destinations']);
     expect(screen.getByRole('alert')).toHaveTextContent(/foi pra sua lista\.$/);
     expect(screen.getByRole('switch', { name: 'Na lista' })).toBeChecked();
     expect(screen.getByText('Na sua lista de futuros destinos')).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('switch', { name: 'Na lista' }));
-    expect(useStore.getState().futures.some((f) => f.cid === '724')).toBe(false);
+    expect(repos.world.wishes().some((w) => w.countryIso === '724')).toBe(false);
   });
 
   it('toggles "Já fui" with the visited toast', async () => {
     await render('392');
     await fireEvent.press(screen.getByRole('switch', { name: 'Já fui' }));
-    expect(useStore.getState().visitedMap['392']).toBeDefined();
+    expect(repos.world.visitedMap()['392']).toEqual([String(new Date().getFullYear())]);
     expect(screen.getByRole('alert')).toHaveTextContent('Viagem salva no seu mapa.');
     expect(screen.getByRole('switch', { name: 'Visitado' })).toBeChecked();
 
     await fireEvent.press(screen.getByRole('switch', { name: 'Visitado' }));
-    expect(useStore.getState().visitedMap['392']).toBeUndefined();
+    expect(repos.world.visitedMap()['392']).toBeUndefined();
   });
 
   it('shows the planned status for Peru', async () => {

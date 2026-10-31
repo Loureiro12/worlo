@@ -1,12 +1,37 @@
 export type { LocalDatabase } from './database';
-export { createLocalStore } from './local-store';
-export type { Task } from './schema';
+export { createLocalStore, wipeLocalData } from './local-store';
+export type { Repositories } from './repositories';
+export { createRepositories } from './repositories';
+export type {
+  Activity,
+  CatalogRow,
+  ChatMember,
+  ChatThread,
+  CollectionRow,
+  Companion,
+  Device,
+  EntityType,
+  Follow,
+  ItineraryRow,
+  LiveLog,
+  LiveSession,
+  Membership,
+  MembershipStatus,
+  Message,
+  NotificationRow,
+  NotificationType,
+  Person,
+  Photo,
+  PhotoFile,
+  Profile,
+  SavedItemRow,
+  TripExpenseRow,
+  TripRow,
+  VisitedCountry,
+  WishDestination,
+} from './schema';
 export * as schema from './schema';
 export type { SyncedTableName } from './synced-tables';
-export { isSyncedTable, syncedTables, syncOrder } from './synced-tables';
-export type { TasksRepository } from './tasks';
-export {
-  createTasksRepository,
-  TASK_TITLE_MAX_LENGTH,
-  TaskValidationError,
-} from './tasks';
+export { isSyncedTable, pullOnlyTables, syncedTables, syncOrder } from './synced-tables';
+export type { RepositoryOptions, WritableTable } from './writer';
+export { ValidationError } from './writer';

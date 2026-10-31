@@ -1,4 +1,14 @@
-import { fireEvent, screen, within } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
+import { schema } from '@worlo/db';
+import { eq } from 'drizzle-orm';
+import { getItineraries } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { toSavedItem } from '@/data/saved';
+import { toTrip } from '@/data/trips';
+import { fakeCommunityApi, resetCommunityServer } from '@/features/community/testServer';
+import { db } from '@/lib/database';
+import { DEMO_USER, demoId } from '@/mocks/demo';
+import { userId } from '@/mocks/demoWorld';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
@@ -18,8 +28,11 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
+jest.mock('@/data/communityApi', () => require('@/features/community/testServer').mockModule());
+
 beforeEach(() => {
   resetStore();
+  resetCommunityServer();
   jest.clearAllMocks();
 });
 
@@ -28,12 +41,22 @@ const type = async (text: string) => {
 };
 
 describe('searchItems', () => {
-  const s = useStore.getState();
-  const index = buildSearchIndex({
-    sub: (key, vars) => `${key} ${Object.values(vars ?? {}).join(' ')}`,
-    visitedMap: s.visitedMap,
-    itineraries: s.itineraries,
-    trips: s.trips,
+  // Built from SQLite (seeded before each test): catalog + the demo account's data.
+  let index: ReturnType<typeof buildSearchIndex>;
+  beforeEach(() => {
+    index = buildSearchIndex({
+      sub: (key, vars) => `${key} ${Object.values(vars ?? {}).join(' ')}`,
+      visitedMap: repos.world.visitedMap(),
+      itineraries: getItineraries(),
+      trips: repos.trips.list().map(toTrip),
+      saved: repos.saved.items().map(toSavedItem),
+      people: repos.people.list().filter((p) => p.id !== DEMO_USER.id),
+    });
+  });
+
+  it('finds the user trips and saved places', () => {
+    const floripa = searchItems(index, 'inverno floripa')[0];
+    expect(floripa?.target).toEqual({ href: routes.trip(demoId('trip:floripa')) });
   });
 
   it('matches without accents and requires every word', () => {
@@ -102,7 +125,36 @@ describe('SearchScreen', () => {
     await fireEvent.press(screen.getByTestId('search-chip-people'));
     expect(screen.queryByTestId('search-group-rot')).toBeNull();
     await fireEvent.press(screen.getByTestId('search-result-person-Marina Costa'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.traveler('Marina Costa'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.traveler(userId('Marina Costa')));
+  });
+
+  it('finds experts (synced) and opens their page', async () => {
+    await renderWithProviders(<SearchScreen />);
+    await type('kenji');
+    await fireEvent.press(screen.getByTestId('search-result-expert-Kenji Tanaka'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.traveler(userId('Kenji Tanaka')));
+  });
+
+  it('merges people from the server (search_people) that are not on the device', async () => {
+    const lucia = userId('Lúcia Martins');
+    db.delete(schema.people).where(eq(schema.people.id, lucia)).run();
+    await renderWithProviders(<SearchScreen />);
+    await type('lúcia');
+    // Debounced server search (300 ms).
+    await fireEvent.press(
+      await screen.findByTestId('search-result-person-Lúcia Martins', {}, { timeout: 3000 }),
+    );
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.traveler(lucia));
+  });
+
+  it('asks the server only from 2 characters', async () => {
+    const spy = jest.spyOn(fakeCommunityApi, 'searchPeople');
+    await renderWithProviders(<SearchScreen />);
+    await type('l');
+    await new Promise((r) => setTimeout(r, 400));
+    expect(spy).not.toHaveBeenCalled();
+    await type('lu');
+    await waitFor(() => expect(spy).toHaveBeenCalledWith('lu'), { timeout: 3000 });
   });
 
   it('finds tours and itineraries', async () => {
@@ -112,7 +164,9 @@ describe('SearchScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith(routes.passeio('tejo'));
     await type('machu picchu');
     await fireEvent.press(screen.getByTestId('search-result-rot-peru'));
-    expect(mockRouter.push).toHaveBeenLastCalledWith(routes.roteiro('peru', 'mine'));
+    expect(mockRouter.push).toHaveBeenLastCalledWith(
+      routes.roteiro(demoId('itinerary:peru'), 'mine'),
+    );
   });
 
   it('Enter saves the search and opens the only result', async () => {

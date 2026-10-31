@@ -6,8 +6,8 @@ import { Pressable, useWindowDimensions, View } from 'react-native';
 import { CollectionCover } from '@/components/CollectionCover';
 import { useIsEmpty } from '@/components/DemoGate';
 import { SaveToCollectionSheet } from '@/components/SaveToCollectionSheet';
+import { collectionKey, useCollections } from '@/data/saved';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { PageTitle, StackHeader } from './parts';
 
 const COLUMN_GAP = 12;
@@ -17,7 +17,7 @@ export function CollectionsScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const empty = useIsEmpty();
-  const all = useStore((s) => s.collections);
+  const all = useCollections();
   const collections = empty ? [] : all;
   const [creating, setCreating] = useState(false);
   const { width } = useWindowDimensions();
@@ -59,7 +59,7 @@ export function CollectionsScreen() {
           return (
             <Pressable
               key={c.id}
-              testID={`collections-item-${c.id}`}
+              testID={`collections-item-${collectionKey(c.id)}`}
               accessibilityRole="button"
               accessibilityLabel={`${c.name}, ${count}`}
               onPress={() => router.push(routes.collection(c.id))}

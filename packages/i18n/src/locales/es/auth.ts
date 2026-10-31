@@ -37,6 +37,18 @@ const auth: TranslationSchema['auth'] = {
     email: 'Revisa el correo, parece incompleto.',
     passwordShort: 'La contraseña necesita al menos 8 caracteres.',
     passwordEmpty: 'Escribe tu contraseña.',
+    server: {
+      invalidCredentials: 'El correo o la contraseña no coinciden. Revisa e intenta de nuevo.',
+      emailTaken: 'Ya existe una cuenta con ese correo. ¿Qué tal si entras?',
+      weakPassword: 'Esa contraseña es fácil de adivinar. Prueba una más segura.',
+      emailNotConfirmed: 'Falta confirmar tu correo. Revisa tu bandeja de entrada.',
+      rateLimited: 'Demasiados intentos seguidos. Espera un poco e intenta de nuevo.',
+      network: 'No pudimos conectar con Worlo. Revisa tu internet.',
+      notConfigured: 'No pudimos conectar con Worlo ahora.',
+      invalidCode:
+        'Código incorrecto o vencido. Revisa tu app de autenticación e intenta de nuevo.',
+      unknown: 'No pudimos continuar ahora. Intenta de nuevo en un rato.',
+    },
   },
   signup: {
     title: 'Crea tu cuenta',
@@ -68,6 +80,36 @@ const auth: TranslationSchema['auth'] = {
     backToLogin: 'Volver a entrar',
     resend: '¿No llegó? Enviar de nuevo',
     resent: 'Enlace reenviado.',
+  },
+  gate: {
+    offlineTitle: 'Estás sin internet',
+    offlineText: 'Para abrir tu cuenta en este dispositivo por primera vez, necesitamos conexión.',
+    errorTitle: 'No pudimos cargar tu cuenta',
+    errorText: 'Algo salió mal de nuestro lado. Intenta de nuevo en un rato.',
+    signOut: 'Cerrar sesión',
+  },
+  twoFactor: {
+    title: 'Verificación en dos pasos',
+    text: 'Escribe el código de 6 dígitos de tu app de autenticación para entrar.',
+    code: 'Código de 6 dígitos',
+    submit: 'Confirmar',
+    notYou: '¿No tienes tu app de autenticación?',
+    signOut: 'Salir',
+    errors: {
+      code: 'El código tiene 6 números.',
+    },
+  },
+  reset: {
+    title: 'Crea una nueva contraseña',
+    text: 'Elige una contraseña que no uses en otro lugar.',
+    submit: 'Guardar nueva contraseña',
+    saved: 'Nueva contraseña guardada.',
+    checking: 'Abriendo el enlace…',
+    invalidTitle: 'Este enlace ya no es válido',
+    invalidText:
+      'Los enlaces de nueva contraseña duran 30 minutos y funcionan una sola vez. Pide otro y te lo enviamos.',
+    newLink: 'Pedir otro enlace',
+    backToLogin: 'Volver a entrar',
   },
   onboarding: {
     step: 'Paso 1 de 2',

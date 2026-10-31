@@ -15,9 +15,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Children, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
+import { useCollections } from '@/data/saved';
 import { img } from '@/lib/images';
 import type { SavedCategory, SavedItem } from '@/mocks/types';
-import { useStore } from '@/store';
 
 /* Building blocks shared by the profile/settings screens. Promotion candidates
    for @worlo/ui: GroupCard, MenuRow, SwitchRow, CheckRow. */
@@ -250,9 +250,7 @@ export function SavedItemRow({
 }) {
   const { t } = useTranslation();
   const categoryLabel = useCategoryLabel();
-  const inCollections = useStore(
-    (s) => s.collections.filter((c) => c.ids.includes(item.id)).length,
-  );
+  const inCollections = useCollections().filter((c) => c.ids.includes(item.id)).length;
   return (
     <View
       testID={testID}

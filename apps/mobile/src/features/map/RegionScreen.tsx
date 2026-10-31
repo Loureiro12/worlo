@@ -13,8 +13,8 @@ import {
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
+import { useCatalog } from '@/data/catalog';
 import { img } from '@/lib/images';
-import { REGION } from '@/mocks/data.generated';
 import { routes } from '@/navigation/routes';
 import { Breadcrumb, decodeParam, LISBOA } from './shared';
 
@@ -23,6 +23,7 @@ import { Breadcrumb, decodeParam, LISBOA } from './shared';
  * other ids render a minimal page (hero + breadcrumb + "chega em breve").
  */
 export function RegionScreen() {
+  const { REGION } = useCatalog();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = decodeParam(rawId);
   const { t } = useTranslation();

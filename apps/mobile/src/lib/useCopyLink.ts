@@ -4,12 +4,15 @@ import * as Clipboard from 'expo-clipboard';
 import { useCallback } from 'react';
 
 export const WEB_BASE = 'https://worlo.app';
+/** App scheme (app.config.ts `scheme`): opens the app on the right screen. */
+export const APP_BASE = 'worlo://';
 
 /** Public links (placeholder domain until the web app exists). */
 export const links = {
   profile: (user: string) => `${WEB_BASE}/${user}`,
   post: (id: string) => `${WEB_BASE}/p/${id}`,
-  tripInvite: (id: string) => `${WEB_BASE}/convite/${id}`,
+  /** Invite link to a trip / wish (token from `invite_links`): route `join/[token]`. */
+  tripInvite: (token: string) => `${APP_BASE}join/${token}`,
   collection: (id: string) => `${WEB_BASE}/c/${id}`,
 };
 

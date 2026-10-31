@@ -136,6 +136,24 @@ const trips: TranslationSchema['trips'] = {
     inviteName: 'Invitar a {{name}}',
     invited: 'Invitación enviada a {{name}}.',
     copyLink: 'Copiar enlace de invitación',
+    leave: 'Salir del viaje',
+    left: 'Saliste de “{{title}}”.',
+  },
+  activity: {
+    photos_one: 'agregó {{count}} foto',
+    photos_other: 'agregó {{count}} fotos',
+    photosDay_one: 'agregó {{count}} foto en el Día {{day}}',
+    photosDay_other: 'agregó {{count}} fotos en el Día {{day}}',
+    expense: 'registró {{amount}} en {{name}}',
+    diary: 'escribió en el diario',
+    diaryDay: 'escribió en el diario del Día {{day}}',
+    joined: 'se unió al viaje',
+  },
+  join: {
+    loading: 'Uniéndote al viaje…',
+    errorTitle: 'Este enlace ya no funciona',
+    errorText:
+      'La invitación puede haber vencido o sido cancelada. Pide un enlace nuevo a quien te invitó.',
   },
   retro: {
     overline: 'Retrospectiva · {{year}}',

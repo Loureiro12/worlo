@@ -1,4 +1,6 @@
-import { fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen } from '@testing-library/react-native';
+import { repos } from '@/data/repositories';
+import { type AuthResult, auth } from '@/lib/auth';
 import { preferences } from '@/lib/preferences';
 import { routes } from '@/navigation/routes';
 import { PreferencesProvider } from '@/providers/PreferencesProvider';
@@ -15,11 +17,37 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
+jest.mock('@/lib/auth', () => ({
+  ...jest.requireActual('@/lib/auth'),
+  auth: {
+    signIn: jest.fn(),
+    verifyPassword: jest.fn(),
+    updatePassword: jest.fn(),
+    updateEmail: jest.fn(),
+    signOut: jest.fn(),
+    deleteAccount: jest.fn(),
+  },
+}));
+
+const mockAuth = auth as unknown as Record<
+  'signIn' | 'verifyPassword' | 'updatePassword' | 'updateEmail' | 'signOut' | 'deleteAccount',
+  jest.Mock
+>;
+const OK: AuthResult = { ok: true };
+const WRONG: AuthResult = { ok: false, code: 'invalidCredentials' };
+const profile = () => repos.profile.get();
+
 beforeEach(() => {
   resetStore();
   jest.clearAllMocks();
   mockParams = {};
   preferences.setLanguage('pt-BR');
+  mockAuth.signIn.mockResolvedValue(OK);
+  mockAuth.verifyPassword.mockResolvedValue(OK);
+  mockAuth.updatePassword.mockResolvedValue(OK);
+  mockAuth.updateEmail.mockResolvedValue(OK);
+  mockAuth.signOut.mockResolvedValue(undefined);
+  mockAuth.deleteAccount.mockResolvedValue(OK);
 });
 
 const openCfg = async (section: string) => {
@@ -56,7 +84,7 @@ describe('SettingsScreen', () => {
     await renderWithProviders(<SettingsScreen />);
     expect(screen.getByTestId('settings-screen')).toBeOnTheScreen();
     expect(screen.getByText('Ana Ribeiro')).toBeOnTheScreen();
-    expect(screen.getByText('ana@gmail.com')).toBeOnTheScreen();
+    expect(screen.getByText('ana@worlo.app')).toBeOnTheScreen();
     expect(screen.getByText('Português (Brasil)')).toBeOnTheScreen();
     expect(screen.getByText('R$ BRL')).toBeOnTheScreen();
     expect(screen.getByText('Métrico')).toBeOnTheScreen();
@@ -70,14 +98,14 @@ describe('SettingsScreen', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith(routes.photos);
   });
 
-  it('binds the notification toggles to the store', async () => {
+  it('binds the notification toggles to the profile', async () => {
     await renderWithProviders(<SettingsScreen />);
     const promos = screen.getByRole('switch', { name: 'Ofertas de passeios' });
     expect(promos).not.toBeChecked();
     await fireEvent.press(promos);
-    expect(useStore.getState().notifications.promos).toBe(true);
+    expect(profile()?.notificationPrefs.promos).toBe(true);
     await fireEvent.press(screen.getByRole('switch', { name: 'Memórias' }));
-    expect(useStore.getState().notifications).toMatchObject({ memories: false, promos: true });
+    expect(profile()?.notificationPrefs).toMatchObject({ memories: false, promos: true });
   });
 
   it('switches the demo state', async () => {
@@ -90,11 +118,19 @@ describe('SettingsScreen', () => {
     expect(useStore.getState().demo).toBe('normal');
   });
 
-  it('signs out and goes to the welcome screen', async () => {
-    useStore.setState({ signedIn: true });
+  it('signs out (busy while it runs) and goes to the welcome screen', async () => {
+    let finish: () => void = () => {};
+    mockAuth.signOut.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      }),
+    );
     await renderWithProviders(<SettingsScreen />);
-    await fireEvent.press(screen.getByRole('button', { name: 'Sair da conta' }));
-    expect(useStore.getState().signedIn).toBe(false);
+    await fireEvent.press(screen.getByTestId('settings-sign-out'));
+    expect(screen.getByTestId('settings-sign-out')).toBeBusy();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    await act(async () => finish());
+    expect(mockAuth.signOut).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.welcome);
   });
 });
@@ -118,9 +154,9 @@ describe('CfgScreen · account', () => {
     expect(screen.getByTestId('account-preview')).toHaveTextContent('worlo.app/anaviaja');
     await fireEvent.changeText(screen.getByTestId('account-city'), 'Recife');
     await submit();
-    expect(useStore.getState().me).toMatchObject({
+    expect(profile()).toMatchObject({
       name: 'Ana R.',
-      user: 'anaviaja',
+      username: 'anaviaja',
       city: 'Recife',
     });
     expect(screen.getByRole('alert')).toHaveTextContent('Perfil atualizado.');
@@ -131,31 +167,50 @@ describe('CfgScreen · account', () => {
     await openCfg('account');
     await fireEvent.press(screen.getByTestId('account-change-photo'));
     await fireEvent.press(screen.getByTestId('photo-choice-0'));
-    expect(useStore.getState().me.avatar).toMatch(/^https:\/\//);
+    expect(profile()?.avatarUrl).toMatch(/^https:\/\//);
     expect(screen.getByRole('alert')).toHaveTextContent('Foto do perfil atualizada.');
 
     await fireEvent.press(screen.getByTestId('account-change-photo'));
     await fireEvent.press(screen.getByTestId('photo-remove'));
-    expect(useStore.getState().me.avatar).toBeNull();
+    expect(profile()?.avatarUrl).toBeNull();
   });
 });
 
 describe('CfgScreen · email', () => {
-  it('validates the new email and the password, then saves', async () => {
+  it('validates the new email and the password, then asks Supabase to change it', async () => {
     await openCfg('email');
-    expect(screen.getByTestId('email-current')).toHaveTextContent('ana@gmail.com');
+    expect(screen.getByTestId('email-current')).toHaveTextContent('ana@worlo.app');
     await submit();
     expect(errorText()).toHaveTextContent('Confere o novo e-mail.');
-    await fireEvent.changeText(screen.getByTestId('email-new'), 'ana@gmail.com');
+    await fireEvent.changeText(screen.getByTestId('email-new'), 'ANA@worlo.app');
     await submit();
     expect(errorText()).toHaveTextContent('Esse já é o seu e-mail.');
-    await fireEvent.changeText(screen.getByTestId('email-new'), 'ana@worlo.app');
+    await fireEvent.changeText(screen.getByTestId('email-new'), 'ana@gmail.com');
     await submit();
     expect(errorText()).toHaveTextContent('Digite sua senha atual.');
-    await fireEvent.changeText(screen.getByTestId('email-password'), 'segredo');
+    expect(mockAuth.updateEmail).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByTestId('email-password'), 'worlo1234');
     await submit();
-    expect(useStore.getState().me.email).toBe('ana@worlo.app');
+    expect(mockAuth.updateEmail).toHaveBeenCalledWith(
+      'ana@worlo.app',
+      'worlo1234',
+      'ana@gmail.com',
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Link de confirmação enviado pra ana@gmail.com.',
+    );
     expect(mockRouter.back).toHaveBeenCalled();
+  });
+
+  it('shows a wrong password as a form error', async () => {
+    mockAuth.updateEmail.mockResolvedValueOnce(WRONG);
+    await openCfg('email');
+    await fireEvent.changeText(screen.getByTestId('email-new'), 'ana@gmail.com');
+    await fireEvent.changeText(screen.getByTestId('email-password'), 'errada');
+    await submit();
+    expect(errorText()).toHaveTextContent('Senha atual não confere.');
+    expect(screen.getByTestId('email-password')).toHaveProp('aria-invalid', true);
+    expect(mockRouter.back).not.toHaveBeenCalled();
   });
 });
 
@@ -174,20 +229,34 @@ describe('CfgScreen · security', () => {
     expect(errorText()).toHaveTextContent('As senhas não batem.');
     await fireEvent.changeText(screen.getByTestId('security-confirm'), 'novasenha1');
     await submit();
+    expect(mockAuth.verifyPassword).toHaveBeenCalledWith('ana@worlo.app', 'velha123');
+    expect(mockAuth.updatePassword).toHaveBeenCalledWith('novasenha1');
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Senha alterada. Os outros aparelhos vão pedir login de novo.',
     );
     expect(screen.getByTestId('security-current')).toHaveProp('value', '');
   });
 
-  it('toggles 2FA and signs out another device', async () => {
+  it('rejects a wrong current password without changing it', async () => {
+    mockAuth.verifyPassword.mockResolvedValueOnce(WRONG);
     await openCfg('security');
-    await fireEvent.press(screen.getByRole('switch', { name: 'Verificação em duas etapas' }));
-    expect(useStore.getState().twoFactor).toBe(true);
-    expect(screen.getByText('Este aparelho')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: 'Desconectar iPad' }));
-    expect(useStore.getState().devices.map((d) => d.id)).toEqual(['s1', 's2']);
-    expect(screen.queryByTestId('device-s3')).toBeNull();
+    await fireEvent.changeText(screen.getByTestId('security-current'), 'errada');
+    await fireEvent.changeText(screen.getByTestId('security-newPassword'), 'novasenha1');
+    await fireEvent.changeText(screen.getByTestId('security-confirm'), 'novasenha1');
+    await submit();
+    expect(errorText()).toHaveTextContent('A senha atual não confere.');
+    expect(screen.getByTestId('security-current')).toHaveProp('aria-invalid', true);
+    expect(mockAuth.updatePassword).not.toHaveBeenCalled();
+  });
+
+  it('shows a server error from the password change', async () => {
+    mockAuth.updatePassword.mockResolvedValueOnce({ ok: false, code: 'weakPassword' });
+    await openCfg('security');
+    await fireEvent.changeText(screen.getByTestId('security-current'), 'worlo1234');
+    await fireEvent.changeText(screen.getByTestId('security-newPassword'), '12345678');
+    await fireEvent.changeText(screen.getByTestId('security-confirm'), '12345678');
+    await submit();
+    expect(errorText()).toHaveTextContent('Essa senha é fácil de adivinhar. Tenta uma mais forte.');
   });
 });
 
@@ -206,16 +275,16 @@ describe('CfgScreen · preferences', () => {
     expect(preferences.getLanguage()).toBe('es');
   });
 
-  it('sets currency and units in the store', async () => {
+  it('sets currency and units on the profile', async () => {
     const { unmount } = await openCfg('currency');
     await fireEvent.press(screen.getByTestId('currency-EUR'));
-    expect(useStore.getState().currency).toBe('EUR');
+    expect(profile()?.currency).toBe('EUR');
     expect(screen.getByRole('alert')).toHaveTextContent('Moeda: Euro.');
     await unmount();
 
     await openCfg('units');
     await fireEvent.press(screen.getByTestId('units-imperial'));
-    expect(useStore.getState().units).toBe('imperial');
+    expect(profile()?.units).toBe('imperial');
   });
 });
 
@@ -223,9 +292,9 @@ describe('CfgScreen · privacy', () => {
   it('changes level and detail toggles; expenses stay locked', async () => {
     await openCfg('privacy');
     await fireEvent.press(screen.getByTestId('privacy-level-public'));
-    expect(useStore.getState().privacy).toBe('public');
+    expect(profile()?.privacy).toBe('public');
     await fireEvent.press(screen.getByRole('switch', { name: 'Fotos' }));
-    expect(useStore.getState().privacyDetail.photos).toBe(true);
+    expect(profile()?.privacyDetail.photos).toBe(true);
     expect(screen.getByText('Sempre privados, só você vê')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('privacy-blocked'));
     expect(screen.getByRole('alert')).toHaveTextContent('Você não bloqueou ninguém.');
@@ -245,7 +314,7 @@ describe('CfgScreen · export', () => {
     await fireEvent.press(screen.getByTestId('export-community'));
     await submit();
     expect(screen.getByTestId('export-received')).toHaveTextContent(
-      /Seu arquivo chega em ana@gmail.com em até 24h./,
+      /Seu arquivo chega em ana@worlo.app em até 24h./,
     );
     expect(screen.getByTestId('cfg-cta')).toBeDisabled();
   });
@@ -265,7 +334,6 @@ describe('CfgScreen · help', () => {
 
 describe('CfgScreen · delete', () => {
   it('enables the red button only after typing EXCLUIR (case-insensitive)', async () => {
-    useStore.setState({ signedIn: true });
     await openCfg('delete');
     expect(screen.getByTestId('cfg-cta')).toBeDisabled();
     await fireEvent.changeText(screen.getByTestId('delete-confirm'), 'exclui');
@@ -273,8 +341,20 @@ describe('CfgScreen · delete', () => {
     await fireEvent.changeText(screen.getByTestId('delete-confirm'), 'excluir');
     expect(screen.getByTestId('cfg-cta')).toBeEnabled();
     await submit();
-    expect(useStore.getState().signedIn).toBe(false);
+    expect(mockAuth.deleteAccount).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.welcome);
+    expect(screen.getByRole('alert')).toHaveTextContent('Conta excluída. Até a próxima viagem.');
+  });
+
+  it('keeps the account and shows a toast when deleting fails', async () => {
+    mockAuth.deleteAccount.mockResolvedValueOnce({ ok: false, code: 'network' });
+    await openCfg('delete');
+    await fireEvent.changeText(screen.getByTestId('delete-confirm'), 'EXCLUIR');
+    await submit();
+    expect(mockRouter.replace).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Não deu pra falar com o Worlo. Confere sua internet.',
+    );
   });
 
   it('offers exporting first', async () => {

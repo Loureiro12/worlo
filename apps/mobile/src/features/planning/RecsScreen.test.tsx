@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import { RECS } from '@/mocks/data.generated';
+import { getCatalog } from '@/data/catalog';
 import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { RecsScreen } from './RecsScreen';
@@ -15,11 +15,13 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+const RECS = () => getCatalog().RECS;
+
 describe('RecsScreen', () => {
   it('lists every recommendation with days, author, rating and saves', async () => {
     await renderWithProviders(<RecsScreen />);
     expect(screen.getByText('Roteiros recomendados')).toBeOnTheScreen();
-    for (const r of RECS) expect(screen.getByTestId(`recs-card-${r.id}`)).toBeOnTheScreen();
+    for (const r of RECS()) expect(screen.getByTestId(`recs-card-${r.id}`)).toBeOnTheScreen();
     expect(screen.getByText('Lisboa em 4 dias, sem correr')).toBeOnTheScreen();
     expect(screen.getAllByText('4 dias').length).toBeGreaterThan(0);
     expect(screen.getByText('· 2,3 mil')).toBeOnTheScreen();
@@ -33,7 +35,7 @@ describe('RecsScreen', () => {
     await fireEvent.press(screen.getByTestId('recs-filter-europe'));
     expect(screen.getByTestId('recs-card-rec-lisboa')).toBeOnTheScreen();
     expect(screen.queryByTestId('recs-card-rec-kyoto')).toBeNull();
-    const southAmerica = RECS.filter((r) => r.region === 'América do Sul');
+    const southAmerica = RECS().filter((r) => r.region === 'América do Sul');
     await fireEvent.press(screen.getByTestId('recs-filter-southAmerica'));
     for (const r of southAmerica) expect(screen.getByTestId(`recs-card-${r.id}`)).toBeOnTheScreen();
   });

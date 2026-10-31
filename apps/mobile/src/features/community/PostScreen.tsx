@@ -7,7 +7,6 @@ import {
   fontFamily,
   Icon,
   IconButton,
-  initialsOf,
   makeStyles,
   Photo,
   ProgressBar,
@@ -15,30 +14,15 @@ import {
   ScreenHeader,
   StarRating,
   Text,
-  useToast,
 } from '@worlo/ui';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
+import { useAddComment, useComments, usePost, useVote } from '@/data/community';
 import { links, useCopyLink } from '@/lib/useCopyLink';
-import { COMMENTS } from '@/mocks/data.generated';
-import type { Comment } from '@/mocks/types';
-import { useStore } from '@/store';
-import { CommentRow, MessageComposer, VoteButton } from './components';
-import {
-  hasProfile,
-  personAvatar,
-  postPhoto,
-  postStats,
-  TYPE_KEYS,
-  useAllPosts,
-  useGoBack,
-  useOpenAuthor,
-  useVoteAction,
-} from './model';
-
-const EMPTY: Comment[] = [];
+import { CommentRow, MessageComposer, QueryGate, VoteButton } from './components';
+import { personAvatar, postPhoto, postStats, TYPE_KEYS, useGoBack, useOpenAuthor } from './model';
 
 const useStyles = makeStyles((t) => ({
   block: { padding: 18, borderRadius: t.radius.r24, backgroundColor: t.colors.surface, gap: 12 },
@@ -48,16 +32,14 @@ const useStyles = makeStyles((t) => ({
 export function PostScreen() {
   const styles = useStyles();
   const { t } = useTranslation();
-  const _toast = useToast();
   const copyLink = useCopyLink();
   const back = useGoBack();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const post = useAllPosts().find((p) => p.id === id);
-  const vote = useStore((s) => (id ? s.votes[id] : undefined));
-  const extra = useStore((s) => (id ? (s.comments[id] ?? EMPTY) : EMPTY));
-  const me = useStore((s) => s.me);
-  const addComment = useStore((s) => s.addComment);
-  const onVote = useVoteAction();
+  const query = usePost(id);
+  const post = query.data;
+  const comments = useComments(post ? id : undefined).data ?? [];
+  const addComment = useAddComment();
+  const onVote = useVote();
   const openAuthor = useOpenAuthor();
   const [text, setText] = useState('');
 
@@ -81,15 +63,17 @@ export function PostScreen() {
   if (!post) {
     return (
       <DemoGate network onBack={back}>
-        <Screen testID="post-screen" header={header()}>
-          <EmptyState title={t('community.post.notFound')} />
-        </Screen>
+        <QueryGate query={query} onBack={back}>
+          <Screen testID="post-screen" header={header()}>
+            <EmptyState title={t('community.post.notFound')} />
+          </Screen>
+        </QueryGate>
       </DemoGate>
     );
   }
 
+  const vote = post.myVote;
   const stats = postStats(post, vote);
-  const comments = [...(COMMENTS[post.id] ?? []), ...extra];
   const photo = postPhoto(post, 700, 480);
   const relColor = stats.level === 'high' ? colors.success : colors.textMuted;
   const pctLabel = `${stats.pct}%`;
@@ -97,13 +81,11 @@ export function PostScreen() {
   const send = () => {
     const value = text.trim();
     if (!value) return;
-    addComment(post.id, {
-      who: me.name,
-      ini: initialsOf(me.name),
-      when: t('community.time.now'),
-      text: value,
-    });
     setText('');
+    void addComment(post.id, value).then((ok) => {
+      // Keep what was typed when it could not be sent.
+      if (!ok) setText((current) => current || value);
+    });
   };
 
   return (
@@ -131,12 +113,11 @@ export function PostScreen() {
           testID="post-author"
           accessibilityRole="button"
           accessibilityLabel={t('community.post.author', { name: post.author })}
-          disabled={!hasProfile(post)}
           onPress={() => openAuthor(post)}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
         >
           <Avatar
-            {...personAvatar(post.author, post.mine, post.mine ? me.avatar : undefined)}
+            {...personAvatar(post.author, post.mine, post.avatarUrl)}
             initials={post.ini}
             size={44}
           />
@@ -148,7 +129,7 @@ export function PostScreen() {
               {t('community.post.meta', { place: post.where, when: post.when })}
             </Text>
           </View>
-          {hasProfile(post) ? <Icon name="caret-right" color={colors.textMuted} /> : null}
+          <Icon name="caret-right" color={colors.textMuted} />
         </Pressable>
         {post.rating ? (
           <StarRating
@@ -204,7 +185,7 @@ export function PostScreen() {
               value="yes"
               selected={vote === 'yes'}
               count={stats.yes}
-              onPress={() => onVote(post, 'yes')}
+              onPress={() => void onVote(post, 'yes')}
             />
             <VoteButton
               full
@@ -212,7 +193,7 @@ export function PostScreen() {
               value="no"
               selected={vote === 'no'}
               count={stats.no}
-              onPress={() => onVote(post, 'no')}
+              onPress={() => void onVote(post, 'no')}
             />
           </View>
         </View>
@@ -221,11 +202,11 @@ export function PostScreen() {
           <Text variant="h3">
             {`${t('community.comments.title')} `}
             <Text variant="h3" tone="muted" style={{ fontFamily: fontFamily.title500 }}>
-              {t('community.comments.count', { n: comments.length })}
+              {t('community.comments.count', { n: Math.max(comments.length, post.comments) })}
             </Text>
           </Text>
-          {comments.map((c, i) => (
-            <CommentRow key={`${c.who}-${i}`} comment={c} isMe={c.who === me.name} />
+          {comments.map((c) => (
+            <CommentRow key={c.id} comment={c} />
           ))}
         </View>
       </Screen>

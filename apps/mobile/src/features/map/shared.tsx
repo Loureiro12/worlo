@@ -2,9 +2,11 @@ import { useTranslation } from '@worlo/i18n';
 import { Avatar, colors, Icon, Text, useToast } from '@worlo/ui';
 import { Fragment, useCallback } from 'react';
 import { Pressable, View } from 'react-native';
-import { CITY_TABS, COUNTRY_PAGES } from '@/mocks/data.generated';
+import { getCatalog } from '@/data/catalog';
+import { repos } from '@/data/repositories';
+import { isSaved, toggleSaved, useIsSaved as useSavedFlag } from '@/data/saved';
+import { useQuery } from '@/data/useQuery';
 import type { CityItem, CityTabKey, CountryId, PlaceTip, SavedItem } from '@/mocks/types';
-import { useStore } from '@/store';
 
 /** Countries "em roteiro/planejamento" on the map (prototype: Peru, from the Peru itinerary). */
 export const PLANNED_COUNTRIES: readonly CountryId[] = ['604'];
@@ -13,16 +15,16 @@ export type CountryStatus = 'visited' | 'planned' | 'wishlist' | 'none';
 
 /** Precedence follows the globe: visited > planned > wishlist > none. */
 export function useCountryStatus(id: CountryId | null | undefined): CountryStatus {
-  return useStore((s) => {
+  return useQuery((): CountryStatus => {
     if (!id) return 'none';
-    if (s.visitedMap[id]) return 'visited';
+    if (repos.world.visitedMap()[id]) return 'visited';
     if (PLANNED_COUNTRIES.includes(id)) return 'planned';
-    if (s.futures.some((f) => f.cid === id)) return 'wishlist';
+    if (repos.world.wishes().some((w) => w.countryIso === id)) return 'wishlist';
     return 'none';
-  });
+  }, [id]);
 }
 
-export const hasCountryPage = (id: CountryId) => Boolean(COUNTRY_PAGES[id]);
+export const hasCountryPage = (id: CountryId) => Boolean(getCatalog().COUNTRY_PAGES[id]);
 
 /** Lisboa is the only city with a page in the mocks; the region and places hang off it. */
 export const LISBOA = {
@@ -35,12 +37,13 @@ export const LISBOA = {
   weather: 'Clima ameno em outubro · 18–24°C',
 } as const;
 
-export const CITY_TAB_KEYS = Object.keys(CITY_TABS) as CityTabKey[];
+/** Tabs of the city page, in the prototype order (content per tab is catalog). */
+export const CITY_TAB_KEYS: readonly CityTabKey[] = ['attr', 'food', 'shop', 'move', 'serv'];
 
 /** Finds a Lisboa item (any category) by name, for the place page fallback. */
 export function findCityItem(name: string): { item: CityItem; tab: CityTabKey } | null {
   for (const tab of CITY_TAB_KEYS) {
-    const item = CITY_TABS[tab].items.find((i) => i.name === name);
+    const item = getCatalog().CITY_TABS[tab]?.items.find((i) => i.name === name);
     if (item) return { item, tab };
   }
   return null;
@@ -63,22 +66,21 @@ export function savedItemFor(item: CityItem, tab: CityTabKey | null): SavedItem 
 }
 
 export function useIsSaved(id: string) {
-  return useStore((s) => s.saved.some((x) => x.id === id));
+  return useSavedFlag(id);
 }
 
 /** Toggles a saved place with the F8 toasts ("Salvo nos seus lugares." / "Removido dos salvos."). */
 export function useToggleSaved() {
   const { t } = useTranslation();
   const toast = useToast();
-  const toggleSaved = useStore((s) => s.toggleSaved);
   return useCallback(
     (item: SavedItem) => {
-      const was = useStore.getState().saved.some((x) => x.id === item.id);
+      const was = isSaved(item.id);
       toggleSaved(item);
       if (was) toast.show(t('map.toasts.savedRemoved'), 'info');
       else toast.show(t('map.toasts.savedAdded'));
     },
-    [t, toast, toggleSaved],
+    [t, toast],
   );
 }
 
@@ -150,9 +152,14 @@ export function TipCard({ tip, avatarSize = 28 }: { tip: PlaceTip; avatarSize?: 
       </View>
       <Text variant="body">{tip.text}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <Icon name="seal-check" size={14} color={colors.success} />
-        <Text variant="caption" weight={700} tone="success" style={{ fontSize: 12 }}>
-          {t('map.place.confirm', { pct: tip.pct })}
+        <Icon name="seal-check" size={14} color={tip.pct ? colors.success : colors.textMuted} />
+        <Text
+          variant="caption"
+          weight={700}
+          tone={tip.pct ? 'success' : 'muted'}
+          style={{ fontSize: 12 }}
+        >
+          {tip.pct ? t('map.place.confirm', { pct: tip.pct }) : t('community.reliability.waiting')}
         </Text>
       </View>
     </View>

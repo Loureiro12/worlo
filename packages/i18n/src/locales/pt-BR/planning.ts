@@ -49,6 +49,8 @@ const planning = {
     empty: 'Nenhum roteiro nessa região ainda.',
   },
   live: {
+    noItinerary: 'Nenhum roteiro pra viajar.',
+    noItineraryText: 'Crie um roteiro em Viagens › Roteiros e comece a viagem por ele.',
     travelingNow: 'Viajando agora',
     end: 'Encerrar',
     dayTitle: 'Dia {{n}} · {{label}}',

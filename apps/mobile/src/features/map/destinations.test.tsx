@@ -1,6 +1,12 @@
 import { fireEvent, screen } from '@testing-library/react-native';
+import type { SavedItemRow } from '@worlo/db';
+import { getItineraries } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { isSaved, toSavedItem } from '@/data/saved';
+import { resetCommunityServer } from '@/features/community/testServer';
+import { demoId } from '@/mocks/demo';
 import { routes } from '@/navigation/routes';
-import { resetStore, useStore } from '@/store';
+import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { CityScreen } from './CityScreen';
 import { CountryScreen } from './CountryScreen';
@@ -14,8 +20,12 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
+// Place / city tips come from the community feed (online): the demo-world fake.
+jest.mock('@/data/communityApi', () => require('@/features/community/testServer').mockModule());
+
 beforeEach(() => {
   resetStore();
+  resetCommunityServer();
   jest.clearAllMocks();
   mockParams = {};
 });
@@ -101,7 +111,7 @@ describe('CityScreen', () => {
   it('saves and removes a place with toasts', async () => {
     await renderWithProviders(<CityScreen />);
     await fireEvent.press(screen.getByRole('button', { name: 'Salvar Torre de Belém' }));
-    expect(useStore.getState().saved[0]).toMatchObject({
+    expect(toSavedItem(repos.saved.items()[0] as SavedItemRow)).toMatchObject({
       id: 'ci-Torre de Belém',
       cat: 'Atrações',
       city: 'Lisboa',
@@ -113,21 +123,24 @@ describe('CityScreen', () => {
     await fireEvent.press(
       screen.getByRole('button', { name: 'Remover Torre de Belém dos salvos' }),
     );
-    expect(useStore.getState().saved.some((s) => s.id === 'ci-Torre de Belém')).toBe(false);
+    expect(isSaved('ci-Torre de Belém')).toBe(false);
     expect(screen.getByRole('alert')).toHaveTextContent('Removido dos salvos.');
   });
 
   it('long-press saves and opens the collection sheet', async () => {
     await renderWithProviders(<CityScreen />);
     await fireEvent(screen.getByTestId('city-item-Torre de Belém'), 'longPress');
-    expect(useStore.getState().saved.some((s) => s.id === 'ci-Torre de Belém')).toBe(true);
+    expect(isSaved('ci-Torre de Belém')).toBe(true);
     expect(screen.getByTestId('collection-sheet')).toBeOnTheScreen();
   });
 
   it('shows the community tip, breadcrumb links and the itinerary CTA', async () => {
     await renderWithProviders(<CityScreen />);
-    expect(screen.getByText('Dica da comunidade')).toBeOnTheScreen();
-    expect(screen.getByText(/96% confirmam/)).toBeOnTheScreen();
+    expect(await screen.findByText('Dica da comunidade')).toBeOnTheScreen();
+    // Marina's Lisboa tip (seeds: 7 confirm, 1 disputes).
+    expect(screen.getByTestId('city-tip')).toHaveTextContent(/Em verificação · 88% confirmam/);
+    await fireEvent.press(screen.getByTestId('city-tip'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.post(demoId('post:p1')));
     await fireEvent.press(screen.getByTestId('city-crumb-region'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.region('Lisboa e Vale do Tejo'));
     await fireEvent.press(screen.getByTestId('city-add-itinerary'));
@@ -140,8 +153,11 @@ describe('PlaceScreen', () => {
     mockParams = { id: 'Miradouro da Senhora do Monte' };
     await renderWithProviders(<PlaceScreen />);
     expect(screen.getByLabelText('Horário: Aberto 24h')).toBeOnTheScreen();
-    expect(screen.getByText('Dicas de quem foi')).toBeOnTheScreen();
-    expect(screen.getByText('96% confirmam')).toBeOnTheScreen();
+    expect(await screen.findByText('Dicas de quem foi')).toBeOnTheScreen();
+    // The Miradouro tips (Marina, Caio) have no votes yet in the seeds.
+    expect(screen.getAllByText('Aguardando confirmações')).toHaveLength(2);
+    await fireEvent.press(screen.getByTestId(`place-tip-${demoId('tip:0')}`));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.post(demoId('tip:0')));
     await fireEvent.press(screen.getByTestId('place-tours'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.passeio('tejo'));
   });
@@ -152,11 +168,11 @@ describe('PlaceScreen', () => {
     // Already in the SAVED mock.
     expect(screen.getByTestId('place-save')).toHaveTextContent('Salvo');
     await fireEvent.press(screen.getByTestId('place-save'));
-    expect(useStore.getState().isSaved('ci-Miradouro da Senhora do Monte')).toBe(false);
+    expect(isSaved('ci-Miradouro da Senhora do Monte')).toBe(false);
     expect(screen.getByRole('alert')).toHaveTextContent('Removido dos salvos.');
     expect(screen.getByTestId('place-save')).toHaveTextContent('Salvar');
     await fireEvent.press(screen.getByTestId('place-save-top'));
-    expect(useStore.getState().isSaved('ci-Miradouro da Senhora do Monte')).toBe(true);
+    expect(isSaved('ci-Miradouro da Senhora do Monte')).toBe(true);
     expect(screen.getByRole('alert')).toHaveTextContent('Salvo nos seus lugares.');
   });
 
@@ -164,7 +180,7 @@ describe('PlaceScreen', () => {
     mockParams = { id: 'Miradouro da Senhora do Monte' };
     await renderWithProviders(<PlaceScreen />);
     await fireEvent.press(screen.getByTestId('place-add-itinerary'));
-    const it = useStore.getState().itineraries[0];
+    const it = getItineraries()[0];
     expect(it?.days.at(-1)?.items.at(-1)?.title).toBe('Miradouro da Senhora do Monte');
     expect(screen.getByRole('alert')).toHaveTextContent(
       `Miradouro da Senhora do Monte entrou em “${it?.title}”.`,
