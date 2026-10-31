@@ -61,3 +61,4 @@ Sem `.env.local` o app roda 100% local, sem sincronizar. Útil para trabalhar na
 - [Design system](docs/design-system.md)
 - [Internacionalização](docs/i18n.md)
 - [Estratégia de testes](docs/testing.md)
+- [Versões de teste nas lojas](docs/release.md)
