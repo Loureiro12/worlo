@@ -5,7 +5,10 @@
     "noUncheckedIndexedAccess": true,
     "types": ["jest"],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "phosphor-react-native/src/icons/*": [
+        "../../node_modules/phosphor-react-native/lib/typescript/icons/*"
+      ]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "src/types/*.d.ts"],

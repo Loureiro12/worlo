@@ -6,23 +6,26 @@ App React Native (Expo) **offline first**, internacionalizado e sincronizado com
 
 ```
 apps/
-  mobile/              App Expo (Expo Router). Telas finas que compõem pacotes.
-    src/app/           Rotas (cada arquivo é uma tela)
-    src/features/      Features (tasks, sync, settings)
-    src/providers/     Composição: preferências, migrations, sync, repositórios
-    .maestro/          Testes E2E (Maestro)
-    scripts/e2e.mjs    Build de E2E com cache nativo por fingerprint
+  mobile/                      App Expo (Expo Router)
+    src/app/                   Rotas (arquivos finos que reexportam telas)
+      (tabs)/(explore,map,trips,community,profile)/   5 abas + telas de detalhe compartilhadas
+    src/features/<área>/       Telas e componentes por área: auth, explore, map, trips,
+                               planning, community, profile, discovery (+ dev/design-system)
+    src/components/            Peças do app usadas por várias áreas (tab bar, sheets, DemoGate)
+    src/navigation/routes.ts   Todas as rotas; telas nunca montam caminhos à mão
+    src/store/                 Estado de UI (zustand), um slice por área
+    src/mocks/                 Dados mock do protótipo (gerados) + tipos
+    .maestro/                  Testes E2E (Maestro)
 packages/
-  ui/                  Design system: tokens → tema → componentes
-  i18n/                i18next tipado (pt-BR, en, es)
-  db/                  Schema SQLite local (Drizzle), repositórios, adapter do sync
-  sync/                Sync engine (TS puro): outbox, push/pull, scheduler
-  supabase/            Cliente tipado + tipos gerados do Postgres
-supabase/              Migrations, RLS, testes pgTAP, config local
-docs/                  Decisões de arquitetura
+  ui/                          Design system Worlo: tokens → componentes, globo 3D
+  i18n/                        i18next tipado, um módulo por área (pt-BR, en, es)
+  db/, sync/, supabase/        Camada offline-first (ainda não ligada às telas)
+supabase/                      Migrations, RLS, testes pgTAP
+design_handoff_worlo_app/      Handoff de design (referência, não editar)
+docs/                          Decisões de arquitetura
 ```
 
-Dependências entre pacotes: `mobile → ui, i18n, db, sync, supabase`; `db → sync`. Os pacotes `sync` e `i18n` não dependem de React Native, então rodam e são testados em Node puro.
+Fase atual: **visual**. As telas usam dados mock e estado local. A integração com `db`/`sync`/Supabase é a próxima etapa.
 
 ## Primeiros passos
 

@@ -1,0 +1,114 @@
+# iOS secure fields reject XCUITest typing: dismiss the keyboard, reveal, then type.
+# Auth & onboarding (02_SCREENS → A): splash → welcome → signup validation →
+# onboarding map → trip form; then login validation, forgot password and login.
+appId: com.worlo.app
+tags:
+  - full
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible:
+      id: splash-screen
+    timeout: 20000
+- tapOn:
+    id: splash-screen
+
+# Welcome → Criar conta
+- extendedWaitUntil:
+    visible:
+      id: welcome-screen
+    timeout: 10000
+- tapOn:
+    id: welcome-start
+
+# Signup: first invalid field is reported, then fixed
+- tapOn:
+    id: signup-submit
+- assertVisible: "Diz como a gente pode te chamar."
+- tapOn:
+    id: signup-name
+- inputText: Bia Souza
+- assertNotVisible: "Diz como a gente pode te chamar."
+- tapOn:
+    id: signup-email
+- inputText: bia@email.com
+- tapOn: "Crie sua conta" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: signup-password-reveal
+- tapOn:
+    id: signup-password
+- inputText: senha1234
+- tapOn: "Crie sua conta" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: signup-submit
+
+# Onboarding map: Continuar needs a country
+- extendedWaitUntil:
+    visible:
+      id: onboarding-map-screen
+    timeout: 10000
+# The counter card is one accessible element: match inside its label.
+- assertVisible: ".*Nenhum ainda.*"
+# Continuar without countries must not advance. (The toast itself is covered
+# by unit tests: XCUITest waits for an idle app, and the pulsing globe never is,
+# so a 2.4s toast is gone before it can be asserted here.)
+- tapOn:
+    id: onboarding-continue
+- assertVisible:
+    id: onboarding-map-screen
+# The pulse sits on Brazil, roughly at the globe's center.
+- tapOn:
+    point: "50%,52%"
+- assertNotVisible: ".*Nenhum ainda.*"
+- tapOn:
+    id: onboarding-continue
+# Trip form (owned by the trip-form feature) opens in onboarding mode.
+- assertVisible: "PASSO 2 DE 2|Passo 2 de 2"
+
+# Fresh session: login validation, forgot password and login
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible:
+      id: splash-screen
+    timeout: 20000
+- tapOn:
+    id: splash-screen
+- tapOn:
+    id: welcome-login
+- extendedWaitUntil:
+    visible:
+      id: login-screen
+    timeout: 10000
+- tapOn:
+    id: login-submit
+- assertVisible: "Confere o e-mail, parece incompleto."
+- tapOn: "Esqueci minha senha"
+- tapOn:
+    id: forgot-email
+- inputText: ana@gmail.com
+- tapOn: "Esqueceu a senha?" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: forgot-submit
+- assertVisible: "Confere seu e-mail"
+- tapOn: "Voltar pra entrar"
+- tapOn:
+    id: login-email
+- inputText: ana@gmail.com
+- tapOn: "Que bom te ver de novo" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: login-password-reveal
+- tapOn:
+    id: login-password
+- inputText: senha1234
+- tapOn: "Que bom te ver de novo" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: login-submit
+- assertVisible: "Bem-vinda de volta, Ana."
+- extendedWaitUntil:
+    visible:
+      id: explore-screen
+    timeout: 10000

@@ -1,0 +1,104 @@
+# Discovery + Share (02_SCREENS → E1, E2, J · 03_FLOWS → F7, F11).
+# Explorar → Passeios → Tejo → date + 1 person → Reservar; Perfil → Compartilhar.
+appId: com.worlo.app
+tags:
+  - full
+---
+- runFlow: ../subflows/login.yaml
+
+# E1 · Passeios (from "Passeios em destaque" → Ver todos)
+- scrollUntilVisible:
+    element:
+      id: explore-tours-all
+    direction: DOWN
+- tapOn:
+    id: explore-tours-all
+- extendedWaitUntil:
+    visible:
+      id: passeios-screen
+    timeout: 10000
+- tapOn:
+    id: passeios-filter-boat
+- assertNotVisible:
+    id: passeio-card-nata
+- tapOn:
+    id: passeio-card-tejo
+
+# E2 · Detalhe: sold-out day keeps the date, pick another, +1 person, book
+- extendedWaitUntil:
+    visible:
+      id: passeio-screen
+    timeout: 10000
+- assertVisible: Pôr do sol de veleiro no Tejo
+- scrollUntilVisible:
+    element:
+      id: passeio-people-plus
+    direction: DOWN
+- tapOn:
+    id: passeio-date-2
+- assertVisible: Esse dia esgotou. Tenta outro?
+- tapOn:
+    id: passeio-date-3
+- tapOn:
+    id: passeio-people-plus
+- assertVisible:
+    id: passeio-total
+    text: € 135
+- tapOn:
+    id: passeio-book
+- assertVisible: Reserva confirmada pra seg, 9 nov. Bom passeio!
+- assertVisible:
+    id: passeio-book
+    text: Reservado
+- tapOn:
+    id: header-back
+# The chip sits inside an accessible card (iOS merges it), so match its text.
+- extendedWaitUntil:
+    visible:
+      text: ".*Reservado.*"
+    timeout: 5000
+
+# J · Compartilhar (Perfil → Compartilhar meu mundo)
+- tapOn:
+    id: tab-profile
+- extendedWaitUntil:
+    visible:
+      id: profile-screen
+    timeout: 10000
+- tapOn:
+    id: profile-share
+- extendedWaitUntil:
+    visible:
+      id: share-screen
+    timeout: 10000
+# The preview is a single accessible image: check it rendered.
+- assertVisible:
+    id: share-preview
+- tapOn:
+    id: share-format-post
+- tapOn:
+    id: share-theme-coral
+- tapOn:
+    id: share-format-square
+- tapOn:
+    id: share-theme-sand
+- tapOn:
+    id: share-subject-map
+- assertVisible:
+    id: share-preview
+- tapOn:
+    id: share-format-story
+- tapOn:
+    id: share-theme-dark
+- tapOn:
+    id: share-dest-link
+# Copy-link toast is covered by unit tests (animated globe keeps XCUITest busy).
+- assertVisible:
+    id: share-screen
+- takeScreenshot: discovery-share
+- tapOn:
+    id: header-back
+- extendedWaitUntil:
+    visible:
+      id: profile-screen
+    timeout: 10000

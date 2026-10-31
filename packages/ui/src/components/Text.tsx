@@ -1,32 +1,59 @@
 import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
-import type { TextVariant, ThemeColors } from '../tokens/semantic';
+import { colors, palette } from '../tokens/colors';
+import {
+  type TextVariant,
+  textVariants,
+  titleVariants,
+  type UiWeight,
+  uiFont,
+} from '../tokens/typography';
 
-export type TextTone = 'default' | 'muted' | 'subtle' | 'primary' | 'danger' | 'onPrimary';
+export const textTones = {
+  default: colors.text,
+  support: colors.textSupport,
+  muted: colors.textMuted,
+  link: colors.link,
+  inverse: colors.textInverse,
+  inverseMuted: colors.textInverseMuted,
+  accentOnDark: colors.accentOnDark,
+  success: colors.success,
+  error: colors.error,
+  info: colors.info,
+  onPrimary: colors.onPrimary,
+  subtle: palette.cinza600,
+} as const;
 
-const toneColor: Record<TextTone, keyof ThemeColors> = {
-  default: 'text',
-  muted: 'textMuted',
-  subtle: 'textSubtle',
-  primary: 'primary',
-  danger: 'danger',
-  onPrimary: 'onPrimary',
-};
+export type TextTone = keyof typeof textTones;
 
 export type TextProps = RNTextProps & {
   variant?: TextVariant;
   tone?: TextTone;
-  align?: 'auto' | 'left' | 'center' | 'right';
+  /** Overrides the weight of Plus Jakarta variants (ignored for Bricolage titles). */
+  weight?: UiWeight;
+  align?: 'left' | 'center' | 'right';
+  /** Overrides tone with a raw token color (e.g. inside a themed share card). */
+  color?: string;
 };
 
-export function Text({ variant = 'body', tone = 'default', align, style, ...rest }: TextProps) {
-  const theme = useTheme();
+export function Text({
+  variant = 'body',
+  tone = 'default',
+  weight,
+  align,
+  color,
+  style,
+  ...rest
+}: TextProps) {
+  const isTitle = titleVariants.has(variant);
   return (
     <RNText
-      maxFontSizeMultiplier={1.6}
+      maxFontSizeMultiplier={1.4}
+      accessibilityRole={isTitle && variant.startsWith('h') ? 'header' : undefined}
       style={[
-        theme.text[variant],
-        { color: theme.colors[toneColor[tone]] as string, textAlign: align },
+        textVariants[variant],
+        { color: color ?? textTones[tone] },
+        weight && !isTitle ? { fontFamily: uiFont[weight] } : null,
+        align ? { textAlign: align } : null,
         style,
       ]}
       {...rest}

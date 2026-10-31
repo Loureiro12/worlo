@@ -1,0 +1,32 @@
+# iOS secure fields reject XCUITest typing: dismiss the keyboard, reveal, then type.
+# Fresh install → skip splash → "Já tenho conta" → sign in → Explorar.
+# Every feature flow starts here. testIDs are a contract with features/auth.
+appId: com.worlo.app
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible:
+      id: splash-screen
+    timeout: 20000
+- tapOn:
+    id: splash-screen
+- tapOn:
+    id: welcome-login
+- tapOn:
+    id: login-email
+- inputText: ana@gmail.com
+- hideKeyboard
+- tapOn:
+    id: login-password-reveal
+- tapOn:
+    id: login-password
+- inputText: senha1234
+- hideKeyboard
+- tapOn:
+    id: login-submit
+- extendedWaitUntil:
+    visible:
+      id: explore-screen
+    timeout: 10000

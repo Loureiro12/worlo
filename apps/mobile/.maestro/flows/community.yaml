@@ -1,0 +1,64 @@
+# Comunidade (F9): vote on a tip, open it, comment; then publish a tip.
+appId: com.worlo.app
+tags:
+  - full
+---
+- runFlow: ../subflows/login.yaml
+- tapOn:
+    id: tab-community
+- extendedWaitUntil:
+    visible:
+      id: community-screen
+    timeout: 10000
+
+# Vote on Marina's tip (128 → 129) and open it.
+- tapOn:
+    id: vote-yes-p1
+# iOS merges the button's children into one label ("Confirmar, 129").
+- assertVisible:
+    id: vote-yes-p1
+    text: ".*129.*"
+- tapOn:
+    id: post-open-p1
+- extendedWaitUntil:
+    visible:
+      id: post-screen
+    timeout: 10000
+- assertVisible: Alta confiabilidade
+
+# Comment.
+- tapOn:
+    id: post-comment-input
+- inputText: Fui semana passada, continua valendo.
+- tapOn:
+    id: post-comment-send
+# New comments go to the end of the thread, below the fold.
+- scrollUntilVisible:
+    element:
+      text: ".*Fui semana passada, continua valendo.*"
+    direction: DOWN
+- tapOn:
+    id: header-back
+
+# Compose a tip.
+- tapOn:
+    id: community-compose
+- extendedWaitUntil:
+    visible:
+      id: compose-screen
+    timeout: 10000
+- tapOn:
+    id: compose-place-option-Lisboa
+- tapOn:
+    id: compose-text
+- inputText: O miradouro da Graça é mais vazio que o de Santa Luzia no fim de tarde.
+# Multiline field: Return adds a line, so dismiss by tapping the field label.
+- tapOn: "Sua dica"
+- tapOn:
+    id: compose-submit
+- extendedWaitUntil:
+    visible: Publicado. Agora é com a comunidade.
+    timeout: 5000
+- assertVisible:
+    id: post-screen
+- assertVisible: Aguardando confirmações

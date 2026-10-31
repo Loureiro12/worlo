@@ -15,4 +15,4 @@ appId: com.worlo.app
     commands:
       - assertVisible:
           id: ${ID}
-          text: '.*, checked'
+          text: ".*, checked"

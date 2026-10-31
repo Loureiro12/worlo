@@ -1,9 +1,9 @@
 import './augment';
 import i18next, { type i18n } from 'i18next';
 import { initReactI18next } from 'react-i18next';
-import en from './locales/en';
-import es from './locales/es';
-import ptBR from './locales/pt-BR';
+import en from './locales/en/index';
+import es from './locales/es/index';
+import ptBR from './locales/pt-BR/index';
 
 export { I18nextProvider, Trans, useTranslation } from 'react-i18next';
 export type { TranslationSchema } from './types';

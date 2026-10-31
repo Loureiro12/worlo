@@ -1,6 +1,5 @@
 # Maestro workspace. Tags decide WHEN a flow runs (see docs/testing.md):
-#   smoke → every PR that touches the app (fast, no backend)
-#   sync  → main / nightly, needs `supabase start`
-#   ui    → main / nightly, captures screenshots for visual review
+#   smoke → every PR that touches the app (fast core journeys)
+#   full  → main / nightly (every feature flow + screenshots)
 flows:
   - flows/*

@@ -1,0 +1,77 @@
+# Viagens: open a trip, log a shared expense, then register a past trip (F2, F5).
+# testIDs are a contract with features/trips.
+appId: com.worlo.app
+tags:
+  - smoke
+  - full
+---
+- runFlow: ../subflows/login.yaml
+- tapOn:
+    id: tab-trips
+- extendedWaitUntil:
+    visible:
+      id: trips-screen
+    timeout: 10000
+
+# Trip page › Gastos › Adicionar gasto
+- tapOn:
+    id: trip-card-floripa
+- extendedWaitUntil:
+    visible:
+      id: trip-screen
+    timeout: 10000
+- scrollUntilVisible:
+    element:
+      id: trip-tab-money
+    direction: DOWN
+- tapOn:
+    id: trip-tab-money
+- scrollUntilVisible:
+    element:
+      id: trip-add-expense
+    direction: DOWN
+- tapOn:
+    id: trip-add-expense
+- assertVisible: Novo gasto
+- tapOn:
+    id: expense-amount
+- inputText: "210"
+- tapOn:
+    id: expense-name
+- inputText: Sequencia de camarao
+- tapOn: "Novo gasto" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: expense-split-Marina
+- tapOn:
+    id: expense-split-João
+- assertVisible: Fica R\$ 70 pra cada um \(3 pessoas\)
+- tapOn:
+    id: expense-save
+- assertVisible: Gasto salvo. Marina e João devem R\$ 70 cada.
+- scrollUntilVisible:
+    element:
+      text: Sequencia de camarao
+    direction: DOWN
+
+# Viagens › + › Viagem que já aconteceu › Cadastro
+- tapOn:
+    id: header-back
+- tapOn:
+    id: trips-add
+- tapOn:
+    id: add-trip-past
+- tapOn:
+    id: trip-form-dest
+- inputText: Kyoto, Japao
+- tapOn:
+    id: trip-form-name
+- inputText: Cerejeiras em Kyoto
+- tapOn: "Conta uma viagem que você fez" # dismisses the keyboard (non-interactive title)
+- tapOn:
+    id: trip-form-save
+- extendedWaitUntil:
+    visible:
+      id: trips-screen
+    timeout: 10000
+# Trip cards are one accessible element: match inside the label.
+- assertVisible: ".*Cerejeiras em Kyoto.*"

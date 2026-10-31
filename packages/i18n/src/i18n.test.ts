@@ -53,13 +53,20 @@ describe('resolveLanguage', () => {
 describe('createI18n', () => {
   it('translates and pluralises synchronously', () => {
     const i18n = createI18n('en');
-    expect(i18n.t('tasks.remaining', { count: 1 })).toBe('1 task left');
-    expect(i18n.t('tasks.remaining', { count: 3 })).toBe('3 tasks left');
+    expect(i18n.t('common.count.countries', { count: 1 })).toBe('1 country');
+    expect(i18n.t('common.count.countries', { count: 6 })).toBe('6 countries');
   });
 
   it('switches language at runtime', async () => {
     const i18n = createI18n('pt-BR');
     await i18n.changeLanguage('es');
-    expect(i18n.t('tasks.title')).toBe('Tareas');
+    expect(i18n.t('common.tabs.trips')).toBe('Viajes');
+  });
+});
+
+describe('zero counts', () => {
+  it.each(supportedLanguages)('%s uses the plural form for zero', (lang) => {
+    const i18n = createI18n(lang);
+    expect(i18n.t('common.count.places', { count: 0 })).toMatch(/^0 \S+s$/);
   });
 });

@@ -1,1 +1,1 @@
-export { TasksScreen as default } from '@/features/tasks/TasksScreen';
+export { SplashScreen as default } from '@/features/auth/SplashScreen';

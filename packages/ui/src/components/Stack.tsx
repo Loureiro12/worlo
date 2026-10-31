@@ -1,22 +1,25 @@
 import { View, type ViewProps, type ViewStyle } from 'react-native';
-import { useTheme } from '../theme/ThemeProvider';
-import type { SpaceToken } from '../tokens/semantic';
+import type { Space } from '../tokens/layout';
 
 export type StackProps = ViewProps & {
   direction?: 'row' | 'column';
-  gap?: SpaceToken;
-  padding?: SpaceToken;
+  /** Only values from the spacing scale (2, 4, 6 … 48). */
+  gap?: Space;
+  padding?: Space;
+  paddingX?: Space;
+  paddingY?: Space;
   align?: ViewStyle['alignItems'];
   justify?: ViewStyle['justifyContent'];
   wrap?: boolean;
   flex?: number;
 };
 
-/** Layout primitive. Spacing only accepts tokens, never raw numbers. */
 export function Stack({
   direction = 'column',
-  gap = 'none',
+  gap = 0,
   padding,
+  paddingX,
+  paddingY,
   align,
   justify,
   wrap,
@@ -24,14 +27,15 @@ export function Stack({
   style,
   ...rest
 }: StackProps) {
-  const { space } = useTheme();
   return (
     <View
       style={[
         {
           flexDirection: direction,
-          gap: space[gap],
-          padding: padding ? space[padding] : undefined,
+          gap,
+          padding,
+          paddingHorizontal: paddingX,
+          paddingVertical: paddingY,
           alignItems: align,
           justifyContent: justify,
           flexWrap: wrap ? 'wrap' : undefined,

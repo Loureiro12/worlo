@@ -1,0 +1,77 @@
+# Perfil → Salvos (remover) → Configurações (idioma, estados de demonstração).
+# testIDs are a contract with features/profile.
+appId: com.worlo.app
+tags:
+  - full
+---
+- runFlow: ../subflows/login.yaml
+- tapOn:
+    id: tab-profile
+- extendedWaitUntil:
+    visible:
+      id: profile-screen
+    timeout: 10000
+
+# Saved: remove one place (also leaves its collections).
+- scrollUntilVisible:
+    element:
+      id: profile-saved
+    direction: DOWN
+- tapOn:
+    id: profile-saved
+- assertVisible:
+    id: saved-screen
+- scrollUntilVisible:
+    element:
+      id: saved-remove-sv-ryokan
+    direction: DOWN
+- tapOn:
+    id: saved-remove-sv-ryokan
+- assertVisible: Removido dos salvos.
+- assertNotVisible:
+    id: saved-item-sv-ryokan
+- tapOn:
+    id: header-back
+
+# Settings → Idioma → Español applies immediately.
+- scrollUntilVisible:
+    element:
+      id: profile-settings
+    direction: DOWN
+- tapOn:
+    id: profile-settings
+- assertVisible:
+    id: settings-screen
+- tapOn:
+    id: settings-language
+- tapOn:
+    id: language-es
+- assertVisible: "Idioma: Español."
+- tapOn:
+    id: header-back
+- assertVisible: Configuración
+
+# Demo state "offline" shows the banner above the tab bar; back to normal hides it.
+- scrollUntilVisible:
+    element:
+      id: demo-offline
+    direction: DOWN
+- tapOn:
+    id: demo-offline
+- assertVisible:
+    id: offline-banner
+- tapOn:
+    id: demo-normal
+- assertNotVisible:
+    id: offline-banner
+
+# Restore pt-BR for the next flows.
+- scrollUntilVisible:
+    element:
+      id: settings-language
+    direction: UP
+- tapOn:
+    id: settings-language
+- tapOn:
+    id: language-pt-BR
+- assertVisible: "Idioma: Português (Brasil)."

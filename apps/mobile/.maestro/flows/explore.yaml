@@ -1,0 +1,54 @@
+# Explorar → Busca → resultado; Notificações → aceitar convite; Convite (F4, F10).
+# testIDs are a contract with features/explore.
+appId: com.worlo.app
+tags:
+  - smoke
+  - full
+---
+- runFlow: ../subflows/login.yaml
+
+# Busca: type without accent, open the country result.
+- tapOn:
+    id: explore-search
+- assertVisible:
+    id: search-screen
+- inputText: japao
+- assertVisible:
+    id: search-group-dest
+- tapOn:
+    id: search-result-country-392
+- tapOn:
+    id: header-back
+- tapOn:
+    id: search-back
+
+# Busca: no result card.
+- tapOn:
+    id: explore-search
+- inputText: xyzabc
+- assertVisible:
+    id: search-empty
+- tapOn:
+    id: search-back
+
+# Notificações: accept the Jeri invite inline.
+- assertVisible:
+    id: explore-screen
+- tapOn:
+    id: explore-notifs
+- assertVisible:
+    id: notifs-screen
+- tapOn:
+    id: notif-accept-jeri
+- assertVisible:
+    id: notif-result-jeri
+
+# Convite (future trip): open from the row and decline.
+- tapOn:
+    id: notif-n3
+- assertVisible:
+    id: invite-screen
+- tapOn:
+    id: invite-decline
+- assertVisible:
+    id: invite-accept-anyway

@@ -2,14 +2,14 @@
 
 Objetivo: **confiança de ponta a ponta sem que os testes virem gargalo.** A maior parte da lógica vive em pacotes TS puros, que se testam em milissegundos. O E2E fica reservado aos fluxos críticos e roda de forma escalonada.
 
-| Camada                            | Ferramenta               | Onde                             | Tempo    | Quando roda                  |
-| --------------------------------- | ------------------------ | -------------------------------- | -------- | ---------------------------- |
-| Lógica de sync, scheduler, i18n   | Vitest                   | `packages/sync`, `packages/i18n` | < 1s     | Todo PR (só os afetados)     |
-| SQLite real + engine              | Vitest + better-sqlite3  | `packages/db`                    | < 1s     | Todo PR (só os afetados)     |
-| Componentes e contraste WCAG      | Jest + RNTL              | `packages/ui`, `apps/mobile`     | ~3s      | Todo PR (só os afetados)     |
-| Banco: RLS, triggers, constraints | pgTAP                    | `supabase/tests`                 | ~5s      | PRs que mexem no banco       |
-| E2E `smoke` (sem backend)         | Maestro                  | `apps/mobile/.maestro`           | ~1–2 min | PRs que mexem no app/pacotes |
-| E2E completo (`sync`, `ui`)       | Maestro + Supabase local | idem                             | ~5 min   | `main` e nightly             |
+| Camada                            | Ferramenta              | Onde                             | Tempo    | Quando roda                  |
+| --------------------------------- | ----------------------- | -------------------------------- | -------- | ---------------------------- |
+| Lógica de sync, scheduler, i18n   | Vitest                  | `packages/sync`, `packages/i18n` | < 1s     | Todo PR (só os afetados)     |
+| SQLite real + engine              | Vitest + better-sqlite3 | `packages/db`                    | < 1s     | Todo PR (só os afetados)     |
+| Componentes e contraste WCAG      | Jest + RNTL             | `packages/ui`, `apps/mobile`     | ~3s      | Todo PR (só os afetados)     |
+| Banco: RLS, triggers, constraints | pgTAP                   | `supabase/tests`                 | ~5s      | PRs que mexem no banco       |
+| E2E `smoke` (Explorar + Viagens)  | Maestro                 | `apps/mobile/.maestro`           | ~2–3 min | PRs que mexem no app/pacotes |
+| E2E completo (8 áreas, `full`)    | Maestro                 | idem                             | ~12 min  | `main` e nightly             |
 
 ## Por que não vira gargalo
 
@@ -38,11 +38,22 @@ cd apps/mobile && maestro test --include-tags=sync -e SUPABASE_SERVICE_KEY=<secr
 
 Tempos de referência (iPhone 16 Pro, iOS 18): build nativo completo ~9 min; build seguinte só com JS (repack) ~15 s; suíte completa ~1 min.
 
+### Escrevendo fluxos que funcionam no iOS
+
+Aprendido rodando a suíte no simulador. Cada item já causou uma falha real:
+
+- **Login compartilhado.** Todo fluxo começa com `runFlow: ../subflows/login.yaml`, que tem os testIDs combinados com `features/auth`.
+- **Sem `back`.** O comando só existe no Android. Use `tapOn: { id: header-back }`; todo header do design system tem esse testID.
+- **Campos de senha.** O XCUITest não digita em `secureTextEntry`. Revele antes (`<testID>-reveal`, o botão do olho) e depois digite.
+- **Teclado.** O `hideKeyboard` é instável no iOS e falha em teclados numéricos e campos multilinha. Feche o teclado tocando num texto não interativo, como o título da tela (as telas usam `keyboardShouldPersistTaps="handled"`). Nunca toque num campo coberto pelo teclado: o toque cai numa tecla.
+- **Elementos agrupados.** Cards e botões `accessible` viram um único elemento cujo rótulo junta os filhos ("Confirmar, 129"). Para checar um texto interno, use regex no rótulo: `text: '.*Reservado.*'`.
+- **Fora da tela.** Itens adicionados no fim de listas exigem `scrollUntilVisible`. Em listas dentro de sheets, faça um `swipe` explícito dentro da sheet.
+- **Telas com animação contínua** (globo girando, pulso do onboarding). O XCUITest espera o app ficar ocioso antes e depois de cada toque, e a espera esgota o prazo. Nessas telas, verifique o efeito (a tela não avançou, o item foi salvo) e não o toast de 2,4s, que já é coberto por teste de componente.
+
 ### Diferenças entre iOS e Android
 
-- **Sem `back` no iOS.** O Maestro não suporta o comando, e o botão de voltar nativo não tem id estável (o rótulo é o título da tela anterior, traduzido). Para voltar à home, use `subflows/relaunch.yaml`, que reinicia o app sem limpar dados e de quebra testa a persistência.
 - **Estado de checkbox.** O Android expõe `checked`; o iOS expõe o estado no valor de acessibilidade. Use `subflows/assert-checked.yaml`.
-- **Modo avião** (`setAirplaneMode`) só existe no Android. No iOS, o flow `offline-sync` valida apenas a ida e volta online; a parte offline roda no CI (Android).
+- **Modo avião** (`setAirplaneMode`) só existe no Android.
 
 ## Convenções
 

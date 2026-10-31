@@ -1,31 +1,35 @@
+import { colors, palette } from './colors';
 import { contrastRatio } from './contrast';
-import { type ColorScheme, colors } from './semantic';
 
-// WCAG AA: 4.5 for body text, 3 for large text and UI component boundaries.
-const AA_TEXT = 4.5;
-const AA_UI = 3;
+// WCAG AA: 4.5 for text, 3 for large text (≥ 18.66px bold) and UI boundaries.
+const AA = 4.5;
+const AA_LARGE = 3;
 
-describe.each<ColorScheme>(['light', 'dark'])('%s theme contrast', (scheme) => {
-  const c = colors[scheme];
-
+describe('brand contrast (WCAG AA)', () => {
   it.each([
-    ['text / background', c.text, c.background, AA_TEXT],
-    ['text / surface', c.text, c.surface, AA_TEXT],
-    ['textMuted / background', c.textMuted, c.background, AA_TEXT],
-    ['textMuted / surface', c.textMuted, c.surface, AA_TEXT],
-    ['textSubtle / surface', c.textSubtle, c.surface, AA_TEXT],
-    ['onPrimary / primary', c.onPrimary, c.primary, AA_TEXT],
-    ['onPrimary / primaryPressed', c.onPrimary, c.primaryPressed, AA_TEXT],
-    ['onSecondary / secondary', c.onSecondary, c.secondary, AA_TEXT],
-    ['onDanger / danger', c.onDanger, c.danger, AA_TEXT],
-    ['primary / surface', c.primary, c.surface, AA_UI],
-    ['borderStrong / surface (input edge)', c.borderStrong, c.surface, 1.2],
+    ['text on areia', colors.text, colors.background, AA],
+    ['text on branco', colors.text, colors.surface, AA],
+    ['muted text on areia', colors.textMuted, colors.background, AA],
+    ['muted text on branco', colors.textMuted, colors.surface, AA],
+    ['link (coral-700) on areia', colors.link, colors.background, AA],
+    ['link (coral-700) on branco', colors.link, colors.surface, AA],
+    ['link (coral-700) on coral-100', colors.link, colors.accentSoft, AA],
+    ['carvão label on coral button', colors.onPrimary, colors.primary, AA],
+    ['carvão label on pressed button', colors.onPrimary, colors.primaryPressed, AA],
+    ['branco on carvão', colors.textInverse, colors.backgroundDark, AA],
+    ['linha on carvão', colors.textInverseMuted, colors.backgroundDark, AA],
+    ['coral-300 overline on carvão', colors.accentOnDark, colors.backgroundDark, AA],
+    ['selected chip', colors.onSelected, colors.selected, AA],
+    ['success on branco', colors.success, colors.surface, AA],
+    ['error on branco', colors.error, colors.surface, AA],
+    ['branco on cinza-800 (offline banner)', palette.branco, palette.cinza800, AA],
+    ['coral marker on carvão (UI)', colors.mapVisited, colors.backgroundDark, AA_LARGE],
   ])('%s', (_, fg, bg, min) => {
     expect(contrastRatio(fg, bg)).toBeGreaterThanOrEqual(min);
   });
 
-  it.each(Object.entries(c.status))('status %s', (_, { foreground, background }) => {
-    expect(contrastRatio(foreground, background)).toBeGreaterThanOrEqual(AA_TEXT);
+  it('never uses coral (#E45B33) as body text on light backgrounds', () => {
+    expect(contrastRatio(palette.coral, palette.areia)).toBeLessThan(AA);
   });
 });
 

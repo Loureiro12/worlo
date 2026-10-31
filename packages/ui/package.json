@@ -15,18 +15,37 @@
   "peerDependencies": {
     "react": "catalog:",
     "react-native": "catalog:",
-    "react-native-safe-area-context": "*"
+    "react-native-safe-area-context": "*",
+    "react-native-svg": "*",
+    "expo-linear-gradient": "*",
+    "expo-image": "*",
+    "phosphor-react-native": "*",
+    "expo-status-bar": "*"
   },
   "devDependencies": {
     "@testing-library/react-native": "^14.1.0",
+    "@types/d3-geo": "^3.1.1",
     "@types/jest": "^30.0.0",
     "@types/react": "catalog:",
+    "@types/topojson-client": "^3.1.5",
     "expo": "catalog:",
+    "expo-image": "catalog:",
+    "expo-linear-gradient": "catalog:",
+    "expo-status-bar": "~58.0.4",
     "jest": "^30.5.2",
     "jest-expo": "catalog:",
+    "phosphor-react-native": "catalog:",
     "react": "catalog:",
     "react-native": "catalog:",
     "react-native-safe-area-context": "catalog:",
+    "react-native-svg": "catalog:",
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "d3-geo": "^3.1.1",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   }
 }

@@ -1,9 +1,0 @@
-appId: com.worlo.app
----
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- extendedWaitUntil:
-    visible:
-      id: tasks-screen
-    timeout: 20000

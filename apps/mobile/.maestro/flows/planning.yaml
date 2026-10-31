@@ -1,0 +1,57 @@
+# Planejar e viajar (03_FLOWS → F6): Viagens › Roteiros › editor → adicionar
+# parada → começar viagem → check-in → encerrar (cria viagem realizada).
+appId: com.worlo.app
+tags:
+  - full
+---
+- runFlow: ../subflows/login.yaml
+- tapOn:
+    id: tab-trips
+- tapOn:
+    id: trips-seg-rot
+- tapOn:
+    id: rot-card-peru
+- extendedWaitUntil:
+    visible:
+      id: roteiro-screen
+    timeout: 10000
+- assertVisible: Dia 1 · Lima → Cusco
+# Adicionar parada → primeira sugestão
+- tapOn:
+    id: roteiro-add-stop
+- assertVisible: Adicionar ao Dia 1
+- tapOn:
+    id: roteiro-sug-0
+# The new stop goes to the end of the day, below the fold.
+- scrollUntilVisible:
+    element:
+      text: ".*Mercado San Pedro.*"
+    direction: DOWN
+# Começar viagem agora → modo viagem
+- tapOn:
+    id: roteiro-start
+- extendedWaitUntil:
+    visible:
+      id: live-screen
+    timeout: 10000
+- assertVisible: Plano de hoje
+# Check-in: exige lugar
+- tapOn:
+    id: live-checkin
+- tapOn:
+    id: live-sheet-submit
+- assertVisible: Escolha onde você está.
+- tapOn:
+    id: live-near-0
+- tapOn:
+    id: live-sheet-submit
+- assertVisible: Check-in em Mercado de Pisac.
+# Encerrar → viagem realizada
+- tapOn:
+    id: live-end
+- assertVisible: Encerrar a viagem?
+- tapOn:
+    id: live-sheet-submit
+- assertVisible: Viagem encerrada. O Peru acendeu no seu mapa.
+- assertNotVisible:
+    id: live-screen

@@ -2,7 +2,8 @@ name: E2E
 
 # Keeps E2E off the critical path:
 #   * PRs run only `smoke` flows, and only when the app or its packages change.
-#   * main and the nightly run every flow (including `sync` against a real Supabase).
+#   * main and the nightly run every flow (tag `full`). The app is visual-only
+#     for now (mock data), so no backend is started.
 #   * The native binary is cached by its Expo fingerprint. JS-only changes are
 #     repacked into the cached binary in seconds instead of a full Gradle build.
 on:
@@ -40,20 +41,6 @@ jobs:
           java-version: "17"
       - run: pnpm install --frozen-lockfile
 
-      - name: Start Supabase (full suite only)
-        if: env.FULL_SUITE == 'true'
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
-      - if: env.FULL_SUITE == 'true'
-        run: |
-          supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector,supavisor
-          eval "$(supabase status -o env)"
-          # Inlined into the JS bundle; 10.0.2.2 is the host as seen from the emulator.
-          echo "EXPO_PUBLIC_SUPABASE_URL=http://10.0.2.2:56321" >> "$GITHUB_ENV"
-          echo "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$PUBLISHABLE_KEY" >> "$GITHUB_ENV"
-          echo "SUPABASE_SERVICE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
-
       - name: Native fingerprint
         id: fingerprint
         working-directory: apps/mobile
@@ -89,7 +76,7 @@ jobs:
           working-directory: apps/mobile
           script: |
             adb install -r e2e-artifacts/android-latest.apk
-            maestro test .maestro --format junit --output e2e-artifacts/report.xml --test-output-dir e2e-artifacts/maestro ${{ env.FULL_SUITE == 'true' && '-e SUPABASE_URL=http://127.0.0.1:56321 -e SUPABASE_SERVICE_KEY=$SUPABASE_SERVICE_KEY' || '--include-tags=smoke' }}
+            maestro test .maestro --format junit --output e2e-artifacts/report.xml --test-output-dir e2e-artifacts/maestro ${{ env.FULL_SUITE == 'true' && '--include-tags=full' || '--include-tags=smoke' }}
 
       - uses: actions/upload-artifact@v4
         if: always()

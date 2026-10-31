@@ -1,1 +1,1 @@
-export { DesignSystemScreen as default } from '@/features/settings/DesignSystemScreen';
+export { DesignSystemScreen as default } from '@/features/dev/DesignSystemScreen';

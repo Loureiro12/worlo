@@ -1,0 +1,121 @@
+/** Mapa, país, região, cidade e lugar (02_SCREENS → B2, C4–C7). */
+const map = {
+  title: 'Seu mapa',
+  globeLabel:
+    'Globo do seu mapa. Visitados: {{visited}}. Quero ir: {{wishlist}}. Em planejamento: {{planned}}.',
+  filter: {
+    label: 'Filtrar o mapa',
+    all: 'Tudo',
+    visited: 'Visitados',
+    wishlist: 'Quero ir',
+  },
+  years: {
+    label: 'Filtrar por ano',
+    all: 'Todos os anos',
+  },
+  controls: {
+    share: 'Compartilhar mapa',
+    zoomIn: 'Aproximar',
+    zoomOut: 'Afastar',
+    recenter: 'Recentralizar',
+    list: 'Lista de países',
+  },
+  legend: {
+    visited: 'Visitado',
+    planned: 'Em roteiro',
+    wishlist: 'Quero ir',
+    hint: 'Aproxime para ver cidades e fotos. Toque num país para abrir.',
+  },
+  list: {
+    title: 'Países no seu mapa',
+    subtitle: 'Toque num país para ver o resumo',
+  },
+  sheet: {
+    label: 'Resumo de {{name}}',
+    capital: 'Capital',
+    language: 'Idioma',
+    currency: 'Moeda',
+    status: {
+      visited: 'Visitado',
+      planned: 'Em planejamento',
+      wishlist: 'Quero ir',
+      none: 'Ainda não está no seu mapa',
+    },
+    histMarked: 'Marcado no seu mapa',
+    histWishlist: 'Na sua lista de futuros destinos',
+    beenThere: 'Já fui',
+    visited: 'Visitado',
+    wantToGo: 'Quero ir',
+    onList: 'Na lista',
+    openPage: 'Ver página do país',
+  },
+  toasts: {
+    visitedAdded: 'Viagem salva no seu mapa.',
+    wishlistAdded: '{{country}} foi pra sua lista.',
+    savedAdded: 'Salvo nos seus lugares.',
+    savedRemoved: 'Removido dos salvos.',
+    comingSoon: 'A página de {{name}} chega em breve.',
+  },
+  empty: {
+    overline: 'Seu mapa está apagado',
+    title: 'Toque nos países que você já conhece e veja o mundo acender.',
+    mark: 'Marcar países',
+    addTrip: 'Adicionar viagem',
+  },
+  breadcrumb: 'Caminho: {{path}}',
+  country: {
+    status: {
+      visited: 'Você já esteve aqui',
+      wishlist: 'Na sua lista Quero ir',
+      none: 'Ainda não está no seu mapa',
+    },
+    best: 'Melhor época',
+    tipLabel: 'Sobre a estimativa',
+    regions: 'Regiões mais visitadas',
+    cities: 'Cidades',
+    minimal: 'Ainda estamos montando o guia completo de {{name}}. Por enquanto, o básico:',
+  },
+  region: {
+    cities: 'Cidades da região',
+    highlights: 'Não dá pra perder',
+    minimal: 'Ainda estamos montando o guia de {{name}}.',
+  },
+  city: {
+    categories: 'Categorias',
+    save: 'Salvar {{name}}',
+    unsave: 'Remover {{name}} dos salvos',
+    saveHint: 'Toque e segure para salvar em uma coleção',
+    tipTitle: 'Dica da comunidade',
+    reliabilityHigh: 'Alta confiabilidade',
+    confirm: '{{pct}} confirmam',
+    addToItinerary: 'Adicionar ao roteiro',
+    addedToItinerary: '{{name}} entrou no seu roteiro.',
+    minimal: 'Ainda estamos montando o guia de {{name}}.',
+  },
+  place: {
+    save: 'Salvar',
+    saved: 'Salvo',
+    stats: '· {{reviews}} avaliações · {{travelers}} viajantes do Worlo foram',
+    tipsTitle: 'Dicas de quem foi',
+    confirm: '{{pct}} confirmam',
+    toursTitle: 'Passeios por perto',
+    toursText: 'Veleiro no Tejo, fado em Alfama e mais',
+    addToItinerary: 'Adicionar ao roteiro',
+    addedToItinerary: '{{place}} entrou em “{{itinerary}}”.',
+    genericDesc:
+      '{{name}} é um dos lugares mais lembrados por quem passa por {{city}}. As dicas abaixo são de viajantes do Worlo.',
+    rows: {
+      type: 'Tipo',
+      price: 'Preço',
+      hours: 'Horário',
+      duration: 'Tempo médio',
+    },
+    fallback: {
+      price: 'Consulte no local',
+      hours: 'Varia por temporada',
+      duration: '1–2h',
+    },
+  },
+};
+
+export default map;

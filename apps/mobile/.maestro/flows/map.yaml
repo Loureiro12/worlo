@@ -1,0 +1,86 @@
+# Mapa → controles → resumo do país (lista acessível) → página do país →
+# cidade (Lisboa) → salvar um lugar → página do lugar.
+# Country selection uses the "Lista de países" control instead of tapping the
+# globe, so the path is deterministic.
+appId: com.worlo.app
+tags:
+  - full
+---
+- runFlow: ../subflows/login.yaml
+- tapOn:
+    id: tab-map
+- extendedWaitUntil:
+    visible:
+      id: map-screen
+    timeout: 10000
+- assertVisible:
+    id: map-legend
+
+# Filters and controls
+- tapOn:
+    id: map-filter-visited
+- tapOn:
+    id: map-filter-all
+- tapOn:
+    id: map-year-2024
+- tapOn:
+    id: map-year-all
+- tapOn:
+    id: map-zoom-in
+- tapOn:
+    id: map-zoom-out
+- tapOn:
+    id: map-recenter
+
+# Country summary through the accessible list
+- tapOn:
+    id: map-country-list
+# Swipe inside the sheet's list (a screen-center swipe hits the sheet edge).
+- swipe:
+    start: 50%, 85%
+    end: 50%, 45%
+    duration: 600
+- tapOn:
+    id: map-country-620
+- extendedWaitUntil:
+    visible:
+      id: map-country-sheet
+    timeout: 5000
+- assertVisible: Portugal
+- tapOn:
+    id: map-country-page
+
+# Country page → city
+- extendedWaitUntil:
+    visible:
+      id: country-screen
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: country-city-Lisboa
+    direction: DOWN
+- tapOn:
+    id: country-city-Lisboa
+
+# City: save a place
+- extendedWaitUntil:
+    visible:
+      id: city-screen
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: "city-save-Torre de Belém"
+    direction: DOWN
+- tapOn:
+    id: "city-save-Torre de Belém"
+- assertVisible: Salvo nos seus lugares.
+
+# Place page
+- tapOn:
+    id: "city-item-Castelo de São Jorge"
+- extendedWaitUntil:
+    visible:
+      id: place-screen
+    timeout: 5000
+- assertVisible:
+    id: place-add-itinerary
