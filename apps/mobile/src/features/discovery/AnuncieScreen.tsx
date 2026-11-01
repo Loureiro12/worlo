@@ -1,3 +1,4 @@
+import { type BusinessType, ValidationError } from '@worlo/db';
 import { useTranslation } from '@worlo/i18n';
 import {
   BottomBar,
@@ -18,9 +19,9 @@ import {
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { repos } from '@/data/repositories';
 import { routes } from '@/navigation/routes';
 
-type BusinessType = 'guide' | 'agency' | 'restaurant' | 'lodging';
 const TYPES: readonly BusinessType[] = ['guide', 'agency', 'restaurant', 'lodging'];
 
 type Benefit = 'planning' | 'verified' | 'reviews';
@@ -40,6 +41,8 @@ export type AnuncieForm = {
 export type AnuncieError = 'name' | 'city' | 'email';
 
 const EMAIL = /.+@.+\..+/;
+const isAnuncieError = (code: string): code is AnuncieError =>
+  code === 'name' || code === 'city' || code === 'email';
 
 /** 04_INTERACTIONS → Validações: nome → cidade → e-mail (first missing wins). */
 export function anuncieError(form: AnuncieForm): AnuncieError | null {
@@ -49,7 +52,11 @@ export function anuncieError(form: AnuncieForm): AnuncieError | null {
   return null;
 }
 
-/** E3 · Anuncie: business sign-up form → "Recebemos seu cadastro." */
+/**
+ * E3 · Anuncie: business sign-up form → "Recebemos seu cadastro." The sign-up is
+ * a synced row (works offline, goes out with the next sync); the team reviews it
+ * on the dashboard and the owner gets a notification.
+ */
 export function AnuncieScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -78,6 +85,15 @@ export function AnuncieScreen() {
     if (invalid) {
       setError(invalid);
       return;
+    }
+    try {
+      repos.businesses.submit({ ...form, description: form.desc });
+    } catch (e) {
+      if (e instanceof ValidationError && isAnuncieError(e.code)) {
+        setError(e.code);
+        return;
+      }
+      throw e;
     }
     setSent(true);
   };

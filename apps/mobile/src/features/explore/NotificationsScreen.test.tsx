@@ -1,5 +1,6 @@
 import { fireEvent, screen, within } from '@testing-library/react-native';
-import { createLocalStore } from '@worlo/db';
+import { createLocalStore, schema } from '@worlo/db';
+import { dataEvents } from '@/data/events';
 import { notificationGroup } from '@/data/notifications';
 import { repos } from '@/data/repositories';
 import { db } from '@/lib/database';
@@ -116,6 +117,49 @@ describe('NotificationsScreen', () => {
     expect(mockRouter.push).toHaveBeenLastCalledWith(routes.traveler(userId('Rafael Lima')));
     for (const key of ['n1', 'n2', 'n4', 'n7', 'n8', 'n9']) expect(readOf(key)).toBe(true);
     expect(readOf('n3')).toBe(false);
+  });
+
+  it('shows tour reminders and business reviews from the server', async () => {
+    const now = new Date().toISOString();
+    const row = (id: string, type: 'reminder' | 'business', entityType: string, data: object) => ({
+      id,
+      createdAt: now,
+      updatedAt: now,
+      deletedAt: null,
+      userId: DEMO_USER.id,
+      type,
+      actorId: null,
+      entityType,
+      entityId: demoId(`${entityType}:${id}`),
+      data: data as Record<string, unknown>,
+      readAt: null,
+    });
+    db.insert(schema.notifications)
+      .values([
+        row('tour', 'reminder', 'booking', {
+          days: 1,
+          tour_id: 'tejo',
+          tour: 'Pôr do sol de veleiro no Tejo',
+        }),
+        row('biz-ok', 'business', 'business', { name: 'Rio Tejo Sailing', status: 'approved' }),
+        row('biz-no', 'business', 'business', { name: 'Fado Vivo', status: 'rejected' }),
+      ])
+      .run();
+    dataEvents.emit();
+    await renderWithProviders(<NotificationsScreen />);
+    expect(
+      within(screen.getByTestId('notif-tour')).getByText(
+        'Amanhã tem Pôr do sol de veleiro no Tejo. Bom passeio!',
+      ),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByText('Rio Tejo Sailing foi aprovado. Seus passeios já podem aparecer no Worlo.'),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByText('Não deu pra aprovar Fado Vivo. Responde o nosso e-mail pra saber mais.'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('notif-tour'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.passeio('tejo'));
   });
 
   it('marks everything as read', async () => {

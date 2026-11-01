@@ -236,7 +236,8 @@ export type NotificationType =
   | 'comment'
   | 'community'
   | 'memory'
-  | 'reminder';
+  | 'reminder'
+  | 'business';
 
 /** Written by the server; the device only sets `readAt`. */
 export const notifications = sqliteTable('notifications', {
@@ -323,6 +324,53 @@ export const devices = sqliteTable('devices', {
   revokedAt: text('revoked_at'),
 });
 
+/** Dates a tour can be booked on (pull only: the team opens them, bookings fill them). */
+export const tourSlots = sqliteTable(
+  'tour_slots',
+  {
+    ...synced,
+    /** Catalog key of the tour (kind 'passeios'). */
+    tourId: text('tour_id').notNull(),
+    /** YYYY-MM-DD. */
+    date: text('date').notNull(),
+    capacity: integer('capacity').notNull(),
+    booked: integer('booked').notNull().default(0),
+  },
+  (t) => [index('tour_slots_tour_idx').on(t.tourId, t.date)],
+);
+
+export type BookingStatus = 'confirmed' | 'cancelled';
+
+/** My bookings (pull only: written by the `book_tour` / `cancel_booking` RPCs). */
+export const bookings = sqliteTable('bookings', {
+  ...synced,
+  userId: text('user_id').notNull(),
+  tourId: text('tour_id').notNull(),
+  slotId: text('slot_id').notNull(),
+  date: text('date').notNull(),
+  people: integer('people').notNull(),
+  total: real('total').notNull(),
+  currency: text('currency').notNull(),
+  status: text('status').$type<BookingStatus>().notNull(),
+  cancelledAt: text('cancelled_at'),
+  remindedAt: text('reminded_at'),
+});
+
+export type BusinessType = 'guide' | 'agency' | 'restaurant' | 'lodging';
+export type BusinessStatus = 'review' | 'approved' | 'rejected';
+
+/** Anuncie sign-ups (outbox). Only the team changes `status`. */
+export const businesses = sqliteTable('businesses', {
+  ...synced,
+  userId: text('user_id').notNull(),
+  name: text('name').notNull(),
+  type: text('type').$type<BusinessType>().notNull(),
+  city: text('city').notNull(),
+  description: text('description').notNull().default(''),
+  email: text('email').notNull(),
+  status: text('status').$type<BusinessStatus>().notNull().default('review'),
+});
+
 /** Read-only reference content (pull only). `id` = '<kind>:<key>'. */
 export const catalog = sqliteTable(
   'catalog',
@@ -392,3 +440,6 @@ export type Message = typeof messages.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
 export type PhotoFile = typeof photoFiles.$inferSelect;
 export type Device = typeof devices.$inferSelect;
+export type TourSlot = typeof tourSlots.$inferSelect;
+export type Booking = typeof bookings.$inferSelect;
+export type Business = typeof businesses.$inferSelect;

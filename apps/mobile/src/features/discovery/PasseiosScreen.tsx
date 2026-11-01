@@ -19,12 +19,12 @@ import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
+import { useBookedTours } from '@/data/bookings';
 import { useCatalog } from '@/data/catalog';
 import { formatMoney, matchesQuery } from '@/lib/format';
 import { img } from '@/lib/images';
 import type { Tour } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
 import { TOUR_FILTERS, type TourFilter } from './tours';
 import { useTourSave } from './useTourSave';
 
@@ -131,7 +131,7 @@ export function PasseiosScreen() {
 function TourCard({ tour, onOpen }: { tour: Tour; onOpen: () => void }) {
   const { t } = useTranslation();
   const styles = useStyles();
-  const booked = useStore((s) => Boolean(s.bookings[tour.id]));
+  const booked = useBookedTours().has(tour.id);
   const { saved, toggle } = useTourSave(tour);
   const price = formatMoney(tour.price, tour.cur);
   const fromPrice = t('discovery.list.fromPrice', { price });

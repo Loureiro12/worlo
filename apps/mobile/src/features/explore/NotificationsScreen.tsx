@@ -45,7 +45,9 @@ const SYSTEM_ICONS: Partial<
   memory: { icon: 'clock-counter-clockwise', bg: palette.carvao, fg: palette.coral300 },
   community: { icon: 'seal-check', bg: palette.areia, fg: palette.sucesso },
   reminder: { icon: 'airplane-takeoff', bg: palette.coral100, fg: palette.coral700 },
+  business: { icon: 'storefront', bg: palette.areia, fg: palette.carvao },
 };
+const TOUR_ICON = { icon: 'ticket' as IconName, bg: palette.coral100, fg: palette.coral700 };
 const DEFAULT_ICON = { icon: 'bell' as IconName, bg: palette.areia, fg: palette.carvao };
 
 /** Small badge on a person's avatar, by type (and activity kind). */
@@ -70,6 +72,7 @@ function badgeOf(n: NotificationView): IconName | undefined {
 
 const num = (v: unknown, fallback = 1) =>
   typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+const str = (v: unknown) => (typeof v === 'string' ? v : '');
 
 /** H1 · Notificações. */
 export function NotificationsScreen() {
@@ -197,7 +200,20 @@ function useNotificationText(n: NotificationView): { who: string; text: string }
         text: t('explore.notifs.memory', { count: num(n.data.years), place: n.entityPlace }),
       };
     case 'reminder':
+      if (n.entityType === 'booking') {
+        return { who: '', text: t('explore.notifs.tourReminder', { title: str(n.data.tour) }) };
+      }
       return { who: '', text: t('explore.notifs.reminder', { count: num(n.data.days), title }) };
+    case 'business': {
+      const name = str(n.data.name);
+      return {
+        who: '',
+        text:
+          n.data.status === 'approved'
+            ? t('explore.notifs.businessApproved', { name })
+            : t('explore.notifs.businessRejected', { name }),
+      };
+    }
     default:
       return { who: '', text: '' };
   }
@@ -215,6 +231,9 @@ function targetOf(n: NotificationView, inviteId: string | undefined): Href | nul
     case 'community':
       return id ? routes.post(id) : null;
     case 'reminder':
+      if (n.entityType === 'booking') {
+        return typeof n.data.tour_id === 'string' ? routes.passeio(n.data.tour_id) : null;
+      }
       return id ? routes.roteiro(id) : null;
     default:
       if (!id) return null;
@@ -260,7 +279,10 @@ function NotificationRow({
     if (href) navigate(href);
   };
 
-  const sys = SYSTEM_ICONS[n.type] ?? DEFAULT_ICON;
+  const sys =
+    n.type === 'reminder' && n.entityType === 'booking'
+      ? TOUR_ICON
+      : (SYSTEM_ICONS[n.type] ?? DEFAULT_ICON);
   const message = who ? `${who} ${text}` : text;
 
   return (

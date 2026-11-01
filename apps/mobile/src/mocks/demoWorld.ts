@@ -6,6 +6,7 @@ import {
   FUTURES,
   INVITES,
   NOTIFS,
+  PASSEIOS,
   PLACE_INFO,
   PLACE_TIPS,
   POSTS,
@@ -24,7 +25,8 @@ import { CHAT_SEEDS } from './demoChat';
  * see, the SQLite database of component tests.
  *
  * Rows are in the server shape (snake_case) and carry `user_id`.
- * Times relative to "now" are `Ago` values (SQL: now() - interval; tests: ISO).
+ * Times relative to "now" are `Ago` values (SQL: now() - interval; tests: ISO),
+ * dates relative to today are `Day` values (SQL: current_date + n; tests: YYYY-MM-DD).
  */
 
 export class Ago {
@@ -34,6 +36,19 @@ export class Ago {
   }
 }
 const ago = (minutes: number) => new Ago(minutes);
+
+export class Day {
+  constructor(readonly days: number) {}
+  /** UTC, like the server's current_date. */
+  toISODate(now = Date.now()) {
+    return new Date(now + this.days * 24 * 60 * 60_000).toISOString().slice(0, 10);
+  }
+}
+
+/** Tour dates: the next 6 days, the 3rd one sold out (02_SCREENS → E2). */
+export const TOUR_DAYS = 6;
+export const TOUR_CAPACITY = 12;
+export const SOLD_OUT_DAY = 2;
 
 const H = 60;
 const D = 24 * H;
@@ -587,6 +602,15 @@ export function demoWorld(): DemoWorld {
     posts,
     comments,
     post_votes: votes as Row[],
+    tour_slots: PASSEIOS.flatMap((tour) =>
+      Array.from({ length: TOUR_DAYS }, (_, i) => ({
+        ...common(demoId(`slot:${tour.id}:${i}`), ago(D)),
+        tour_id: tour.id,
+        date: new Day(i + 1),
+        capacity: TOUR_CAPACITY,
+        booked: i === SOLD_OUT_DAY ? TOUR_CAPACITY : 0,
+      })),
+    ),
   };
 }
 
@@ -608,6 +632,9 @@ const LOCAL_TABLES = [
   'chat_threads',
   'chat_members',
   'messages',
+  'tour_slots',
+  'bookings',
+  'businesses',
 ] as const;
 
 /**
@@ -680,6 +707,9 @@ export function visibleTo(world: DemoWorld, me = DEMO_USER.id): DemoWorld {
     chat_threads: (r) => myThreads.has(r.id),
     chat_members: (r) => myThreads.has(r.thread_id),
     messages: (r) => myThreads.has(r.thread_id),
+    tour_slots: () => true,
+    bookings: (r) => r.user_id === me,
+    businesses: (r) => r.user_id === me,
   };
   const out: DemoWorld = {};
   for (const table of LOCAL_TABLES) out[table] = get(table).filter(rules[table]);

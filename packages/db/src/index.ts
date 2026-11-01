@@ -4,6 +4,11 @@ export type { Repositories } from './repositories';
 export { createRepositories } from './repositories';
 export type {
   Activity,
+  Booking,
+  BookingStatus,
+  Business,
+  BusinessStatus,
+  BusinessType,
   CatalogRow,
   ChatMember,
   ChatThread,
@@ -25,6 +30,7 @@ export type {
   PhotoFile,
   Profile,
   SavedItemRow,
+  TourSlot,
   TripExpenseRow,
   TripRow,
   VisitedCountry,

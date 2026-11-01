@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, isNull } from 'drizzle-orm';
+import { createCommerceRepositories } from './commerce';
 import type { LocalDatabase } from './database';
 import {
   type CatalogRow,
@@ -439,6 +440,7 @@ export function createRepositories(db: LocalDatabase, options: RepositoryOptions
     saved,
     catalog: catalogRepo,
     ...createSocialRepositories(db, w, me),
+    ...createCommerceRepositories(db, w, me),
   };
 }
 

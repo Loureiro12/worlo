@@ -37,6 +37,40 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"bookings": {
+                  Row: {
+                    "cancelled_at": string | null,"created_at": string,"currency": string,"date": string,"deleted_at": string | null,"id": string,"people": number,"reminded_at": string | null,"slot_id": string,"status": string,"total": number,"tour_id": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "cancelled_at"?: string | null,"created_at"?: string,"currency": string,"date": string,"deleted_at"?: string | null,"id": string,"people": number,"reminded_at"?: string | null,"slot_id": string,"status"?: string,"total": number,"tour_id": string,"updated_at"?: string,"user_id": string
+                  }
+                  Update: {
+                    "cancelled_at"?: string | null,"created_at"?: string,"currency"?: string,"date"?: string,"deleted_at"?: string | null,"id"?: string,"people"?: number,"reminded_at"?: string | null,"slot_id"?: string,"status"?: string,"total"?: number,"tour_id"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "bookings_slot_id_fkey"
+      columns: ["slot_id"]
+isOneToOne: false
+      referencedRelation: "tour_slots"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"businesses": {
+                  Row: {
+                    "city": string,"created_at": string,"deleted_at": string | null,"description": string,"email": string,"id": string,"name": string,"status": string,"type": string,"updated_at": string,"user_id": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "city": string,"created_at"?: string,"deleted_at"?: string | null,"description"?: string,"email": string,"id": string,"name": string,"status"?: string,"type": string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Update: {
+                    "city"?: string,"created_at"?: string,"deleted_at"?: string | null,"description"?: string,"email"?: string,"id"?: string,"name"?: string,"status"?: string,"type"?: string,"updated_at"?: string,"user_id"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"catalog": {
                   Row: {
                     "data": NonNullable<Json>,"deleted_at": string | null,"id": string,"key": string,"kind": string,"sort": number,"updated_at": string
@@ -365,6 +399,34 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"tour_schedules": {
+                  Row: {
+                    "active": boolean,"capacity": number,"days_ahead": number,"tour_id": string,"weekdays": (number)[]
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "active"?: boolean,"capacity"?: number,"days_ahead"?: number,"tour_id": string,"weekdays"?: (number)[]
+                  }
+                  Update: {
+                    "active"?: boolean,"capacity"?: number,"days_ahead"?: number,"tour_id"?: string,"weekdays"?: (number)[]
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"tour_slots": {
+                  Row: {
+                    "booked": number,"capacity": number,"created_at": string,"date": string,"deleted_at": string | null,"id": string,"tour_id": string,"updated_at": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "booked"?: number,"capacity": number,"created_at"?: string,"date": string,"deleted_at"?: string | null,"id"?: string,"tour_id": string,"updated_at"?: string
+                  }
+                  Update: {
+                    "booked"?: number,"capacity"?: number,"created_at"?: string,"date"?: string,"deleted_at"?: string | null,"id"?: string,"tour_id"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"trip_expenses": {
                   Row: {
                     "amount": number,"amount_label": string,"category": string,"created_at": string,"deleted_at": string | null,"icon": string,"id": string,"meta": string,"name": string,"receipt": boolean,"split": NonNullable<Json>,"trip_id": string,"updated_at": string,"user_id": string
@@ -441,12 +503,61 @@ isOneToOne: false
               "entity_id": string,"entity_type": string
             }[]
                            },
+"book_tour":
+{ Args: { "p_id": string,"p_people": number,"p_slot": string }; Returns: {
+              "cancelled_at": string | null,
+"created_at": string,
+"currency": string,
+"date": string,
+"deleted_at": string | null,
+"id": string,
+"people": number,
+"reminded_at": string | null,
+"slot_id": string,
+"status": string,
+"total": number,
+"tour_id": string,
+"updated_at": string,
+"user_id": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "bookings"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
+"booking_reminders":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
 "can_edit":
 { Args: { "p_id": string,"p_type": string }; Returns: boolean
                            },
 "can_view":
 { Args: { "p_id": string,"p_type": string }; Returns: boolean
                            },
+"cancel_booking":
+{ Args: { "p_id": string }; Returns: {
+              "cancelled_at": string | null,
+"created_at": string,
+"currency": string,
+"date": string,
+"deleted_at": string | null,
+"id": string,
+"people": number,
+"reminded_at": string | null,
+"slot_id": string,
+"status": string,
+"total": number,
+"tour_id": string,
+"updated_at": string,
+"user_id": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "bookings"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
 "community_feed":
 { Args: { "p_author"?: string,"p_before"?: string,"p_limit"?: number,"p_place"?: string,"p_segment"?: string }; Returns: {
               "author_avatar": string,"author_expert_role": string,"author_id": string,"author_name": string,"author_username": string,"comments": number,"created_at": string,"id": string,"my_vote": string,"no": number,"photo_paths": Json,"place_label": string,"place_ref": Json,"rating": number,"text": string,"title": string,"trip_id": string,"type": string,"visibility": string,"yes": number
@@ -478,6 +589,9 @@ isOneToOne: false
                            },
 "open_support_thread":
 { Args: Record<PropertyKey, never>; Returns: string
+                           },
+"open_tour_slots":
+{ Args: Record<PropertyKey, never>; Returns: number
                            },
 "owner_of":
 { Args: { "p_id": string,"p_type": string }; Returns: string

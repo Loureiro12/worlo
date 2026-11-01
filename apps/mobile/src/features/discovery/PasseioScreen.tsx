@@ -10,6 +10,7 @@ import {
   Icon,
   IconButton,
   makeStyles,
+  Sheet,
   StatusChip,
   Stepper,
   Text,
@@ -19,64 +20,120 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
+import {
+  type BookingFailure,
+  bookTour,
+  cancelBooking,
+  type SlotView,
+  todayISO,
+  useBooking,
+  useTourSlots,
+} from '@/data/bookings';
 import { useCatalog } from '@/data/catalog';
-import { formatMoney } from '@/lib/format';
+import { useSync } from '@/features/sync/SyncProvider';
+import { dateParts, formatMoney } from '@/lib/format';
 import { img } from '@/lib/images';
 import { routes } from '@/navigation/routes';
-import { useStore } from '@/store';
-import {
-  DEFAULT_DATE_INDEX,
-  DEFAULT_PEOPLE,
-  findTour,
-  MAX_PEOPLE,
-  MIN_PEOPLE,
-  SOLD_OUT_INDEX,
-} from './tours';
+import { DEFAULT_DATE_INDEX, DEFAULT_PEOPLE, findTour, MAX_PEOPLE, MIN_PEOPLE } from './tours';
 import { useTourSave } from './useTourSave';
+
+const FAILURE_COPY = {
+  offline: 'common.states.offlineTitle',
+  soldOut: 'discovery.toasts.soldOut',
+  alreadyBooked: 'discovery.toasts.alreadyBooked',
+  closed: 'discovery.toasts.closed',
+  error: 'discovery.toasts.bookFailed',
+} as const satisfies Record<BookingFailure, string>;
+
+/** Sáb 7 (prototype default) when it can be booked, else the first open date. */
+function defaultSlot(slots: SlotView[]): SlotView | undefined {
+  const preferred = slots[DEFAULT_DATE_INDEX];
+  return preferred && !preferred.soldOut ? preferred : (slots.find((s) => !s.soldOut) ?? slots[0]);
+}
 
 /** E2 · Detalhe do passeio: date + people → Reservar (03_FLOWS → F7). */
 export function PasseioScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const toast = useToast();
   const styles = useStyles();
+  const { online } = useSync();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { PASSEIOS, PDATES } = useCatalog();
+  const { PASSEIOS } = useCatalog();
   const tour = findTour(PASSEIOS, id);
-  const booking = useStore((s) => s.bookings[tour.id]);
-  const book = useStore((s) => s.book);
+  const slots = useTourSlots(tour.id);
+  const booking = useBooking(tour.id);
   const { saved, toggle } = useTourSave(tour);
-  const [dateIndex, setDateIndex] = useState(booking?.dateIndex ?? DEFAULT_DATE_INDEX);
-  const [people, setPeople] = useState(booking?.people ?? DEFAULT_PEOPLE);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [people, setPeople] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sheet, setSheet] = useState(false);
   const back = () => (router.canGoBack() ? router.back() : router.navigate(routes.passeios));
 
-  const dateLabel = (i: number) => {
-    const [weekday = '', day = ''] = PDATES[i] ?? [];
-    return t('discovery.tour.date', { weekday, day });
-  };
-  const price = formatMoney(tour.price, tour.cur);
-  const total = formatMoney(tour.price * people, tour.cur);
-  const when = t('discovery.tour.when', {
-    date: dateLabel(dateIndex),
-    people: t('common.count.people', { count: people }),
-  });
+  const slot =
+    slots.find((s) => s.id === (picked ?? booking?.slotId)) ??
+    (booking ? undefined : defaultSlot(slots));
+  const count = people ?? booking?.people ?? DEFAULT_PEOPLE;
 
-  const pickDate = (i: number) => {
-    if (i === SOLD_OUT_INDEX) {
+  const dateLabel = (date: string) => t('discovery.tour.date', dateParts(date, i18n.language));
+  const bookedDate = booking?.date ?? slot?.date;
+  const price = formatMoney(tour.price, tour.cur);
+  const total = formatMoney(booking ? booking.total : tour.price * count, tour.cur);
+  const when = bookedDate
+    ? t('discovery.tour.when', {
+        date: dateLabel(bookedDate),
+        people: t('common.count.people', { count }),
+      })
+    : t('discovery.tour.noDates');
+
+  const pickDate = (s: SlotView) => {
+    if (booking) return;
+    if (s.soldOut) {
       toast.show(t('discovery.toasts.soldOut'), 'info');
       return;
     }
-    setDateIndex(i);
+    setPicked(s.id);
   };
 
-  const reserve = () => {
+  const reserve = async () => {
+    if (busy) return;
     if (booking) {
-      toast.show(t('discovery.toasts.alreadyBooked'), 'info');
+      setSheet(true);
       return;
     }
-    book(tour.id, { dateIndex, people });
-    toast.show(t('discovery.toasts.booked', { date: dateLabel(dateIndex) }));
+    if (!slot || slot.soldOut) return;
+    if (count > slot.left) {
+      toast.show(t('discovery.toasts.fewSeats', { count: slot.left }), 'info');
+      return;
+    }
+    setBusy(true);
+    const result = await bookTour(slot.id, count, online);
+    setBusy(false);
+    if (!result.ok) {
+      toast.show(t(FAILURE_COPY[result.reason]), result.reason === 'offline' ? 'error' : 'info');
+      return;
+    }
+    setPicked(null);
+    setPeople(null);
+    toast.show(t('discovery.toasts.booked', { date: dateLabel(result.booking.date) }));
   };
+
+  const cancel = async () => {
+    if (!booking || busy) return;
+    setBusy(true);
+    const result = await cancelBooking(booking.id, online);
+    setBusy(false);
+    if (!result.ok) {
+      toast.show(
+        t(result.reason === 'offline' ? FAILURE_COPY.offline : 'discovery.toasts.cancelFailed'),
+        'error',
+      );
+      return;
+    }
+    setSheet(false);
+    toast.show(t('discovery.toasts.cancelled'), 'info');
+  };
+  const isToday = booking ? booking.date <= todayISO() : false;
 
   return (
     <DemoGate network onBack={back}>
@@ -119,7 +176,9 @@ export function PasseioScreen() {
               variant={booking ? 'outline' : 'primary'}
               icon={booking ? 'check' : 'ticket'}
               label={booking ? t('discovery.tour.booked') : t('discovery.tour.book')}
-              onPress={reserve}
+              loading={busy && !sheet}
+              disabled={!booking && (!slot || slot.soldOut)}
+              onPress={() => void reserve()}
             />
           </BottomBar>
         }
@@ -194,6 +253,11 @@ export function PasseioScreen() {
 
           <View style={{ gap: 10 }}>
             <Text variant="h3">{t('discovery.tour.chooseDate')}</Text>
+            {slots.length === 0 ? (
+              <Text testID="passeio-no-dates" variant="body" tone="muted">
+                {t('discovery.tour.noDates')}
+              </Text>
+            ) : null}
             <ScrollView
               horizontal
               accessibilityRole="radiogroup"
@@ -202,24 +266,24 @@ export function PasseioScreen() {
               style={styles.datesScroll}
               contentContainerStyle={styles.dates}
             >
-              {PDATES.map(([weekday, day], i) => {
-                const soldOut = i === SOLD_OUT_INDEX;
+              {slots.map((s, i) => {
+                const parts = dateParts(s.date, i18n.language);
                 return (
                   <DateChip
-                    key={`${weekday}-${day}`}
+                    key={s.id}
                     testID={`passeio-date-${i}`}
-                    weekday={weekday}
-                    day={day}
-                    month={t('discovery.tour.month')}
-                    soldOut={soldOut}
+                    weekday={parts.weekday}
+                    day={parts.day}
+                    month={parts.month}
+                    soldOut={s.soldOut}
                     soldOutLabel={t('discovery.tour.soldOut')}
-                    selected={i === dateIndex}
+                    selected={s.id === slot?.id}
                     accessibilityLabel={
-                      soldOut
-                        ? t('discovery.tour.soldOutA11y', { date: dateLabel(i) })
-                        : dateLabel(i)
+                      s.soldOut
+                        ? t('discovery.tour.soldOutA11y', { date: dateLabel(s.date) })
+                        : dateLabel(s.date)
                     }
-                    onPress={() => pickDate(i)}
+                    onPress={() => pickDate(s)}
                   />
                 );
               })}
@@ -237,9 +301,10 @@ export function PasseioScreen() {
             </View>
             <Stepper
               testID="passeio-people"
-              value={people}
-              min={MIN_PEOPLE}
-              max={MAX_PEOPLE}
+              value={count}
+              // Booked: the stepper shows the seats held (cancel to change them).
+              min={booking ? count : MIN_PEOPLE}
+              max={booking ? count : MAX_PEOPLE}
               onChange={setPeople}
               label={t('discovery.tour.people')}
               decrementLabel={t('discovery.tour.fewer')}
@@ -266,6 +331,56 @@ export function PasseioScreen() {
           </Card>
         </View>
       </HeroScreen>
+      <Sheet
+        testID="booking-sheet"
+        visible={sheet && Boolean(booking)}
+        onClose={() => setSheet(false)}
+        closeLabel={t('common.actions.close')}
+        title={t('discovery.booking.title')}
+        subtitle={
+          booking
+            ? t('discovery.booking.summary', {
+                date: dateLabel(booking.date),
+                people: t('common.count.people', { count: booking.people }),
+                total: formatMoney(booking.total, booking.currency),
+              })
+            : undefined
+        }
+        footer={
+          <View style={styles.sheetActions}>
+            <Button
+              testID="booking-keep"
+              variant="ghost"
+              label={t('discovery.booking.keep')}
+              onPress={() => setSheet(false)}
+            />
+            <View style={{ flex: 1 }}>
+              <Button
+                testID="booking-cancel"
+                variant="outline"
+                color={colors.error}
+                fullWidth
+                loading={busy}
+                disabled={isToday}
+                label={t('discovery.booking.cancel')}
+                onPress={() => void cancel()}
+              />
+            </View>
+          </View>
+        }
+      >
+        <View style={styles.row10}>
+          <Icon name="coins" size={20} color={colors.link} />
+          <Text variant="body" tone="support" style={{ flex: 1 }}>
+            {t('discovery.booking.payNote', { host: tour.host })}
+          </Text>
+        </View>
+        {isToday ? (
+          <Text variant="caption" tone="muted">
+            {t('discovery.booking.today')}
+          </Text>
+        ) : null}
+      </Sheet>
     </DemoGate>
   );
 }
@@ -293,4 +408,5 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: 16,
   },
   stars: { flexDirection: 'row', gap: 2 },
+  sheetActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 }));

@@ -4,7 +4,7 @@ import { type Catalog, catalogEntries } from '@/data/catalogSpec';
 import { dataEvents } from '@/data/events';
 import { db } from '@/lib/database';
 import * as mocks from '@/mocks/data.generated';
-import { Ago, demoWorld, visibleTo } from '@/mocks/demoWorld';
+import { Ago, Day, demoWorld, visibleTo } from '@/mocks/demoWorld';
 
 const STAMP = '2026-01-01T00:00:00.000Z';
 
@@ -20,7 +20,10 @@ export function seedDatabase({ demo = true }: { demo?: boolean } = {}) {
     const { table: target, toLocal } = syncedTables[table];
     for (const raw of rows) {
       const row = Object.fromEntries(
-        Object.entries(raw).map(([k, v]) => [k, v instanceof Ago ? v.toISOString() : v]),
+        Object.entries(raw).map(([k, v]) => [
+          k,
+          v instanceof Ago ? v.toISOString() : v instanceof Day ? v.toISODate() : v,
+        ]),
       );
       const values = toLocal({ updated_at: STAMP, ...row } as RemoteRow);
       db.insert(target)

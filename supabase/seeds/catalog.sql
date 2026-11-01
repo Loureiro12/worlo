@@ -65,3 +65,12 @@ insert into public.catalog (id, kind, key, sort, data) values
   ('pdates:5', 'pdates', '5', 5, '["qua","11"]'::jsonb)
 on conflict (id) do update set kind = excluded.kind, key = excluded.key, sort = excluded.sort, data = excluded.data, deleted_at = null;
 
+-- Every tour opens the next 6 days (pg_cron keeps them rolling).
+insert into public.tour_schedules (tour_id, capacity, days_ahead) values
+  ('tejo', 12, 6),
+  ('nata', 12, 6),
+  ('lagoinha', 12, 6),
+  ('fado', 12, 6),
+  ('valle', 12, 6)
+on conflict (tour_id) do nothing;
+

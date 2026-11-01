@@ -521,7 +521,40 @@ insert into public.post_votes (post_id, user_id, value, created_at) values
   ('de300000-0000-4000-8000-220e64addcac', 'de300000-0000-4000-8000-d76073f36362', 'yes', now() - interval '8640 minutes'),
   ('de300000-0000-4000-8000-220e64addcac', 'de300000-0000-4000-8000-13515aeb9e7d', 'yes', now() - interval '8640 minutes'),
   ('de300000-0000-4000-8000-220e64addcac', 'de300000-0000-4000-8000-4bb1f5f7da2c', 'yes', now() - interval '8640 minutes')
-on conflict (post_id, user_id) do nothing;
+on conflict do nothing;
+
+insert into public.tour_slots (id, created_at, deleted_at, tour_id, date, capacity, booked) values
+  ('de300000-0000-4000-8000-4ada41127a8b', now() - interval '1440 minutes', null, 'tejo', current_date + 1, 12, 0),
+  ('de300000-0000-4000-8000-49da411278d8', now() - interval '1440 minutes', null, 'tejo', current_date + 2, 12, 0),
+  ('de300000-0000-4000-8000-4cda41127df1', now() - interval '1440 minutes', null, 'tejo', current_date + 3, 12, 12),
+  ('de300000-0000-4000-8000-4bda41127c3e', now() - interval '1440 minutes', null, 'tejo', current_date + 4, 12, 0),
+  ('de300000-0000-4000-8000-4eda41128157', now() - interval '1440 minutes', null, 'tejo', current_date + 5, 12, 0),
+  ('de300000-0000-4000-8000-4dda41127fa4', now() - interval '1440 minutes', null, 'tejo', current_date + 6, 12, 0),
+  ('de300000-0000-4000-8000-b8a7dcc0c111', now() - interval '1440 minutes', null, 'nata', current_date + 1, 12, 0),
+  ('de300000-0000-4000-8000-b7a7dcc0bf5e', now() - interval '1440 minutes', null, 'nata', current_date + 2, 12, 0),
+  ('de300000-0000-4000-8000-b6a7dcc0bdab', now() - interval '1440 minutes', null, 'nata', current_date + 3, 12, 12),
+  ('de300000-0000-4000-8000-b5a7dcc0bbf8', now() - interval '1440 minutes', null, 'nata', current_date + 4, 12, 0),
+  ('de300000-0000-4000-8000-bca7dcc0c7dd', now() - interval '1440 minutes', null, 'nata', current_date + 5, 12, 0),
+  ('de300000-0000-4000-8000-bba7dcc0c62a', now() - interval '1440 minutes', null, 'nata', current_date + 6, 12, 0),
+  ('de300000-0000-4000-8000-1f05a093bf86', now() - interval '1440 minutes', null, 'lagoinha', current_date + 1, 12, 0),
+  ('de300000-0000-4000-8000-2005a093c139', now() - interval '1440 minutes', null, 'lagoinha', current_date + 2, 12, 0),
+  ('de300000-0000-4000-8000-1d05a093bc20', now() - interval '1440 minutes', null, 'lagoinha', current_date + 3, 12, 12),
+  ('de300000-0000-4000-8000-1e05a093bdd3', now() - interval '1440 minutes', null, 'lagoinha', current_date + 4, 12, 0),
+  ('de300000-0000-4000-8000-2305a093c652', now() - interval '1440 minutes', null, 'lagoinha', current_date + 5, 12, 0),
+  ('de300000-0000-4000-8000-2405a093c805', now() - interval '1440 minutes', null, 'lagoinha', current_date + 6, 12, 0),
+  ('de300000-0000-4000-8000-326c5c3554e7', now() - interval '1440 minutes', null, 'fado', current_date + 1, 12, 0),
+  ('de300000-0000-4000-8000-316c5c355334', now() - interval '1440 minutes', null, 'fado', current_date + 2, 12, 0),
+  ('de300000-0000-4000-8000-346c5c35584d', now() - interval '1440 minutes', null, 'fado', current_date + 3, 12, 12),
+  ('de300000-0000-4000-8000-336c5c35569a', now() - interval '1440 minutes', null, 'fado', current_date + 4, 12, 0),
+  ('de300000-0000-4000-8000-2e6c5c354e1b', now() - interval '1440 minutes', null, 'fado', current_date + 5, 12, 0),
+  ('de300000-0000-4000-8000-2d6c5c354c68', now() - interval '1440 minutes', null, 'fado', current_date + 6, 12, 0),
+  ('de300000-0000-4000-8000-068c63356561', now() - interval '1440 minutes', null, 'valle', current_date + 1, 12, 0),
+  ('de300000-0000-4000-8000-058c633563ae', now() - interval '1440 minutes', null, 'valle', current_date + 2, 12, 0),
+  ('de300000-0000-4000-8000-048c633561fb', now() - interval '1440 minutes', null, 'valle', current_date + 3, 12, 12),
+  ('de300000-0000-4000-8000-038c63356048', now() - interval '1440 minutes', null, 'valle', current_date + 4, 12, 0),
+  ('de300000-0000-4000-8000-0a8c63356c2d', now() - interval '1440 minutes', null, 'valle', current_date + 5, 12, 0),
+  ('de300000-0000-4000-8000-098c63356a7a', now() - interval '1440 minutes', null, 'valle', current_date + 6, 12, 0)
+on conflict do nothing;
 
 delete from public.notifications
   where user_id in ('de300000-0000-4000-8000-000000000001', 'de300000-0000-4000-8000-3d90ebd1bf45', 'de300000-0000-4000-8000-c21114353819', 'de300000-0000-4000-8000-8492f3476a98', 'de300000-0000-4000-8000-8b65da21c2e6', 'de300000-0000-4000-8000-8032b10af231', 'de300000-0000-4000-8000-167d14205b91', 'de300000-0000-4000-8000-d76073f36362', 'de300000-0000-4000-8000-13515aeb9e7d', 'de300000-0000-4000-8000-4bb1f5f7da2c')

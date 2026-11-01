@@ -178,4 +178,54 @@ describe.runIf(url && key)('SQLite ↔ Supabase', () => {
     expect(biaPhone.repos.trips.get(trip.id)).toBeUndefined();
     expect(biaPhone.repos.trips.expenses(trip.id)).toEqual([]);
   });
+
+  it('books a tour on the server and syncs dates, bookings and Anuncie sign-ups', async () => {
+    const ana = await account('Ana');
+    const anaId = (await ana.first.auth.getUser()).data.user?.id as string;
+    const phone = device(ana.first, anaId);
+    await phone.engine.sync();
+
+    // Seeded dates (supabase/seeds): pick one with a seat left.
+    const today = new Date().toISOString().slice(0, 10);
+    const slot = phone.repos.tours.slots('tejo', today).find((s) => s.capacity > s.booked);
+    expect(slot).toBeDefined();
+    const before = slot?.booked ?? 0;
+
+    const { data, error } = await ana.first.rpc('book_tour', {
+      p_id: randomUUID(),
+      p_slot: slot?.id,
+      p_people: 1,
+    });
+    expect(error).toBeNull();
+    phone.repos.bookings.applyBooking(data);
+    expect(phone.repos.bookings.forTour('tejo')).toMatchObject({ people: 1, total: 45 });
+
+    await phone.engine.sync();
+    expect(phone.repos.tours.slot(slot?.id as string)?.booked).toBe(before + 1);
+    expect(phone.repos.bookings.list()).toHaveLength(1);
+
+    const again = await ana.first.rpc('book_tour', {
+      p_id: randomUUID(),
+      p_slot: slot?.id,
+      p_people: 1,
+    });
+    expect(again.error?.message).toBe('already_booked');
+
+    const cancelled = await ana.first.rpc('cancel_booking', { p_id: data.id });
+    expect(cancelled.data).toMatchObject({ status: 'cancelled' });
+    await phone.engine.sync();
+    expect(phone.repos.bookings.list()).toEqual([]);
+    expect(phone.repos.tours.slot(slot?.id as string)?.booked).toBe(before);
+
+    // Anuncie: outbox → server, always in review.
+    const business = phone.repos.businesses.submit({
+      name: 'Tejo Sailing',
+      type: 'guide',
+      city: 'Lisboa',
+      email: 'ola@tejo.pt',
+    });
+    await phone.engine.sync();
+    const row = await ana.first.from('businesses').select('status').eq('id', business.id).single();
+    expect(row.data).toEqual({ status: 'review' });
+  });
 });

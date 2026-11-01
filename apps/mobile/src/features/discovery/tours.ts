@@ -13,9 +13,7 @@ export const TOUR_FILTERS: readonly { value: TourFilter; key: TourFilterKey }[] 
   { value: 'Cultura', key: 'culture' },
 ];
 
-/** Index of the sold-out date in PDATES (prototype: always the 3rd day). */
-export const SOLD_OUT_INDEX = 2;
-/** Initial date/people when opening a tour (prototype: sáb 7 · 2 pessoas). */
+/** Initial date (2nd open date)/people when opening a tour (prototype: sáb 7 · 2 pessoas). */
 export const DEFAULT_DATE_INDEX = 1;
 export const DEFAULT_PEOPLE = 2;
 export const MIN_PEOPLE = 1;

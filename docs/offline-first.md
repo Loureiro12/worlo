@@ -34,6 +34,7 @@ SyncEngine ── push _outbox ────────────────�
 | **Catálogo**           | `catalog` (países, cidades, lugares, passeios, roteiros recomendados…), uma linha por entidade: `id = '<kind>:<key>'`                                                             | só pull                                                                 |
 | **Compartilhados**     | `trips`/`wish_destinations` com `memberships` (dono + colaboradores), `trip_expenses`, `photos` (arquivo no Storage), `activities`                                                | push + pull, RLS por relação: dono, convidado (prévia) ou membro aceito |
 | **Pessoas e avisos**   | `people` (perfil público de quem se relaciona com você + especialistas), `follows`, `notifications` (criadas por triggers), `chat_threads`/`chat_members`/`messages`, `devices`   | push + pull (pull only: `people`, `activities`, `chat_threads`)         |
+| **Passeios (fase 3)**  | `tour_slots` (datas e vagas), `bookings` (minhas reservas), `businesses` (cadastros do Anuncie)                                                                                    | pull only: `tour_slots`, `bookings`; push + pull: `businesses`          |
 | **Online (com cache)** | feed da comunidade, posts, comentários, votos, página de viajante, busca de pessoas — RPCs `community_feed`, `post_comments`, `traveler_profile`, `search_people`                 | React Query (`QueryProvider`); offline mostra o estado offline          |
 
 O catálogo é montado no app por `buildCatalog` (`apps/mobile/src/data/catalogSpec.ts`) nas mesmas estruturas que as telas já usavam. Editar conteúdo = editar linhas de `catalog` no Supabase; os aparelhos recebem no próximo sync, sem nova versão do app.
@@ -76,6 +77,21 @@ Login obrigatório: e-mail e senha, Apple (iOS) e Google (quando `EXPO_PUBLIC_GO
 - **Notificações e atividade** são escritas só por triggers (convite, aceite, gasto/fotos de membro, seguir, comentário, confirmações). O aparelho só marca `read_at`: um trigger ignora qualquer outra mudança vinda do app.
 - **Tempo real.** Com sessão e rede, o app escuta `messages`, `notifications`, `memberships` e `chat_members` (Supabase Realtime, com RLS) e sincroniza na hora.
 - **2FA.** Com um fator TOTP verificado, toda tabela exige sessão AAL2 (`aal_ok()`, política restritiva). Antes do código, o banco não devolve nada.
+
+## Passeios e Anuncie (fase 3)
+
+- **Sem pagamento online.** A reserva guarda vagas numa data; o viajante paga direto ao anfitrião no dia (o app avisa isso na folha "Sua reserva"). Ligar um intermediador depois é só mudar `book_tour` para criar a reserva `pending` e confirmar via webhook.
+- **Reservar e cancelar são RPCs online** (`book_tour`, `cancel_booking`): a vaga precisa ser checada no servidor, com a linha da data travada (`for update`). O id da reserva é gerado no aparelho, então repetir a chamada não reserva duas vezes. O app guarda a linha devolvida (`repos.bookings.applyBooking`) sem passar pelo outbox; datas e reservas descem no sync e aparecem offline. Erros com cópia própria: `sold_out`, `already_booked`, `closed` (dia de hoje ou passado). Uma reserva ativa por passeio.
+- **Datas.** `tour_schedules` (só servidor) diz quantas vagas e quantos dias à frente cada passeio abre; o pg_cron roda `open_tour_slots()` todo dia às 03:05 UTC. Datas avulsas podem ser inseridas direto em `tour_slots`. "Hoje" é o `current_date` do servidor (UTC), e o app compara em UTC também.
+- **Lembrete.** `booking_reminders()` roda às 12:00 UTC (9h de Brasília) e manda "Amanhã tem {passeio}" uma vez por reserva.
+- **Anuncie** grava em `businesses` pelo outbox (funciona offline). Entra sempre `review`; o app não muda o `status` (trigger `guard_business`). A equipe aprova ou recusa pelo painel e o dono recebe a notificação `business`.
+
+### Operação pelo painel (equipe)
+
+- **Novo passeio:** linha em `catalog` com `kind = 'passeios'`, `key` = id do passeio e o JSON no formato de `Tour` (`apps/mobile/src/mocks/types.ts`). Depois, uma linha em `tour_schedules` (`tour_id`, `capacity`, `days_ahead`, `weekdays`) e, para abrir as datas na hora, `select public.open_tour_slots();`.
+- **Fechar uma data:** `update tour_slots set deleted_at = now() where …` (reservas existentes continuam valendo).
+- **Aprovar negócio:** `update businesses set status = 'approved' where id = …` (ou `'rejected'`).
+- **Reservas de um passeio:** `select * from bookings where tour_id = … and status = 'confirmed' order by date;`.
 
 ## Decisões e limites conhecidos
 

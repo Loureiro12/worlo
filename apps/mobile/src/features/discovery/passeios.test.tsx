@@ -1,10 +1,14 @@
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { schema } from '@worlo/db';
 import { eq } from 'drizzle-orm';
+import { bookTour, cancelBooking } from '@/data/bookings';
 import { dataEvents } from '@/data/events';
-import { repos } from '@/data/repositories';
+import { repos, setCurrentUserId } from '@/data/repositories';
 import { isSaved } from '@/data/saved';
 import { db } from '@/lib/database';
+import { dateParts } from '@/lib/format';
+import { DEMO_USER } from '@/mocks/demo';
+import { Day } from '@/mocks/demoWorld';
 import type { Tour } from '@/mocks/types';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
@@ -24,11 +28,61 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
+// Booking is an online RPC; the fake server below answers like book_tour / cancel_booking.
+jest.mock('@/data/bookings', () => ({
+  ...jest.requireActual('@/data/bookings'),
+  bookTour: jest.fn(),
+  cancelBooking: jest.fn(),
+}));
+
+const PRICE = { tejo: 45, fado: 38 } as Record<string, number>;
+const bookingRow = (slotId: string, people: number, status = 'confirmed') => {
+  const slot = repos.tours.slot(slotId);
+  if (!slot) throw new Error(`no slot ${slotId}`);
+  const now = new Date().toISOString();
+  return {
+    id: `booking-${slot.tourId}`,
+    user_id: DEMO_USER.id,
+    tour_id: slot.tourId,
+    slot_id: slot.id,
+    date: slot.date,
+    people,
+    total: (PRICE[slot.tourId] ?? 0) * people,
+    currency: '€',
+    status,
+    cancelled_at: status === 'cancelled' ? now : null,
+    reminded_at: null,
+    created_at: now,
+    updated_at: now,
+    deleted_at: null,
+  };
+};
+const book = (slotId: string, people: number) =>
+  repos.bookings.applyBooking(bookingRow(slotId, people));
+/** The tour's open dates (from the demo world: day +1 … +6, the 3rd sold out). */
+const slotsOf = (tourId: string) => repos.tours.slots(tourId, '0000-00-00');
+/** "sáb, 7 nov" for the date `i` days after tomorrow. */
+const dateLabel = (i: number) => {
+  const { weekday, day, month } = dateParts(new Day(i + 1).toISODate(), 'pt-BR');
+  return `${weekday}, ${day} ${month}`;
+};
 
 beforeEach(() => {
   resetStore();
   jest.clearAllMocks();
   mockParams = {};
+  setCurrentUserId(DEMO_USER.id);
+  jest.mocked(bookTour).mockImplementation(async (slotId, people) => {
+    const booking = book(slotId, people);
+    return booking ? { ok: true, booking } : { ok: false, reason: 'error' };
+  });
+  jest.mocked(cancelBooking).mockImplementation(async (id) => {
+    const current = repos.bookings.get(id);
+    const booking =
+      current &&
+      repos.bookings.applyBooking(bookingRow(current.slotId, current.people, 'cancelled'));
+    return booking ? { ok: true, booking } : { ok: false, reason: 'error' };
+  });
 });
 
 const cardIds = () =>
@@ -81,7 +135,9 @@ describe('PasseiosScreen (E1)', () => {
   });
 
   it('shows "Reservado" on booked tours', async () => {
-    useStore.getState().book('fado', { dateIndex: 1, people: 2 });
+    await act(() => {
+      book(slotsOf('fado')[1]?.id ?? '', 2);
+    });
     await renderWithProviders(<PasseiosScreen />);
     expect(screen.getByTestId('passeio-card-booked-fado')).toBeOnTheScreen();
     expect(screen.queryByTestId('passeio-card-booked-tejo')).toBeNull();
@@ -161,15 +217,26 @@ describe('PasseioScreen (E2)', () => {
     expect(screen.getByText('€ 45 por pessoa')).toBeOnTheScreen();
   });
 
-  it('starts on sáb 7 with 2 people and multiplies the total', async () => {
+  it('shows the next open dates from the server, the sold-out one dimmed', async () => {
+    await renderWithProviders(<PasseioScreen />);
+    for (let i = 0; i < 6; i++) {
+      const { weekday, day } = dateParts(new Day(i + 1).toISODate(), 'pt-BR');
+      expect(within(screen.getByTestId(`passeio-date-${i}`)).getByText(weekday)).toBeOnTheScreen();
+      expect(within(screen.getByTestId(`passeio-date-${i}`)).getByText(day)).toBeOnTheScreen();
+    }
+    expect(screen.queryByTestId('passeio-date-6')).toBeNull();
+    expect(screen.getByTestId('passeio-date-2')).toHaveAccessibleName(`${dateLabel(2)}, esgotado`);
+  });
+
+  it('starts on the 2nd date with 2 people and multiplies the total', async () => {
     await renderWithProviders(<PasseioScreen />);
     expect(screen.getByTestId('passeio-total')).toHaveTextContent('€ 90');
-    expect(screen.getByTestId('passeio-when')).toHaveTextContent('sáb, 7 nov · 2 pessoas');
+    expect(screen.getByTestId('passeio-when')).toHaveTextContent(`${dateLabel(1)} · 2 pessoas`);
     await fireEvent.press(screen.getByTestId('passeio-people-plus'));
     expect(screen.getByTestId('passeio-total')).toHaveTextContent('€ 135');
     for (let i = 0; i < 3; i++) await fireEvent.press(screen.getByTestId('passeio-people-minus'));
     expect(screen.getByTestId('passeio-total')).toHaveTextContent('€ 45');
-    expect(screen.getByTestId('passeio-when')).toHaveTextContent('sáb, 7 nov · 1 pessoa');
+    expect(screen.getByTestId('passeio-when')).toHaveTextContent(`${dateLabel(1)} · 1 pessoa`);
     expect(screen.getByTestId('passeio-people-minus')).toBeDisabled();
   });
 
@@ -190,18 +257,72 @@ describe('PasseioScreen (E2)', () => {
     expect(screen.getByTestId('passeio-date-1')).toBeChecked();
     expect(within(screen.getByTestId('passeio-date-2')).getByText('esgotado')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('passeio-date-4'));
-    expect(screen.getByTestId('passeio-when')).toHaveTextContent('ter, 10 nov · 2 pessoas');
+    expect(screen.getByTestId('passeio-when')).toHaveTextContent(`${dateLabel(4)} · 2 pessoas`);
   });
 
-  it('books once and turns the button into "Reservado"', async () => {
+  it('books on the server, then shows "Reservado" and the booking sheet to cancel', async () => {
     await renderWithProviders(<PasseioScreen />);
     await fireEvent.press(screen.getByTestId('passeio-people-plus'));
     await fireEvent.press(screen.getByTestId('passeio-book'));
-    expect(useStore.getState().bookings.tejo).toEqual({ dateIndex: 1, people: 3 });
-    expect(screen.getByText('Reserva confirmada pra sáb, 7 nov. Bom passeio!')).toBeOnTheScreen();
+    const slot = slotsOf('tejo')[1];
+    expect(bookTour).toHaveBeenCalledWith(slot?.id, 3, expect.any(Boolean));
+    expect(repos.bookings.forTour('tejo')).toMatchObject({ people: 3, total: 135 });
+    expect(repos.tours.slot(slot?.id ?? '')?.booked).toBe(3);
+    expect(
+      screen.getByText(`Reserva confirmada pra ${dateLabel(1)}. Bom passeio!`),
+    ).toBeOnTheScreen();
     expect(screen.getByTestId('passeio-book')).toHaveAccessibleName('Reservado');
+    expect(screen.getByTestId('passeio-people-plus')).toBeDisabled();
+
     await fireEvent.press(screen.getByTestId('passeio-book'));
-    expect(screen.getByText('Você já reservou esse passeio.')).toBeOnTheScreen();
+    expect(screen.getByTestId('booking-sheet')).toBeOnTheScreen();
+    expect(screen.getByText(`${dateLabel(1)} · 3 pessoas · € 135`)).toBeOnTheScreen();
+    expect(
+      screen.getByText('O pagamento é feito direto com Rio Tejo Sailing, no dia do passeio.'),
+    ).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('booking-cancel'));
+    expect(cancelBooking).toHaveBeenCalledWith('booking-tejo', expect.any(Boolean));
+    expect(screen.getByText('Reserva cancelada. As vagas voltaram pro passeio.')).toBeOnTheScreen();
+    expect(screen.getByTestId('passeio-book')).toHaveAccessibleName('Reservar');
+    expect(repos.tours.slot(slot?.id ?? '')?.booked).toBe(0);
+  });
+
+  it('opens on the booked date and people', async () => {
+    await act(() => {
+      book(slotsOf('tejo')[4]?.id ?? '', 5);
+    });
+    await renderWithProviders(<PasseioScreen />);
+    expect(screen.getByTestId('passeio-date-4')).toBeChecked();
+    expect(screen.getByTestId('passeio-when')).toHaveTextContent(`${dateLabel(4)} · 5 pessoas`);
+    expect(screen.getByTestId('passeio-total')).toHaveTextContent('€ 225');
+  });
+
+  it('explains when the server refuses or there are fewer seats left', async () => {
+    jest.mocked(bookTour).mockResolvedValueOnce({ ok: false, reason: 'soldOut' });
+    await renderWithProviders(<PasseioScreen />);
+    await fireEvent.press(screen.getByTestId('passeio-book'));
+    expect(screen.getByText('Esse dia esgotou. Tenta outro?')).toBeOnTheScreen();
+    expect(screen.getByTestId('passeio-book')).toHaveAccessibleName('Reservar');
+
+    const slot = slotsOf('tejo')[1];
+    await act(() => {
+      db.update(schema.tourSlots)
+        .set({ booked: 11 })
+        .where(eq(schema.tourSlots.id, slot?.id ?? ''))
+        .run();
+      dataEvents.emit();
+    });
+    jest.mocked(bookTour).mockClear();
+    await fireEvent.press(screen.getByTestId('passeio-book'));
+    expect(screen.getByText('Só sobrou 1 vaga nesse dia.')).toBeOnTheScreen();
+    expect(bookTour).not.toHaveBeenCalled();
+  });
+
+  it('says so when the tour has no open dates', async () => {
+    db.delete(schema.tourSlots).where(eq(schema.tourSlots.tourId, 'tejo')).run();
+    await renderWithProviders(<PasseioScreen />);
+    expect(screen.getByTestId('passeio-no-dates')).toBeOnTheScreen();
+    expect(screen.getByTestId('passeio-book')).toBeDisabled();
   });
 
   it('toggles the save from the hero heart', async () => {
@@ -260,6 +381,15 @@ describe('AnuncieScreen (E3)', () => {
         /Rio Tejo Sailing e responde em até 2 dias úteis no e-mail contato@riotejo\.pt/,
       ),
     ).toBeOnTheScreen();
+    expect(repos.businesses.mine()).toMatchObject([
+      {
+        name: 'Rio Tejo Sailing',
+        type: 'agency',
+        city: 'Lisboa',
+        email: 'contato@riotejo.pt',
+        status: 'review',
+      },
+    ]);
     expect(screen.getByTestId('anuncie-submit')).toHaveAccessibleName('Voltar para passeios');
     await submit();
     expect(mockRouter.back).toHaveBeenCalled();

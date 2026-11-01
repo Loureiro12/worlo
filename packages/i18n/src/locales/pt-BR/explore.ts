@@ -113,6 +113,9 @@ const explore = {
     memory_other: 'Há {{count}} anos você estava em {{place}}. Reviva a viagem.',
     reminder_one: 'Falta {{count}} dia pra {{title}}.',
     reminder_other: 'Faltam {{count}} dias pra {{title}}.',
+    tourReminder: 'Amanhã tem {{title}}. Bom passeio!',
+    businessApproved: '{{name}} foi aprovado. Seus passeios já podem aparecer no Worlo.',
+    businessRejected: 'Não deu pra aprovar {{name}}. Responde o nosso e-mail pra saber mais.',
   },
   time: {
     now: 'agora',

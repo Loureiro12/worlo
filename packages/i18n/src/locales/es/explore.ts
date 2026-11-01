@@ -114,6 +114,9 @@ const explore: TranslationSchema['explore'] = {
     memory_other: 'Hace {{count}} años estabas en {{place}}. Revive el viaje.',
     reminder_one: 'Falta {{count}} día para {{title}}.',
     reminder_other: 'Faltan {{count}} días para {{title}}.',
+    tourReminder: 'Mañana tienes {{title}}. ¡Buen paseo!',
+    businessApproved: '{{name}} fue aprobado. Tus paseos ya pueden aparecer en Worlo.',
+    businessRejected: 'No pudimos aprobar {{name}}. Responde nuestro correo para saber más.',
   },
   time: {
     now: 'ahora',

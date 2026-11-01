@@ -3,6 +3,8 @@ import { getTableColumns } from 'drizzle-orm';
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core';
 import {
   activities,
+  bookings,
+  businesses,
   catalog,
   chatMembers,
   chatThreads,
@@ -19,6 +21,7 @@ import {
   photos,
   profiles,
   savedItems,
+  tourSlots,
   tripExpenses,
   trips,
   visitedCountries,
@@ -84,21 +87,32 @@ export const syncedTables = {
   messages: createMapper(messages),
   photos: createMapper(photos),
   devices: createMapper(devices),
+  businesses: createMapper(businesses),
   /** Pull only: the server writes these. */
   catalog: createMapper(catalog),
   people: createMapper(people),
   activities: createMapper(activities),
   chat_threads: createMapper(chatThreads),
+  tour_slots: createMapper(tourSlots),
+  bookings: createMapper(bookings),
 } as const;
 
 /** Tables the device never writes. */
-export const pullOnlyTables = ['catalog', 'people', 'activities', 'chat_threads'] as const;
+export const pullOnlyTables = [
+  'catalog',
+  'people',
+  'activities',
+  'chat_threads',
+  'tour_slots',
+  'bookings',
+] as const;
 
 export type SyncedTableName = keyof typeof syncedTables;
 
 /** Pull order: catalog first (screens need it), then parents before children. */
 export const syncOrder: readonly SyncedTableName[] = [
   'catalog',
+  'tour_slots',
   'profiles',
   'people',
   'visited_countries',
@@ -119,6 +133,8 @@ export const syncOrder: readonly SyncedTableName[] = [
   'chat_members',
   'messages',
   'devices',
+  'bookings',
+  'businesses',
 ];
 
 export function isSyncedTable(name: string): name is SyncedTableName {

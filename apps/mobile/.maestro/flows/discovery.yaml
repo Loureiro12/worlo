@@ -1,5 +1,5 @@
 # Discovery + Share (02_SCREENS → E1, E2, J · 03_FLOWS → F7, F11).
-# Explorar → Passeios → Tejo → date + 1 person → Reservar; Perfil → Compartilhar.
+# Explorar → Passeios → Tejo → date + 1 person → Reservar (book_tour) → cancel; Perfil → Compartilhar.
 appId: com.worlo.app
 tags:
   - full
@@ -46,7 +46,10 @@ tags:
     text: € 135
 - tapOn:
     id: passeio-book
-- assertVisible: Reserva confirmada pra seg, 9 nov. Bom passeio!
+# Dates come from tour_slots (day +1 … +6), so the toast date is dynamic.
+- extendedWaitUntil:
+    visible: "Reserva confirmada pra .*Bom passeio!"
+    timeout: 10000
 - assertVisible:
     id: passeio-book
     text: Reservado
@@ -57,6 +60,27 @@ tags:
     visible:
       text: ".*Reservado.*"
     timeout: 5000
+
+# Cancel (keeps the flow re-runnable without a db reset)
+- tapOn:
+    id: passeio-card-tejo
+- tapOn:
+    id: passeio-book
+- extendedWaitUntil:
+    visible:
+      id: booking-sheet
+    timeout: 5000
+- assertVisible: "O pagamento é feito direto com .*"
+- tapOn:
+    id: booking-cancel
+- extendedWaitUntil:
+    visible: "Reserva cancelada.*"
+    timeout: 10000
+- assertVisible:
+    id: passeio-book
+    text: Reservar
+- tapOn:
+    id: header-back
 
 # J · Compartilhar (Perfil → Compartilhar meu mundo)
 - tapOn:
