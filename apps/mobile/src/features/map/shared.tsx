@@ -3,13 +3,22 @@ import { Avatar, colors, Icon, Text, useToast } from '@worlo/ui';
 import { Fragment, useCallback } from 'react';
 import { Pressable, View } from 'react-native';
 import { getCatalog } from '@/data/catalog';
+import { updateItinerary, useItineraries } from '@/data/planning';
 import { repos } from '@/data/repositories';
 import { isSaved, toggleSaved, useIsSaved as useSavedFlag } from '@/data/saved';
 import { useQuery } from '@/data/useQuery';
+import { countryIdForFlag, withDay, withStop } from '@/features/planning/planning';
 import type { CityItem, CityTabKey, CountryId, PlaceTip, SavedItem } from '@/mocks/types';
 
-/** Countries "em roteiro/planejamento" on the map (prototype: Peru, from the Peru itinerary). */
-export const PLANNED_COUNTRIES: readonly CountryId[] = ['604'];
+/** Countries "em roteiro/planejamento" on the map: where my itineraries go. */
+function plannedCountries(): CountryId[] {
+  const ids = repos.planning.itineraries().map((it) => countryIdForFlag(it.flag));
+  return [...new Set(ids.filter((id): id is CountryId => Boolean(id)))];
+}
+
+export function usePlannedCountries(): CountryId[] {
+  return useQuery(plannedCountries, []);
+}
 
 export type CountryStatus = 'visited' | 'planned' | 'wishlist' | 'none';
 
@@ -18,7 +27,7 @@ export function useCountryStatus(id: CountryId | null | undefined): CountryStatu
   return useQuery((): CountryStatus => {
     if (!id) return 'none';
     if (repos.world.visitedMap()[id]) return 'visited';
-    if (PLANNED_COUNTRIES.includes(id)) return 'planned';
+    if (plannedCountries().includes(id)) return 'planned';
     if (repos.world.wishes().some((w) => w.countryIso === id)) return 'wishlist';
     return 'none';
   }, [id]);
@@ -33,8 +42,6 @@ export const LISBOA = {
   country: 'Portugal',
   region: 'Lisboa e Vale do Tejo',
   flag: '🇵🇹',
-  /** Content (not UI copy), kept in pt-BR like the other mocks. */
-  weather: 'Clima ameno em outubro · 18–24°C',
 } as const;
 
 /** Tabs of the city page, in the prototype order (content per tab is catalog). */
@@ -216,4 +223,33 @@ export function decodeParam(value: string | string[] | undefined): string {
   } catch {
     return raw;
   }
+}
+
+/**
+ * "Adicionar ao roteiro": the stop goes to the last day of my latest itinerary
+ * (the toast names it). Without an itinerary there is nowhere to put it: says so.
+ */
+export function useAddToItinerary() {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const itineraries = useItineraries();
+  return (name: string, note: string) => {
+    const target = itineraries[0];
+    if (!target) {
+      toast.show(t('map.place.noItinerary'), 'info');
+      return;
+    }
+    const stop = {
+      time: t('map.place.timeTbd'),
+      icon: 'map-pin' as const,
+      title: name,
+      note,
+      cost: 0,
+    };
+    updateItinerary(target.id, (it) => {
+      const days = it.days.length ? it.days : withDay(it.days, '');
+      return { ...it, days: withStop(days, days.length - 1, stop) };
+    });
+    toast.show(t('map.place.addedToItinerary', { place: name, itinerary: target.title }));
+  };
 }

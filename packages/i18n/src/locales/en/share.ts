@@ -34,7 +34,8 @@ const share: TranslationSchema['share'] = {
     link: 'Copy link',
   },
   imageSaved: 'Image saved to your gallery.',
-  message: 'My world on Worlo: {{link}}',
+  saveDenied: 'No permission to save to your gallery.',
+  exportError: "Couldn't create the image. Try again.",
   preview: {
     a11y: 'Image preview ({{format}}, {{theme}} theme): {{summary}}',
     mapOverline: 'My world so far',

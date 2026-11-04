@@ -37,6 +37,8 @@ const community = {
   feed: {
     emptyTitle: 'Nada por aqui ainda',
     emptyText: 'Seja a primeira pessoa a compartilhar uma dica.',
+    loadMore: 'Carregar mais',
+    loadMoreError: 'Não deu pra carregar. Tente de novo.',
   },
   post: {
     meta: 'em {{place}} · {{when}}',

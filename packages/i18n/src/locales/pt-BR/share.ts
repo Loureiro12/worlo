@@ -33,7 +33,8 @@ const share = {
     link: 'Copiar link',
   },
   imageSaved: 'Imagem salva na galeria.',
-  message: 'Meu mundo no Worlo: {{link}}',
+  saveDenied: 'Sem permissão pra salvar na galeria.',
+  exportError: 'Não deu pra gerar a imagem. Tente de novo.',
   preview: {
     a11y: 'Prévia da imagem ({{format}}, tema {{theme}}): {{summary}}',
     mapOverline: 'Meu mundo até agora',

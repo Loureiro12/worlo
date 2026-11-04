@@ -67,6 +67,17 @@ jest.mock('expo-crypto', () => ({
   randomUUID: () => require('node:crypto').randomUUID(),
 }));
 
+// Share export: no native modules in Jest. Tests read the calls.
+jest.mock('react-native-view-shot', () => ({
+  captureRef: jest.fn(async () => 'file:///tmp/share.png'),
+  releaseCapture: jest.fn(),
+}));
+jest.mock('expo-sharing', () => ({ shareAsync: jest.fn(async () => {}) }));
+jest.mock('expo-media-library', () => ({
+  requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  Asset: { create: jest.fn(async () => ({})) },
+}));
+
 // Push notifications: no native module in Jest. Tests drive taps through
 // `useLastNotificationResponse` and read the badge / permission calls.
 jest.mock('expo-notifications', () => ({

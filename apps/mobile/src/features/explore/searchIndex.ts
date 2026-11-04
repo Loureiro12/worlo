@@ -1,6 +1,7 @@
 import type { TranslationSchema } from '@worlo/i18n';
 import type { Href } from 'expo-router';
 import { getCatalog } from '@/data/catalog';
+import { LISBOA } from '@/features/map/shared';
 import { matchesQuery, normalize } from '@/lib/format';
 import { img } from '@/lib/images';
 import { firstName } from '@/lib/people';
@@ -17,9 +18,8 @@ export const SEARCH_CATEGORIES: readonly SearchCategory[] = [
   'rot',
 ];
 
-/** Where a result leads: a route, or a "coming soon" toast for pages not built yet. */
-/** `mapCountry` opens the map focused on a country that has no page. */
-export type SearchTarget = { href: Href; mapCountry?: CountryId } | { soon: string };
+/** Where a result leads. `mapCountry` opens the map focused on a country that has no page. */
+export type SearchTarget = { href: Href; mapCountry?: CountryId };
 
 export type SearchLead =
   | { kind: 'flag'; flag: string }
@@ -63,9 +63,6 @@ const CITY_LIST: readonly [string, string][] = [
   ['Seul', 'Coreia do Sul'],
 ];
 
-/** Only Lisboa has a city page in the mock data. */
-const CITY_PAGES = new Set(['Lisboa']);
-
 export function countryIdByName(name: string): CountryId | undefined {
   return Object.entries(getCatalog().COUNTRIES).find(([, c]) => c.name === name)?.[0];
 }
@@ -77,12 +74,12 @@ export function countryTarget(id: CountryId): SearchTarget {
     : { href: routes.map, mapCountry: id };
 }
 
-/** City page, else its country page, else "chega em breve". */
+/** The country's guide when it has one, else the city's own page. */
 export function cityTarget(city: string, country?: string): SearchTarget {
-  if (CITY_PAGES.has(city)) return { href: routes.city(city) };
+  if (city === LISBOA.name) return { href: routes.city(city) };
   const cid = country ? countryIdByName(country) : undefined;
   if (cid && getCatalog().COUNTRY_PAGES[cid]) return { href: routes.country(cid) };
-  return { soon: city };
+  return { href: routes.city(city) };
 }
 
 /** Explorar → "Lugares para conhecer" card target (go: 'city' | 'c392' | none). */
@@ -92,7 +89,7 @@ export function placeToKnowTarget(place: PlaceToKnow): SearchTarget {
   const country = place.name.split(', ')[1];
   const cid = country ? countryIdByName(country) : undefined;
   if (cid && getCatalog().COUNTRY_PAGES[cid]) return { href: routes.country(cid) };
-  return { soon: place.short };
+  return { href: routes.city(place.short) };
 }
 
 export type SubKey = keyof TranslationSchema['explore']['search']['sub'];

@@ -60,7 +60,6 @@ export function ExploreScreen() {
 function ExploreContent() {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
   const styles = useStyles();
   const empty = useIsEmpty();
   const { EXPERIENCES, PLACES, POPULAR } = useCatalog();
@@ -164,11 +163,7 @@ function ExploreContent() {
               <PlaceCard
                 key={p.name}
                 place={p}
-                onOpen={() => {
-                  const target = placeToKnowTarget(p);
-                  if ('href' in target) router.push(target.href);
-                  else toast.show(t('explore.places.soon', { name: target.soon }), 'info');
-                }}
+                onOpen={() => router.push(placeToKnowTarget(p).href)}
               />
             ))}
           </ScrollView>
@@ -303,8 +298,9 @@ function MemoryCard() {
   const router = useRouter();
   const styles = useStyles();
   const trips = useTrips();
-  // The prototype memory is Florianópolis; other accounts get their latest trip.
-  const trip = trips.find((x) => demoKey(x.id, 'trip') === 'floripa') ?? trips[0];
+  // "Há um ano": only a trip from last year, never just the latest one.
+  const lastYear = String(new Date().getFullYear() - 1);
+  const trip = trips.find((x) => x.year === lastYear);
   if (!trip) return null;
   const title = t('explore.memory.title', { place: trip.place });
   const meta = `${t('common.count.photos', { count: trip.photos })} · ${t('common.count.places', { count: trip.places })}`;

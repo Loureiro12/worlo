@@ -65,7 +65,9 @@ export const routes = {
   trip: (id: string): Href => `/trip/${id}`,
   future: (id: string): Href => `/future/${id}`,
   country: (id: string): Href => `/country/${id}`,
-  region: (id: string): Href => `/region/${encodeURIComponent(id)}`,
+  /** `country`: the region's country id, for the breadcrumb. */
+  region: (id: string, country?: string): Href =>
+    `/region/${encodeURIComponent(id)}${country ? `?country=${country}` : ''}`,
   city: (id: string): Href => `/city/${encodeURIComponent(id)}`,
   place: (id: string): Href => `/place/${encodeURIComponent(id)}`,
   recs: '/recs' as Href,
@@ -87,7 +89,10 @@ export const routes = {
   live: '/live' as Href,
   passeio: (id: string): Href => `/passeio/${id}`,
   anuncie: '/anuncie' as Href,
-  share: (subject: ShareSubject, params: { tripId?: string; roteiroId?: string } = {}): Href => ({
+  share: (
+    subject: ShareSubject,
+    params: { tripId?: string; roteiroId?: string; ach?: string } = {},
+  ): Href => ({
     pathname: '/share',
     params: { subject, ...params },
   }),

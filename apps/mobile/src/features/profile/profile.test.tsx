@@ -1,11 +1,10 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import { getCatalog } from '@/data/catalog';
 import { repos } from '@/data/repositories';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
 import { ProfileScreen } from './ProfileScreen';
-import { formatNumber, worldPercent } from './stats';
+import { countCities, formatNumber, worldPercent } from './stats';
 
 const mockRouter = { push: jest.fn(), back: jest.fn(), replace: jest.fn(), navigate: jest.fn() };
 jest.mock('expo-router', () => ({
@@ -47,7 +46,7 @@ describe('ProfileScreen', () => {
     expect(screen.getByTestId('profile-stat-trips')).toHaveTextContent(`${trips.length}viagens`);
     const places = trips.reduce((sum, trip) => sum + trip.places, 0);
     expect(screen.getByTestId('profile-stat-places')).toHaveTextContent(`${places}lugares`);
-    const cities = getCatalog().CITIES.length - 1;
+    const cities = countCities(trips);
     expect(screen.getByTestId('profile-stat-cities')).toHaveTextContent(`${cities}cidades`);
   });
 
@@ -70,10 +69,11 @@ describe('ProfileScreen', () => {
   it('shares an unlocked achievement and shows progress for a locked one', async () => {
     await renderWithProviders(<ProfileScreen />);
     await fireEvent.press(screen.getByTestId('achievement-endOfWorld'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('ach'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('ach', { ach: 'endOfWorld' }));
 
     await fireEvent.press(screen.getByTestId('achievement-twentyCities'));
-    expect(screen.getByRole('alert')).toHaveTextContent('20 cidades: faltam 10.');
+    const left = 20 - countCities(repos.trips.list());
+    expect(screen.getByRole('alert')).toHaveTextContent(`20 cidades: faltam ${left}.`);
   });
 
   it('navigates from the header buttons, cards and rows', async () => {

@@ -24,6 +24,9 @@ const googleSignIn: [string, { iosUrlScheme: string }][] = googleIosClientId
     ]
   : [];
 
+const photosPermission =
+  'O Worlo usa suas fotos pra guardar as memórias de cada viagem e dividir com quem viajou com você.';
+
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: 'Worlo',
@@ -58,6 +61,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.READ_EXTERNAL_STORAGE',
       'android.permission.WRITE_EXTERNAL_STORAGE',
       'android.permission.SYSTEM_ALERT_WINDOW',
+      'android.permission.READ_MEDIA_VISUAL_USER_SELECTED',
     ],
   },
   web: {
@@ -82,11 +86,20 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       { icon: './assets/notification-icon.png', color: coral, defaultChannel: 'default' },
     ],
     [
+      // Only saves the share pictures: no READ_MEDIA_* (restricted on Google Play).
+      'expo-media-library',
+      {
+        photosPermission,
+        savePhotosPermission:
+          'O Worlo salva na sua galeria as imagens que você cria pra compartilhar.',
+        granularPermissions: [],
+      },
+    ],
+    [
       'expo-image-picker',
       {
         // Shown by iOS when asking for access (pt-BR: the app's main market).
-        photosPermission:
-          'O Worlo usa suas fotos pra guardar as memórias de cada viagem e dividir com quem viajou com você.',
+        photosPermission,
         cameraPermission: 'O Worlo usa a câmera pra registrar momentos no modo viagem.',
         microphonePermission: false,
       },

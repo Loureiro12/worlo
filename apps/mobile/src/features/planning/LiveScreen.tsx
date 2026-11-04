@@ -1,7 +1,6 @@
 import { useTranslation } from '@worlo/i18n';
 import {
   Avatar,
-  AvatarStack,
   alpha,
   Button,
   Chip,
@@ -23,6 +22,7 @@ import {
   shadow,
   Text,
   TextArea,
+  TextField,
   useToast,
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
@@ -43,21 +43,15 @@ import {
   useLive,
 } from '@/data/planning';
 import { repos } from '@/data/repositories';
-import { img } from '@/lib/images';
 import { avatarFor, firstName, ME } from '@/lib/people';
 import type { Itinerary } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import {
   countryIdForFlag,
-  EXCHANGE_RATE,
   EXPENSE_CATEGORIES,
   type ExpenseCategoryKey,
   endSummary,
   formatMoneyFlex,
-  hereFor,
-  LOCAL_CURRENCY,
-  localTime,
-  NEARBY,
   nowHHMM,
   tripFromLive,
 } from './planning';
@@ -79,8 +73,6 @@ const LOG_ICONS: Record<LiveLogEntry['type'], IconName> = {
   done: 'check-circle',
 };
 
-const COMPANION = 'Marina Costa';
-
 export function LiveScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -101,6 +93,7 @@ export function LiveScreen() {
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [error, setError] = useState(false);
   const [pick, setPick] = useState<number | null>(null);
+  const [otherPlace, setOtherPlace] = useState('');
   const [stars, setStars] = useState(0);
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategoryKey>('food');
@@ -124,27 +117,10 @@ export function LiveScreen() {
 
   const di = Math.max(0, Math.min(live.day - 1, it.days.length - 1));
   const day = it.days[di] ?? { label: '', items: [] };
-  const here = hereFor(it, di);
+  const here = it.place;
   const herePlace = here.split(',')[0] ?? here;
 
-  const seed: LiveLogEntry[] = [
-    {
-      id: 'seed-hotel',
-      type: 'checkin',
-      text: t('planning.live.log.seedHotel'),
-      time: '08:12',
-      author: ME,
-    },
-    {
-      id: 'seed-photos',
-      type: 'photo',
-      text: t('planning.live.log.seedPhotos'),
-      time: '09:40',
-      author: COMPANION,
-    },
-  ];
-  // The prototype's sample entries always sit below the user's own (not persisted).
-  const log = [...live.log, ...seed];
+  const log = live.log;
 
   const doneKey = (i: number) => `${di}-${i}`;
   const doneN = day.items.filter((_, i) => live.done[doneKey(i)]).length;
@@ -152,11 +128,11 @@ export function LiveScreen() {
   const summary = endSummary(it, log, doneN);
 
   const amountValue = parseMoney(amount);
-  const converted = formatMoneyFlex(amountValue * EXCHANGE_RATE);
 
   const openSheet = (kind: SheetKind) => {
     setError(false);
     setPick(null);
+    setOtherPlace('');
     setStars(0);
     setAmount('');
     setText('');
@@ -170,13 +146,13 @@ export function LiveScreen() {
 
   const submit = () => {
     if (sheet === 'checkin') {
-      const place = pick == null ? undefined : NEARBY[pick];
+      const place = otherPlace.trim() || (pick == null ? '' : day.items[pick]?.title);
       if (!place) return setError(true);
       log_({
         type: 'checkin',
-        text: `${t('planning.live.log.checkin', { place: place.name })}${stars ? ` ${'★'.repeat(stars)}` : ''}`,
+        text: `${t('planning.live.log.checkin', { place })}${stars ? ` ${'★'.repeat(stars)}` : ''}`,
       });
-      toast.show(t('planning.live.toasts.checkin', { place: place.name }));
+      toast.show(t('planning.live.toasts.checkin', { place }));
     } else if (sheet === 'photo') {
       void addPhoto();
       return;
@@ -186,12 +162,11 @@ export function LiveScreen() {
         {
           type: 'expense',
           text: t('planning.live.log.expense', {
-            amount: formatMoneyFlex(amountValue, LOCAL_CURRENCY),
+            amount: formatMoneyFlex(amountValue),
             category: t(`planning.live.categories.${category}`).toLowerCase(),
-            converted,
           }),
         },
-        amountValue * EXCHANGE_RATE,
+        amountValue,
       );
       toast.show(t('planning.live.toasts.expense'));
     } else if (sheet === 'note') {
@@ -334,15 +309,20 @@ export function LiveScreen() {
             ))}
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <FactBox icon="cloud-sun" label={t('planning.live.facts.now')} value="17°C" />
-            <FactBox icon="clock" label={t('planning.live.facts.localTime')} value={localTime()} />
             <FactBox
-              icon="coins"
-              label={t('planning.live.facts.exchange')}
-              value={formatMoneyFlex(EXCHANGE_RATE)}
-              a11y={t('planning.live.facts.exchangeA11y', {
-                value: formatMoneyFlex(EXCHANGE_RATE),
-              })}
+              icon="wallet"
+              label={t('planning.live.facts.spent')}
+              value={formatMoneyFlex(live.spent)}
+            />
+            <FactBox
+              icon="map-pin"
+              label={t('planning.live.facts.places')}
+              value={String(summary.places)}
+            />
+            <FactBox
+              icon="camera"
+              label={t('planning.live.facts.photos')}
+              value={String(summary.photos)}
             />
           </View>
         </View>
@@ -374,17 +354,6 @@ export function LiveScreen() {
         </View>
 
         <View style={s.body}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <AvatarStack
-              people={[avatarFor(ME), avatarFor(COMPANION)]}
-              ringColor={colors.background}
-              label={t('planning.live.crew', { name: firstName(COMPANION) })}
-            />
-            <Text variant="bodyS" weight={600} tone="support">
-              {t('planning.live.crew', { name: firstName(COMPANION) })}
-            </Text>
-          </View>
-
           {/* Plano de hoje */}
           <View style={{ gap: 10 }}>
             <View style={s.sectionHead}>
@@ -476,6 +445,11 @@ export function LiveScreen() {
               </View>
             </View>
             <View testID="live-log" style={s.logCard}>
+              {log.length === 0 ? (
+                <Text variant="bodyS" weight={400} tone="muted" style={{ padding: 16 }}>
+                  {t('planning.live.logEmpty')}
+                </Text>
+              ) : null}
               {log.map((entry, i) => (
                 <LogRow
                   key={entry.id}
@@ -506,36 +480,38 @@ export function LiveScreen() {
       >
         {sheet === 'checkin' ? (
           <View style={{ gap: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon name="navigation-arrow" size={14} color={colors.textMuted} />
+            {day.items.length ? (
               <Text variant="caption" weight={600} tone="muted">
                 {t('planning.live.nearYou')}
               </Text>
-            </View>
+            ) : null}
             <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
-              {NEARBY.map((n, i) => {
+              {day.items.map((stop, i) => {
                 const selected = pick === i;
                 return (
                   <Pressable
-                    key={n.name}
+                    key={`${di}-${i}`}
                     testID={`live-near-${i}`}
                     accessibilityRole="radio"
                     accessibilityState={{ checked: selected }}
-                    accessibilityLabel={`${n.name}, ${n.cat}, ${n.dist}`}
+                    accessibilityLabel={[stop.title, stop.note].filter(Boolean).join(', ')}
                     onPress={() => {
                       setPick(i);
+                      setOtherPlace('');
                       setError(false);
                     }}
                     style={[s.near, { borderColor: selected ? colors.text : colors.border }]}
                   >
-                    <Photo uri={img(`near-${i}`, 120, 120)} width={48} height={48} radius={12} />
+                    <Icon name={stop.icon} size={24} color={colors.textMuted} />
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text variant="body" weight={700}>
-                        {n.name}
+                        {stop.title}
                       </Text>
-                      <Text variant="caption" weight={400} tone="muted">
-                        {`${n.cat} · ${n.dist}`}
-                      </Text>
+                      {stop.note ? (
+                        <Text variant="caption" weight={400} tone="muted">
+                          {stop.note}
+                        </Text>
+                      ) : null}
                     </View>
                     <View
                       style={[s.radio, { borderColor: selected ? colors.primary : colors.border }]}
@@ -546,6 +522,17 @@ export function LiveScreen() {
                 );
               })}
             </View>
+            <TextField
+              testID="live-place"
+              label={t('planning.live.otherPlace')}
+              value={otherPlace}
+              maxLength={120}
+              onChangeText={(v) => {
+                setOtherPlace(v);
+                setPick(null);
+                setError(false);
+              }}
+            />
             <Text variant="label" style={{ marginTop: 6 }}>
               {t('planning.live.howWasIt')}
             </Text>
@@ -563,7 +550,7 @@ export function LiveScreen() {
             <MoneyInput
               testID="live-amount"
               label={t('planning.live.amountLabel')}
-              currency={LOCAL_CURRENCY}
+              currency="R$"
               value={amount}
               invalid={error}
               placeholder="0"
@@ -572,9 +559,6 @@ export function LiveScreen() {
                 setError(false);
               }}
             />
-            <Text testID="live-converted" variant="caption" weight={700} tone="muted">
-              {t('planning.live.converted', { value: converted })}
-            </Text>
             <View
               accessibilityLabel={t('planning.live.categoriesLabel')}
               style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}

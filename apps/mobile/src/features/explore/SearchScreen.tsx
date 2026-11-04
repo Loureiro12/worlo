@@ -11,7 +11,6 @@ import {
   Screen,
   SearchPill,
   Text,
-  useToast,
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
@@ -59,7 +58,6 @@ export function SearchScreen() {
 function SearchContent() {
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const visitedMap = useVisitedMap();
@@ -99,10 +97,8 @@ function SearchContent() {
 
   const open = (item: SearchItem) => {
     addRecentSearch(query);
-    if ('href' in item.target) {
-      if (item.target.mapCountry) selectMapCountry(item.target.mapCountry);
-      router.push(item.target.href);
-    } else toast.show(t('explore.places.soon', { name: item.target.soon }), 'info');
+    if (item.target.mapCountry) selectMapCountry(item.target.mapCountry);
+    router.push(item.target.href);
   };
 
   const submit = () => {

@@ -1,7 +1,14 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { schema } from '@worlo/db';
 import { createI18n } from '@worlo/i18n';
-import { applyVote, relativeTime, type TimeLabel, toComment, toPost } from '@/data/community';
+import {
+  applyVote,
+  FEED_PAGE_SIZE,
+  relativeTime,
+  type TimeLabel,
+  toComment,
+  toPost,
+} from '@/data/community';
 import type { FeedRow } from '@/data/communityApi';
 import { db } from '@/lib/database';
 import { DEMO_USER, demoId } from '@/mocks/demo';
@@ -380,5 +387,51 @@ describe('PostScreen', () => {
     });
     await fireEvent.press(screen.getByText('Tentar de novo'));
     expect(await screen.findByTestId('post-pct')).toBeOnTheScreen();
+  });
+});
+
+describe('CommunityScreen · pages', () => {
+  const addOldPosts = (count: number) => {
+    const base = communityServer.posts.find((p) => p.id === P1);
+    for (let i = 0; i < count; i++) {
+      communityServer.posts.push({
+        ...base,
+        id: `old-${i}`,
+        created_at: new Date(Date.UTC(2020, 0, 28 - i)).toISOString(),
+      });
+    }
+  };
+
+  it('loads older posts on demand and stops at the last page', async () => {
+    addOldPosts(FEED_PAGE_SIZE + 5);
+    await renderWithProviders(<CommunityScreen />);
+    await screen.findByTestId('post-card-p1');
+    const shown = () => screen.getAllByTestId(/^post-card-/).length;
+    expect(shown()).toBe(FEED_PAGE_SIZE);
+
+    await fireEvent.press(screen.getByTestId('community-load-more'));
+    await waitFor(() => expect(shown()).toBeGreaterThan(FEED_PAGE_SIZE));
+    await waitFor(() => expect(screen.queryByTestId('community-load-more')).toBeNull());
+    expect(new Set(screen.getAllByTestId(/^post-card-/).map((n) => n.props.testID)).size).toBe(
+      shown(),
+    );
+  });
+
+  it('has no button when everything fits in one page', async () => {
+    await renderWithProviders(<CommunityScreen />);
+    await screen.findByTestId('post-card-p1');
+    expect(screen.queryByTestId('community-load-more')).toBeNull();
+  });
+
+  it('votes on a post from a later page', async () => {
+    addOldPosts(FEED_PAGE_SIZE + 2);
+    await renderWithProviders(<CommunityScreen />);
+    await screen.findByTestId('post-card-p1');
+    await fireEvent.press(screen.getByTestId('community-load-more'));
+    await screen.findByTestId(`vote-yes-old-${FEED_PAGE_SIZE + 1}`);
+    await fireEvent.press(screen.getByTestId(`vote-yes-old-${FEED_PAGE_SIZE + 1}`));
+    await waitFor(() =>
+      expect(screen.getByTestId(`vote-yes-old-${FEED_PAGE_SIZE + 1}`)).toBeSelected(),
+    );
   });
 });

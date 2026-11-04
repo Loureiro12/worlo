@@ -9,35 +9,40 @@ import {
   Photo,
   Text,
   TileGrid,
-  useToast,
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { useCatalog } from '@/data/catalog';
+import { useCountryName } from '@/lib/countries';
 import { img } from '@/lib/images';
 import { routes } from '@/navigation/routes';
 import { Breadcrumb, decodeParam, LISBOA } from './shared';
 
 /**
- * C5 · Região. Only "Lisboa e Vale do Tejo" (REGION) has content in the mocks;
- * other ids render a minimal page (hero + breadcrumb + "chega em breve").
+ * C5 · Região. Only "Lisboa e Vale do Tejo" (REGION) has a guide so far; other
+ * ids render a minimal page (hero + breadcrumb to their country + "montando o guia").
  */
 export function RegionScreen() {
   const { REGION } = useCatalog();
-  const { id: rawId } = useLocalSearchParams<{ id: string }>();
+  const { id: rawId, country } = useLocalSearchParams<{ id: string; country?: string }>();
   const id = decodeParam(rawId);
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
+  const countryName = useCountryName();
   const known = id === REGION.name;
   const name = known ? REGION.name : id;
 
+  const countryId = known ? LISBOA.countryId : country;
   const crumbs = [
-    {
-      label: LISBOA.country,
-      onPress: () => router.push(routes.country(LISBOA.countryId)),
-      testID: 'region-crumb-country',
-    },
+    ...(countryId
+      ? [
+          {
+            label: known ? LISBOA.country : countryName(countryId),
+            onPress: () => router.push(routes.country(countryId)),
+            testID: 'region-crumb-country',
+          },
+        ]
+      : []),
     { label: name },
   ];
 
@@ -92,11 +97,7 @@ export function RegionScreen() {
                       <Icon name="caret-right" size={16} color={colors.textMuted} />
                     </View>
                   }
-                  onPress={() =>
-                    c.go
-                      ? router.push(routes.city(c.name))
-                      : toast.show(t('map.toasts.comingSoon', { name: c.name }), 'info')
-                  }
+                  onPress={() => router.push(routes.city(c.name))}
                 />
               ))}
             </View>

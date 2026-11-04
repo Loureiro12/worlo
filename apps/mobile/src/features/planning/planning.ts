@@ -3,29 +3,7 @@ import type { IconName } from '@worlo/ui';
 import { palette } from '@worlo/ui';
 import { getCatalog } from '@/data/catalog';
 import { formatMoney } from '@/lib/format';
-import { demoKey } from '@/mocks/demo';
 import type { CountryId, Itinerary, Stop } from '@/mocks/types';
-
-/** Prototype exchange rate (04_INTERACTIONS → Câmbio no modo viagem): S/ 1 = R$ 1,52. */
-export const EXCHANGE_RATE = 1.52;
-export const LOCAL_CURRENCY = 'S/';
-
-/** Mock content (pt-BR): places near the traveler, for the check-in sheet. */
-export const NEARBY = [
-  { name: 'Mercado de Pisac', cat: 'Mercado', dist: '120 m' },
-  { name: 'Ruínas de Pisac', cat: 'Sítio inca', dist: '1,2 km' },
-  { name: 'Café Ayllu', cat: 'Café', dist: '300 m' },
-  { name: 'Ollantaytambo', cat: 'Cidade inca', dist: '48 km' },
-] as const;
-
-/** Where the traveler is on each day (prototype demo for Peru). */
-const HERE: Record<string, string[]> = {
-  peru: ['Cusco, Peru', 'Pisac, Vale Sagrado', 'Aguas Calientes'],
-};
-
-export function hereFor(it: Itinerary, dayIndex: number): string {
-  return HERE[demoKey(it.id, 'itinerary')]?.[dayIndex] ?? it.place;
-}
 
 export const EXPENSE_CATEGORIES = [
   { key: 'food', icon: 'fork-knife' },
@@ -35,11 +13,6 @@ export const EXPENSE_CATEGORIES = [
   { key: 'lodging', icon: 'bed' },
 ] as const satisfies readonly { key: string; icon: IconName }[];
 export type ExpenseCategoryKey = (typeof EXPENSE_CATEGORIES)[number]['key'];
-
-/** Base photos already in the trip (Marina's 6 in Pisac). */
-const BASE_PHOTOS = 6;
-/** Places visited before today in the prototype demo. */
-const BASE_PLACES = 3;
 
 export function totalCost(days: Itinerary['days']): number {
   return days.reduce((sum, d) => sum + d.items.reduce((s, it) => s + (it.cost || 0), 0), 0);
@@ -83,12 +56,6 @@ export function nowHHMM(date = new Date()): string {
   return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
-/** Peru is 2h behind Brasília (prototype). */
-export function localTime(date = new Date()): string {
-  const shifted = new Date(date.getTime() - 2 * 3600 * 1000);
-  return nowHHMM(shifted);
-}
-
 export function countryIdForFlag(flag: string): CountryId | undefined {
   const { COUNTRIES } = getCatalog();
   return Object.keys(COUNTRIES).find((id) => COUNTRIES[id]?.flag === flag);
@@ -103,8 +70,8 @@ export function endSummary(
 ): EndSummary {
   return {
     days: it.days.length,
-    photos: log.filter((l) => l.photo).length + BASE_PHOTOS,
-    places: log.filter((l) => l.type === 'checkin').length + doneToday + BASE_PLACES,
+    photos: log.filter((l) => l.photo).length,
+    places: log.filter((l) => l.type === 'checkin').length + doneToday,
   };
 }
 
@@ -150,7 +117,7 @@ export function tripFromLive(
     photos: summary.photos,
     places: summary.places,
     people: '',
-    companions: [{ name: 'Marina Costa', status: 'ok' }],
+    companions: [],
     total: formatMoney(Math.round(totalCost(it.days) + spent)),
     tint: palette.coral300,
   };

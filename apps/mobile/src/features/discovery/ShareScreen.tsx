@@ -12,13 +12,14 @@ import {
   useToast,
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
-import { type LayoutChangeEvent, Pressable, Share, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { type LayoutChangeEvent, Pressable, View } from 'react-native';
 import { useCopyLink } from '@/lib/useCopyLink';
 import { routes, type ShareSubject } from '@/navigation/routes';
 import { useStore } from '@/store';
 import type { ShareFormat } from '@/store/slices/discovery';
 import { CompactSegmented } from './CompactSegmented';
+import { type PictureRef, saveImage, shareImage } from './exportImage';
 import { type PreviewLabels, SharePreview } from './SharePreview';
 import {
   isShareSubject,
@@ -62,7 +63,7 @@ export function ShareScreen() {
     roteiroId?: string;
     ach?: string;
   }>();
-  const [subject, setSubject] = useState<ShareSubject>(
+  const [picked, setSubject] = useState<ShareSubject>(
     isShareSubject(params.subject) ? params.subject : 'map',
   );
   const { format, theme, showHandle } = useStore((s) => s.shareOptions);
@@ -73,7 +74,12 @@ export function ShareScreen() {
     roteiroId: params.roteiroId,
     achievement: params.ach,
   });
+  // Without an unlocked achievement there is nothing to show on that card.
+  const subjects = SHARE_SUBJECTS.filter((s) => s.key !== 'ach' || content.ach.title);
+  const subject = subjects.some((s) => s.key === picked) ? picked : 'map';
   const [area, setArea] = useState<{ width: number; height: number } | null>(null);
+  const picture: PictureRef = useRef(null);
+  const exporting = useRef(false);
   const close = () => (router.canGoBack() ? router.back() : router.navigate(routes.profile));
 
   const size = PREVIEW_SIZE[format];
@@ -85,20 +91,24 @@ export function ShareScreen() {
   };
 
   const send = async (dest: Destination) => {
-    if (dest === 'save') {
-      // TODO(export): render the preview at 1080 px (×4.65 / ×3.72 / ×3.6) and save it.
-      toast.show(t('share.imageSaved'));
-      return;
-    }
     if (dest === 'link') {
       await copyLink(content.link.startsWith('http') ? content.link : `https://${content.link}`);
       return;
     }
-    // TODO(export): attach the rendered image; for now the sheet gets the link only.
+    if (exporting.current) return;
+    exporting.current = true;
     try {
-      await Share.share({ message: t('share.message', { link: content.link }) });
+      if (dest !== 'save') {
+        await shareImage(picture, size);
+      } else if ((await saveImage(picture, size)) === 'saved') {
+        toast.show(t('share.imageSaved'));
+      } else {
+        toast.show(t('share.saveDenied'), 'error');
+      }
     } catch {
-      toast.show(t('common.toasts.connectionLost'), 'error');
+      toast.show(t('share.exportError'), 'error');
+    } finally {
+      exporting.current = false;
     }
   };
 
@@ -134,7 +144,7 @@ export function ShareScreen() {
         style={{ paddingTop: 4 }}
       >
         <ChipRow>
-          {SHARE_SUBJECTS.map((s) => (
+          {subjects.map((s) => (
             <Chip
               key={s.key}
               testID={`share-subject-${s.key}`}
@@ -165,6 +175,7 @@ export function ShareScreen() {
           showHandle={showHandle}
           content={content}
           scale={scale}
+          pictureRef={picture}
           labels={labels}
           accessibilityLabel={t('share.preview.a11y', {
             format: t(`share.formats.${format}`),

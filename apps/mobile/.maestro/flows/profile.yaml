@@ -51,20 +51,6 @@ tags:
     id: header-back
 - assertVisible: Configuración
 
-# Demo state "offline" shows the banner above the tab bar; back to normal hides it.
-- scrollUntilVisible:
-    element:
-      id: demo-offline
-    direction: DOWN
-- tapOn:
-    id: demo-offline
-- assertVisible:
-    id: offline-banner
-- tapOn:
-    id: demo-normal
-- assertNotVisible:
-    id: offline-banner
-
 # Restore pt-BR for the next flows.
 - scrollUntilVisible:
     element:

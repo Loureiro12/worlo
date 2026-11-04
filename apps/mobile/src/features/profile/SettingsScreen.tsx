@@ -151,12 +151,6 @@ export function SettingsScreen() {
           value={t('profile.settings.rows.photosValue')}
           onPress={() => router.push(routes.photos)}
         />
-        <MenuRow
-          testID="settings-export"
-          icon="download-simple"
-          label={t('profile.settings.rows.export')}
-          onPress={open('export')}
-        />
       </GroupCard>
 
       <GroupCard title={t('profile.settings.groups.support')}>
@@ -174,24 +168,26 @@ export function SettingsScreen() {
         />
       </GroupCard>
 
-      <GroupCard title={t('profile.settings.groups.demo')} testID="settings-demo">
-        <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
-          <Text variant="caption" tone="muted" weight={400}>
-            {t('profile.settings.demo.text')}
-          </Text>
-        </View>
-        <View accessibilityRole="radiogroup" style={{ paddingHorizontal: 16 }}>
-          {DEMO_STATES.map((state) => (
-            <RadioRow
-              key={state}
-              testID={`demo-${state}`}
-              label={t(`profile.settings.demo.${state}`)}
-              checked={demo === state}
-              onPress={() => setDemo(state)}
-            />
-          ))}
-        </View>
-      </GroupCard>
+      {__DEV__ ? (
+        <GroupCard title={t('profile.settings.groups.demo')} testID="settings-demo">
+          <View style={{ paddingHorizontal: 16, paddingTop: 14 }}>
+            <Text variant="caption" tone="muted" weight={400}>
+              {t('profile.settings.demo.text')}
+            </Text>
+          </View>
+          <View accessibilityRole="radiogroup" style={{ paddingHorizontal: 16 }}>
+            {DEMO_STATES.map((state) => (
+              <RadioRow
+                key={state}
+                testID={`demo-${state}`}
+                label={t(`profile.settings.demo.${state}`)}
+                checked={demo === state}
+                onPress={() => setDemo(state)}
+              />
+            ))}
+          </View>
+        </GroupCard>
+      ) : null}
 
       <Button
         testID="settings-sign-out"

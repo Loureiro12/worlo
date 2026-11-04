@@ -45,7 +45,7 @@ tags:
     id: live-near-0
 - tapOn:
     id: live-sheet-submit
-- assertVisible: Check-in em Mercado de Pisac.
+- assertVisible: Check-in em .*
 # Encerrar → viagem realizada
 - tapOn:
     id: live-end

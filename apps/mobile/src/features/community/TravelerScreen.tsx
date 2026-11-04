@@ -20,19 +20,19 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
-import { useCatalog } from '@/data/catalog';
-import { useAuthorPosts, useRefreshAfterFollow, useTravelerProfile } from '@/data/community';
+import { useFeedPages, useRefreshAfterFollow, useTravelerProfile } from '@/data/community';
 import { toggleFollow, useIsFollowing, usePerson } from '@/data/people';
 import { useMe, useProfilePrefs } from '@/data/profile';
 import { getCurrentUserId } from '@/data/repositories';
 import { useTrips } from '@/data/trips';
 import { useVisitedMap } from '@/data/world';
+import { countCities } from '@/features/profile/stats';
 import { img } from '@/lib/images';
 import { firstName, joinNames } from '@/lib/people';
 import { demoKey } from '@/mocks/demo';
 import type { Trip } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { ConfirmLine, FollowPill, QueryGate } from './components';
+import { ConfirmLine, FollowPill, LoadMore, QueryGate } from './components';
 import { personAvatar, postKey, TYPE_KEYS, useGoBack } from './model';
 
 type Tab = 'trips' | 'tips';
@@ -124,9 +124,10 @@ function TravelerContent({ id }: { id: string }) {
   const refreshFollow = useRefreshAfterFollow();
   const known = usePerson(isMe ? null : id);
   const remote = useTravelerProfile(isMe ? undefined : id).data;
-  const posts = useAuthorPosts(isMe ? meId : id).data ?? [];
+  const authorId = isMe ? meId : id;
+  const postPages = useFeedPages({ author: authorId ?? undefined }, { enabled: Boolean(authorId) });
+  const posts = postPages.data ?? [];
   const [tab, setTab] = useState<Tab>('trips');
-  const { CITIES } = useCatalog();
 
   const header = (
     <ScreenHeader
@@ -154,7 +155,7 @@ function TravelerContent({ id }: { id: string }) {
         bio: me.bio,
         avatar: me.avatar,
         countries: Object.keys(visitedMap),
-        cities: CITIES.length - 1,
+        cities: countCities(trips),
       }
     : {
         handle: remote?.username ? `@${remote.username}` : '',
@@ -362,6 +363,7 @@ function TravelerContent({ id }: { id: string }) {
               <ConfirmLine post={p} size={12} />
             </Pressable>
           ))}
+          <LoadMore testID="traveler-load-more" query={postPages} />
         </View>
       ) : (
         <EmptyState title={t('community.traveler.noTips')} />

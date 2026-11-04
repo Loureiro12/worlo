@@ -1,12 +1,13 @@
 import { useTranslation } from '@worlo/i18n';
 import { type AvatarProps, alpha, type IconName, palette } from '@worlo/ui';
-import { useCatalog } from '@/data/catalog';
 import { collaboratorsOf, isListed } from '@/data/collab';
+import { isVisible, usePhotoRef } from '@/data/photos';
 import { useMe } from '@/data/profile';
 import { repos } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
+import { computeAchievements } from '@/features/profile/achievements';
+import { countCities, countPhotos } from '@/features/profile/stats';
 import { countryFlag, WORLD_COUNTRIES } from '@/lib/countries';
-import { img } from '@/lib/images';
 import { avatarFor, firstName, joinNames, ME } from '@/lib/people';
 import { demoKey } from '@/mocks/demo';
 import type { ItineraryDay } from '@/mocks/types';
@@ -87,14 +88,6 @@ export const SHARE_THEMES: Record<ShareTheme, PreviewTheme> = {
   },
 };
 
-/** Achievements that can be shared (prototype → ACH). Mock content, pt-BR. */
-export const ACHIEVEMENTS: Record<string, { icon: IconName; meta: string }> = {
-  'Primeira viagem': { icon: 'airplane-takeoff', meta: 'Rio de Janeiro · 2019' },
-  '5 países': { icon: 'globe-hemisphere-west', meta: 'Desbloqueada em mar 2024' },
-  'Fim do mundo': { icon: 'mountains', meta: 'Patagônia · 2024' },
-};
-export const DEFAULT_ACHIEVEMENT = 'Fim do mundo';
-
 /** Read-only views of the user's trips / itineraries (rows from SQLite). */
 function useShareRecords() {
   const trips = useQuery(
@@ -135,7 +128,8 @@ function useShareRecords() {
     [],
   );
   const visitedMap = useQuery(() => repos.world.visitedMap(), []);
-  return { trips, itineraries, visitedMap };
+  const photos = useQuery(() => repos.photos.list(), []);
+  return { trips, itineraries, visitedMap, photos };
 }
 
 /** Matches a route id: the row uuid, or the prototype key of a demo record. */
@@ -151,30 +145,36 @@ export function useShareContent(params: {
 }) {
   const { t, i18n } = useTranslation();
   const me = useMe();
-  const { trips, itineraries, visitedMap } = useShareRecords();
-  const { CITIES } = useCatalog();
+  const { trips, itineraries, visitedMap, photos } = useShareRecords();
   const lang = i18n.language;
   const number = (n: number) => n.toLocaleString(lang);
 
   const visited = Object.keys(visitedMap);
   const nCountries = visited.length;
-  const nCities = Math.max(CITIES.length - 1, 0);
+  const nCities = countCities(trips);
   const nTrips = trips.length;
-  const nPhotos = trips.reduce((sum, trip) => sum + trip.photos, 0);
-  const nDays = trips.reduce((sum, trip) => sum + trip.days, 0);
+
+  const nPhotos = countPhotos(trips, photos);
+  const nDays = trips.reduce((sum, x) => sum + x.days, 0);
+  // "Viagem favorita": the longest one.
+  const favorite = [...trips].sort((a, b) => b.days - a.days)[0];
   const pct = ((nCountries / WORLD_COUNTRIES) * 100).toLocaleString(lang, {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   });
 
   const trip = trips.find(byRouteId(params.tripId)) ?? trips[0];
+  // Only the traveler's own photos go in a picture they publish: no stock images.
+  const photoOf = (tripId: string | undefined, index: number) =>
+    photos.filter((p) => tripId && p.tripId === tripId && isVisible(p))[index]?.id;
+  const favoritePhoto = usePhotoRef(photoOf(favorite?.id, 0));
+  const tripPhoto0 = usePhotoRef(photoOf(trip?.id, 0));
+  const tripPhoto1 = usePhotoRef(photoOf(trip?.id, 1));
+  const tripPhoto2 = usePhotoRef(photoOf(trip?.id, 2));
   const collaborators = (trip?.collab ?? []).filter((c) => c.status === 'ok').map((c) => c.name);
   const roteiro = itineraries.find(byRouteId(params.roteiroId)) ?? itineraries[0];
-  const achTitle =
-    params.achievement && ACHIEVEMENTS[params.achievement]
-      ? params.achievement
-      : DEFAULT_ACHIEVEMENT;
-  const ach = ACHIEVEMENTS[achTitle] ?? { icon: 'medal' as IconName, meta: '' };
+  const unlocked = computeAchievements({ trips, visitedMap }).filter((a) => a.unlocked);
+  const ach = unlocked.find((a) => a.id === params.achievement) ?? unlocked.at(-1);
   const tripsLabel = t('common.count.trips', { count: nTrips });
   const countriesLabel = t('common.count.countries', { count: nCountries });
 
@@ -196,19 +196,25 @@ export function useShareContent(params: {
     year: {
       title:
         params.format === 'story'
-          ? t('share.preview.yearTitleLong', { trips: tripsLabel, countries: countriesLabel })
-          : t('share.preview.yearTitleShort', { trips: tripsLabel, countries: countriesLabel }),
+          ? t('share.preview.yearTitleLong', {
+              trips: tripsLabel,
+              countries: countriesLabel,
+            })
+          : t('share.preview.yearTitleShort', {
+              trips: tripsLabel,
+              countries: countriesLabel,
+            }),
       stats: [
         { n: number(nCountries), l: t('share.units.countries', { count: nCountries }) },
         { n: number(nCities), l: t('share.units.cities', { count: nCities }) },
         { n: number(nPhotos), l: t('share.units.photos', { count: nPhotos }) },
         { n: number(nDays), l: t('share.units.daysTraveling', { count: nDays }) },
       ],
-      favoriteImg: img('patagonia-a', 500, 400),
-      favorite: t('share.preview.favorite', { name: 'Patagônia de carro' }),
+      favoriteImg: favoritePhoto,
+      favorite: favorite ? t('share.preview.favorite', { name: favorite.title }) : '',
     },
     trip: {
-      img: img(`${trip?.imgKey}-a`, 600, 700),
+      img: tripPhoto0,
       place:
         `${trip?.flag ?? ''} ${trip?.place ?? ''}${trip?.country ? `, ${trip.country}` : ''}`.trim(),
       title: trip?.title ?? '',
@@ -230,13 +236,11 @@ export function useShareContent(params: {
         { n: number(trip?.photos ?? 0), l: t('share.units.photos', { count: trip?.photos ?? 0 }) },
         { n: number(trip?.places ?? 0), l: t('share.units.places', { count: trip?.places ?? 0 }) },
       ],
-      collage: [0, 1, 2].map((i) =>
-        img(`${trip?.imgKey}-p${i}`, i === 0 ? 500 : 300, i === 0 ? 600 : 300),
-      ),
-      best: trip?.best || trip?.title || '',
+      collage: [tripPhoto0, tripPhoto1, tripPhoto2],
+      best: trip?.best ?? '',
     },
     roteiro: {
-      img: img(`rot-${roteiro?.imgKey}`, 600, 300),
+      img: null,
       title: roteiro?.title ?? '',
       meta: `${roteiro?.flag ?? ''} ${roteiro?.place ?? ''} · ${roteiro?.dates ?? ''}`.trim(),
       days: (roteiro?.days ?? []).slice(0, params.format === 'square' ? 2 : 4).map((d, i) => ({
@@ -244,7 +248,11 @@ export function useShareContent(params: {
         label: d.items[0]?.title ?? d.label,
       })),
     },
-    ach: { title: achTitle, icon: ach.icon, meta: ach.meta },
+    ach: {
+      title: ach ? t(`profile.achievements.${ach.id}`) : '',
+      icon: ach?.icon ?? ('medal' as IconName),
+      meta: ach?.unlocked ? ach.meta : '',
+    },
   };
 }
 

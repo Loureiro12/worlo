@@ -33,7 +33,6 @@ const explore = {
     wish: 'Quero ir',
     wished: 'Na lista',
     wishedToast: '{{name}} salvo em Quero ir.',
-    soon: 'A página de {{name}} chega em breve.',
   },
   popular: {
     title: 'Destinos populares',

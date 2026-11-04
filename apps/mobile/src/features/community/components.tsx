@@ -1,6 +1,7 @@
 import { useTranslation } from '@worlo/i18n';
 import {
   Avatar,
+  Button,
   colors,
   FullScreenState,
   Icon,
@@ -464,6 +465,40 @@ export function QueryGate({
     return <SkeletonScreen label={t('common.states.loading')} />;
   }
   return children;
+}
+
+/** "Carregar mais" under a paged feed: nothing once the last page is in. */
+export function LoadMore({
+  testID,
+  query,
+}: {
+  testID: string;
+  query: {
+    hasNextPage: boolean;
+    isFetchingNextPage: boolean;
+    isFetchNextPageError: boolean;
+    fetchNextPage: () => unknown;
+  };
+}) {
+  const { t } = useTranslation();
+  if (!query.hasNextPage) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      {query.isFetchNextPageError ? (
+        <Text testID={`${testID}-error`} variant="caption" tone="muted" align="center">
+          {t('community.feed.loadMoreError')}
+        </Text>
+      ) : null}
+      <Button
+        testID={testID}
+        variant="outline"
+        fullWidth
+        loading={query.isFetchingNextPage}
+        label={t('community.feed.loadMore')}
+        onPress={() => void query.fetchNextPage()}
+      />
+    </View>
+  );
 }
 
 /** Inline list placeholder while a feed loads. */

@@ -16,10 +16,17 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
-import { useAuthorPosts, useFeed, useRefreshAfterFollow, useVote } from '@/data/community';
+import { useAuthorPosts, useFeedPages, useRefreshAfterFollow, useVote } from '@/data/community';
 import { type Person, toggleFollow, useExperts, useIsFollowing } from '@/data/people';
 import { routes } from '@/navigation/routes';
-import { FollowPill, OnlineErrorState, PostCard, PostSkeletons, queryFailure } from './components';
+import {
+  FollowPill,
+  LoadMore,
+  OnlineErrorState,
+  PostCard,
+  PostSkeletons,
+  queryFailure,
+} from './components';
 import { useOpenAuthor } from './model';
 
 type Segment = 'forYou' | 'following' | 'experts';
@@ -39,8 +46,8 @@ export function CommunityScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const [segment, setSegment] = useState<Segment>('forYou');
-  const forYou = useFeed({ segment: 'foryou' }, { enabled: segment === 'forYou' });
-  const following = useFeed({ segment: 'following' }, { enabled: segment === 'following' });
+  const forYou = useFeedPages({ segment: 'foryou' }, { enabled: segment === 'forYou' });
+  const following = useFeedPages({ segment: 'following' }, { enabled: segment === 'following' });
   const experts = useExperts();
   const onVote = useVote();
   const openAuthor = useOpenAuthor();
@@ -119,6 +126,7 @@ export function CommunityScreen() {
                 onVote={(v) => void onVote(p, v)}
               />
             ))}
+            <LoadMore testID="community-load-more" query={feed} />
           </View>
         ) : segment === 'forYou' ? (
           <EmptyState

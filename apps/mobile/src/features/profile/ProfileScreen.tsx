@@ -21,15 +21,14 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { DemoGate, useIsEmpty } from '@/components/DemoGate';
-import { useCatalog } from '@/data/catalog';
 import { type Privacy, updatePrefs, useMe, useProfilePrefs } from '@/data/profile';
 import { repos } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
 import { WORLD_COUNTRIES } from '@/lib/countries';
 import { routes } from '@/navigation/routes';
-import { ACHIEVEMENTS, type Achievement } from './achievements';
+import { type Achievement, computeAchievements } from './achievements';
 import { GroupCard, MenuRow } from './parts';
-import { formatNumber, worldPercent } from './stats';
+import { countCities, countPhotos, formatNumber, worldPercent } from './stats';
 
 /** B5 · Meu perfil (tab root). */
 export function ProfileScreen() {
@@ -47,10 +46,11 @@ function ProfileContent() {
   const empty = useIsEmpty();
   const me = useMe();
   const { privacy } = useProfilePrefs();
-  const { CITIES } = useCatalog();
   const visitedMap = useQuery(() => repos.world.visitedMap(), []);
   const wishes = useQuery(() => repos.world.wishes(), []);
   const trips = useQuery(() => repos.trips.list(), []);
+  const photos = useQuery(() => repos.photos.list(), []);
+  const achievements = computeAchievements({ trips, visitedMap });
   const savedCount = useQuery(() => repos.saved.items().length, []);
   const collectionsCount = useQuery(() => repos.saved.collections().length, []);
 
@@ -59,11 +59,11 @@ function ProfileContent() {
   const countries = visited.length;
   const stats = {
     countries,
-    cities: empty ? 0 : CITIES.length - 1,
+    cities: empty ? 0 : countCities(trips),
     trips: empty ? 0 : trips.length,
     places: empty ? 0 : trips.reduce((sum, trip) => sum + trip.places, 0),
   };
-  const totalPhotos = empty ? 0 : trips.reduce((sum, trip) => sum + trip.photos, 0);
+  const totalPhotos = empty ? 0 : countPhotos(trips, photos);
   const lang = i18n.language;
 
   const achievementMeta = (a: Achievement) =>
@@ -71,7 +71,7 @@ function ProfileContent() {
 
   const onAchievement = (a: Achievement) => {
     if (a.unlocked) {
-      router.push(routes.share('ach'));
+      router.push(routes.share('ach', { ach: a.id }));
       return;
     }
     toast.show(
@@ -196,7 +196,7 @@ function ProfileContent() {
               style={{ marginHorizontal: -layout.gutter }}
               contentContainerStyle={{ paddingHorizontal: layout.gutter, gap: 10 }}
             >
-              {ACHIEVEMENTS.map((a) => {
+              {achievements.map((a) => {
                 const title = t(`profile.achievements.${a.id}`);
                 const meta = achievementMeta(a);
                 return (

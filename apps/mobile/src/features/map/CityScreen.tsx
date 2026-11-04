@@ -14,7 +14,6 @@ import {
   radius,
   shadow,
   Text,
-  useToast,
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -34,6 +33,7 @@ import {
   LISBOA,
   SaveToggle,
   savedItemFor,
+  useAddToItinerary,
   useIsSaved,
   useToggleSaved,
 } from './shared';
@@ -41,9 +41,8 @@ import {
 const THUMB_TINTS = [palette.coral100, palette.linha, palette.coral300, palette.coral100];
 
 /**
- * C6 · Cidade. Lisboa is the only city with content (CITY_TABS); other ids get
- * a minimal page. "Adicionar ao roteiro" only confirms with a toast, like the
- * prototype (the place page is where a stop is really added).
+ * C6 · Cidade. Lisboa is the only city with a guide (CITY_TABS); other ids get a
+ * minimal page with what the community said about them and a way to add a tip.
  */
 export function CityScreen() {
   const { CITY_TABS } = useCatalog();
@@ -51,13 +50,13 @@ export function CityScreen() {
   const id = decodeParam(rawId) || LISBOA.name;
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
+  const addToItinerary = useAddToItinerary();
   const [tab, setTab] = useState<CityTabKey>('attr');
   const [collectionFor, setCollectionFor] = useState<CityItem | null>(null);
   const toggleSaved = useToggleSaved();
   const known = id === LISBOA.name;
   // "Dica da comunidade": the most confirmed post by someone else about the city (online).
-  const tip = (usePlacePosts(known ? id : undefined).data ?? [])
+  const tip = (usePlacePosts(id).data ?? [])
     .map((post) => ({ post, stats: postStats(post, post.myVote) }))
     .sort((a, b) => Number(a.post.mine) - Number(b.post.mine) || b.stats.yes - a.stats.yes)[0];
 
@@ -99,14 +98,7 @@ export function CityScreen() {
           <Text variant="h1Large" accessibilityRole="header">
             {id}
           </Text>
-          {known ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon name="sun" size={16} color={colors.link} />
-              <Text variant="label" tone="support">
-                {LISBOA.weather}
-              </Text>
-            </View>
-          ) : (
+          {known ? null : (
             <Text variant="bodyL" tone="support">
               {t('map.city.minimal', { name: id })}
             </Text>
@@ -147,73 +139,85 @@ export function CityScreen() {
               ))}
             </View>
 
-            {tip ? (
-              <View style={{ paddingHorizontal: layout.gutter, gap: 12 }}>
-                <Text variant="h3" accessibilityRole="header">
-                  {t('map.city.tipTitle')}
-                </Text>
-                <Pressable
-                  testID="city-tip"
-                  accessibilityRole="button"
-                  accessibilityLabel={t('community.post.open', { name: tip.post.author })}
-                  accessibilityHint={tip.post.text}
-                  onPress={() => router.push(routes.post(tip.post.id))}
-                  style={{
-                    padding: 16,
-                    gap: 12,
-                    borderRadius: radius.r16,
-                    backgroundColor: colors.surface,
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <Avatar
-                      name={tip.post.author}
-                      initials={tip.post.ini}
-                      photoUrl={tip.post.avatarUrl}
-                      size={36}
-                    />
-                    <View>
-                      <Text variant="label" weight={700}>
-                        {tip.post.author}
-                      </Text>
-                      <Text variant="caption" tone="muted" style={{ fontSize: 12 }}>
-                        {tip.post.when}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text variant="body">{tip.post.text}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Icon
-                      name="seal-check"
-                      size={16}
-                      color={tip.stats.level === 'high' ? colors.success : colors.textMuted}
-                    />
-                    <Text
-                      variant="caption"
-                      weight={700}
-                      tone={tip.stats.level === 'high' ? 'success' : 'muted'}
-                    >
-                      {tip.stats.level === 'high'
-                        ? `${t('map.city.reliabilityHigh')} · ${t('map.city.confirm', { pct: `${tip.stats.pct}%` })}`
-                        : tip.stats.total
-                          ? `${t(`community.reliability.${tip.stats.level}`)} · ${t('map.city.confirm', { pct: `${tip.stats.pct}%` })}`
-                          : t('community.reliability.waiting')}
-                    </Text>
-                  </View>
-                </Pressable>
-              </View>
-            ) : null}
-
             <View style={{ paddingHorizontal: layout.gutter }}>
               <Button
                 testID="city-add-itinerary"
                 label={t('map.city.addToItinerary')}
                 fullWidth
-                onPress={() => toast.show(t('map.city.addedToItinerary', { name: id }))}
+                onPress={() => addToItinerary(id, id)}
               />
             </View>
           </>
         ) : null}
+
+        {tip ? (
+          <View style={{ paddingHorizontal: layout.gutter, gap: 12 }}>
+            <Text variant="h3" accessibilityRole="header">
+              {t('map.city.tipTitle')}
+            </Text>
+            <Pressable
+              testID="city-tip"
+              accessibilityRole="button"
+              accessibilityLabel={t('community.post.open', { name: tip.post.author })}
+              accessibilityHint={tip.post.text}
+              onPress={() => router.push(routes.post(tip.post.id))}
+              style={{
+                padding: 16,
+                gap: 12,
+                borderRadius: radius.r16,
+                backgroundColor: colors.surface,
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Avatar
+                  name={tip.post.author}
+                  initials={tip.post.ini}
+                  photoUrl={tip.post.avatarUrl}
+                  size={36}
+                />
+                <View>
+                  <Text variant="label" weight={700}>
+                    {tip.post.author}
+                  </Text>
+                  <Text variant="caption" tone="muted" style={{ fontSize: 12 }}>
+                    {tip.post.when}
+                  </Text>
+                </View>
+              </View>
+              <Text variant="body">{tip.post.text}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icon
+                  name="seal-check"
+                  size={16}
+                  color={tip.stats.level === 'high' ? colors.success : colors.textMuted}
+                />
+                <Text
+                  variant="caption"
+                  weight={700}
+                  tone={tip.stats.level === 'high' ? 'success' : 'muted'}
+                >
+                  {tip.stats.level === 'high'
+                    ? `${t('map.city.reliabilityHigh')} · ${t('map.city.confirm', { pct: `${tip.stats.pct}%` })}`
+                    : tip.stats.total
+                      ? `${t(`community.reliability.${tip.stats.level}`)} · ${t('map.city.confirm', { pct: `${tip.stats.pct}%` })}`
+                      : t('community.reliability.waiting')}
+                </Text>
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {known ? null : (
+          <View style={{ paddingHorizontal: layout.gutter }}>
+            <Button
+              testID="city-share-tip"
+              variant="outline"
+              label={t('map.city.shareTip')}
+              fullWidth
+              onPress={() => router.push(routes.compose({ place: id }))}
+            />
+          </View>
+        )}
       </View>
 
       <SaveToCollectionSheet

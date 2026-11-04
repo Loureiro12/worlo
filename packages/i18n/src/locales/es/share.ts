@@ -34,7 +34,8 @@ const share: TranslationSchema['share'] = {
     link: 'Copiar enlace',
   },
   imageSaved: 'Imagen guardada en la galería.',
-  message: 'Mi mundo en Worlo: {{link}}',
+  saveDenied: 'Sin permiso para guardar en la galería.',
+  exportError: 'No se pudo crear la imagen. Inténtalo de nuevo.',
   preview: {
     a11y: 'Vista previa de la imagen ({{format}}, estilo {{theme}}): {{summary}}',
     mapOverline: 'Mi mundo hasta ahora',

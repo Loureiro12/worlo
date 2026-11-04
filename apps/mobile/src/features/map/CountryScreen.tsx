@@ -11,7 +11,6 @@ import {
   type StatusChipKind,
   Text,
   TileGrid,
-  useToast,
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
@@ -26,12 +25,11 @@ import { Breadcrumb, decodeParam, useCountryStatus } from './shared';
  * 392); any other id gets a minimal page with the COUNTRIES facts.
  */
 export function CountryScreen() {
-  const { COUNTRIES, COUNTRY_PAGES, REGION } = useCatalog();
+  const { COUNTRIES, COUNTRY_PAGES } = useCatalog();
   const { id: rawId } = useLocalSearchParams<{ id: string }>();
   const id = decodeParam(rawId);
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
   const countryName = useCountryName();
   const status = useCountryStatus(id);
 
@@ -48,8 +46,6 @@ export function CountryScreen() {
         : status === 'planned'
           ? { kind: 'planned', label: t('map.sheet.status.planned') }
           : { kind: 'neutral', icon: 'map-pin', label: t('map.country.status.none') };
-
-  const soon = (what: string) => toast.show(t('map.toasts.comingSoon', { name: what }), 'info');
 
   return (
     <HeroScreen
@@ -125,7 +121,7 @@ export function CountryScreen() {
                   testID={`country-region-${r}`}
                   accessibilityRole="button"
                   accessibilityLabel={r}
-                  onPress={() => (r === REGION.name ? router.push(routes.region(r)) : soon(r))}
+                  onPress={() => router.push(routes.region(r, id))}
                   style={({ pressed }) => ({
                     height: 36,
                     paddingHorizontal: 14,
@@ -158,7 +154,7 @@ export function CountryScreen() {
                   testID={`country-city-${c.name}`}
                   accessibilityRole="button"
                   accessibilityLabel={`${c.name}, ${c.note}`}
-                  onPress={() => (c.go ? router.push(routes.city(c.name)) : soon(c.name))}
+                  onPress={() => router.push(routes.city(c.name))}
                   style={({ pressed }) => ({
                     width: '48%',
                     flexGrow: 1,

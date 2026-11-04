@@ -14,6 +14,7 @@ import { type ReactNode, useState } from 'react';
 import { type LayoutChangeEvent, View } from 'react-native';
 import type { ShareSubject } from '@/navigation/routes';
 import type { ShareFormat } from '@/store/slices/discovery';
+import type { PictureRef } from './exportImage';
 import { PREVIEW_SIZE, type PreviewTheme, type ShareContent } from './shareContent';
 
 /**
@@ -31,6 +32,7 @@ export function SharePreview({
   labels,
   accessibilityLabel,
   scale = 1,
+  pictureRef,
 }: {
   subject: ShareSubject;
   format: ShareFormat;
@@ -40,6 +42,8 @@ export function SharePreview({
   labels: PreviewLabels;
   accessibilityLabel: string;
   scale?: number;
+  /** The picture to export: without the rounded corners and the shadow of the screen. */
+  pictureRef?: PictureRef;
 }) {
   const size = PREVIEW_SIZE[format];
   return (
@@ -52,50 +56,56 @@ export function SharePreview({
         width: size.width,
         height: size.height,
         borderRadius: 18,
-        padding: 16,
-        gap: 10,
         overflow: 'hidden',
         backgroundColor: theme.bg,
         boxShadow: shadow.sharePreview,
         transform: scale === 1 ? undefined : [{ scale }],
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <LogoPin width={14} color={theme.fg} dot={theme.pin} />
-          <P
-            color={theme.fg}
-            style={{
-              fontFamily: fontFamily.title800,
-              fontSize: 14,
-              lineHeight: 18,
-              letterSpacing: -0.28,
-            }}
-          >
-            Worlo
-          </P>
+      <View
+        ref={pictureRef}
+        collapsable={false}
+        style={{ flex: 1, padding: 16, gap: 10, backgroundColor: theme.bg }}
+      >
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+            <LogoPin width={14} color={theme.fg} dot={theme.pin} />
+            <P
+              color={theme.fg}
+              style={{
+                fontFamily: fontFamily.title800,
+                fontSize: 14,
+                lineHeight: 18,
+                letterSpacing: -0.28,
+              }}
+            >
+              Worlo
+            </P>
+          </View>
+          {showHandle ? (
+            <P testID="share-preview-handle" color={theme.muted} style={tiny(10, 700)}>
+              {content.handle}
+            </P>
+          ) : null}
         </View>
-        {showHandle ? (
-          <P testID="share-preview-handle" color={theme.muted} style={tiny(10, 700)}>
-            {content.handle}
-          </P>
-        ) : null}
-      </View>
 
-      <View style={{ flex: 1, minHeight: 0 }}>
-        {subject === 'map' && <MapBody theme={theme} content={content} labels={labels} />}
-        {subject === 'year' && (
-          <YearBody theme={theme} content={content} labels={labels} format={format} />
-        )}
-        {subject === 'trip' && <TripBody theme={theme} content={content} />}
-        {subject === 'retro' && <RetroBody theme={theme} content={content} labels={labels} />}
-        {subject === 'roteiro' && <RoteiroBody theme={theme} content={content} labels={labels} />}
-        {subject === 'ach' && <AchBody theme={theme} content={content} labels={labels} />}
-      </View>
+        <View style={{ flex: 1, minHeight: 0 }}>
+          {subject === 'map' && <MapBody theme={theme} content={content} labels={labels} />}
+          {subject === 'year' && (
+            <YearBody theme={theme} content={content} labels={labels} format={format} />
+          )}
+          {subject === 'trip' && <TripBody theme={theme} content={content} />}
+          {subject === 'retro' && <RetroBody theme={theme} content={content} labels={labels} />}
+          {subject === 'roteiro' && <RoteiroBody theme={theme} content={content} labels={labels} />}
+          {subject === 'ach' && <AchBody theme={theme} content={content} labels={labels} />}
+        </View>
 
-      <P color={theme.muted} align="center" style={tiny(9, 600)}>
-        {`worlo.app/${content.user}`}
-      </P>
+        <P color={theme.muted} align="center" style={tiny(9, 600)}>
+          {`worlo.app/${content.user}`}
+        </P>
+      </View>
     </View>
   );
 }
@@ -242,7 +252,7 @@ function YearBody({ theme, content, labels, format }: BodyProps & { format: Shar
           ))}
         </View>
       )}
-      {format !== 'square' ? (
+      {format !== 'square' && content.year.favorite ? (
         <Photo
           testID="share-preview-favorite"
           uri={content.year.favoriteImg}
@@ -332,20 +342,22 @@ function RetroBody({ theme, content, labels }: BodyProps) {
           <Photo uri={p2} tint={palette.linha} radius={12} style={{ flex: 1 }} />
         </View>
       </View>
-      <Card theme={theme}>
-        <Icon name="star" weight="fill" size={16} color={theme.pin} />
-        <View style={{ flex: 1 }}>
-          <P
-            color={theme.muted}
-            style={{ ...tiny(9, 700), letterSpacing: 1.1, textTransform: 'uppercase' }}
-          >
-            {labels.bestMoment}
-          </P>
-          <P lines={2} color={theme.fg} style={tiny(12, 700)}>
-            {trip.best}
-          </P>
-        </View>
-      </Card>
+      {trip.best ? (
+        <Card theme={theme}>
+          <Icon name="star" weight="fill" size={16} color={theme.pin} />
+          <View style={{ flex: 1 }}>
+            <P
+              color={theme.muted}
+              style={{ ...tiny(9, 700), letterSpacing: 1.1, textTransform: 'uppercase' }}
+            >
+              {labels.bestMoment}
+            </P>
+            <P lines={2} color={theme.fg} style={tiny(12, 700)}>
+              {trip.best}
+            </P>
+          </View>
+        </Card>
+      ) : null}
     </View>
   );
 }

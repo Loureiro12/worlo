@@ -87,16 +87,14 @@ describe('ExploreScreen', () => {
     expect(screen.getByText('Salvo agora')).toBeOnTheScreen();
   });
 
-  it('opens the city, country or a "coming soon" toast from a place card', async () => {
+  it('opens the city or country page from a place card', async () => {
     await renderWithProviders(<ExploreScreen />);
     await fireEvent.press(screen.getByTestId('explore-place-Lisboa'));
     expect(mockRouter.push).toHaveBeenLastCalledWith(routes.city('Lisboa'));
     await fireEvent.press(screen.getByTestId('explore-place-Kyoto'));
     expect(mockRouter.push).toHaveBeenLastCalledWith(routes.country('392'));
-    mockRouter.push.mockClear();
     await fireEvent.press(screen.getByTestId('explore-place-Noronha'));
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(screen.getByText('A página de Noronha chega em breve.')).toBeOnTheScreen();
+    expect(mockRouter.push).toHaveBeenLastCalledWith(routes.city('Noronha'));
   });
 
   it('turns on travel mode from the live card', async () => {

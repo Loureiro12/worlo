@@ -38,6 +38,8 @@ const community: TranslationSchema['community'] = {
   feed: {
     emptyTitle: 'Todavía no hay nada aquí',
     emptyText: 'Sé la primera persona en compartir un consejo.',
+    loadMore: 'Cargar más',
+    loadMoreError: 'No se pudo cargar. Inténtalo de nuevo.',
   },
   post: {
     meta: 'en {{place}} · {{when}}',

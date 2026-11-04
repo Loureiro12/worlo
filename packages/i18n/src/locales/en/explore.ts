@@ -34,7 +34,6 @@ const explore: TranslationSchema['explore'] = {
     wish: 'Want to go',
     wished: 'On my list',
     wishedToast: '{{name}} saved to Want to go.',
-    soon: 'The {{name}} page is coming soon.',
   },
   popular: {
     title: 'Popular destinations',

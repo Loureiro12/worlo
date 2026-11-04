@@ -252,8 +252,6 @@ const profile = {
       title: 'Foto do perfil',
       camera: 'Tirar foto',
       gallery: 'Galeria',
-      fromTrips: 'Ou use uma foto das suas viagens',
-      pick: 'Escolher foto {{n}}',
       remove: 'Remover foto',
       updated: 'Foto do perfil atualizada.',
       removed: 'Foto removida.',

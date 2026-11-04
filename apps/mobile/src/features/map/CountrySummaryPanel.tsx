@@ -58,9 +58,14 @@ export function CountrySummaryPanel({
         ? { kind: 'visited', icon: 'check-circle' }
         : { kind: status };
 
+  const tripThere = useQuery(() => repos.trips.list().find((x) => x.countryIso === id), [id]);
   const hist =
     status === 'visited' || status === 'planned'
-      ? (info?.hist ?? t('map.sheet.histMarked'))
+      ? tripThere
+        ? t('map.sheet.histTrip', { title: tripThere.title, period: tripThere.period })
+        : status === 'planned'
+          ? t('map.sheet.histPlanned')
+          : t('map.sheet.histMarked')
       : status === 'wishlist'
         ? t('map.sheet.histWishlist')
         : null;

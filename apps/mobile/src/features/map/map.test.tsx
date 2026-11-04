@@ -24,7 +24,7 @@ const wish = ['392', '352'];
 
 describe('mapLayers', () => {
   it('shows every layer by default', () => {
-    const l = mapLayers(DEFAULT_VISITED, wish, 'all', 'all');
+    const l = mapLayers(DEFAULT_VISITED, wish, 'all', 'all', ['604']);
     expect(l.visited).toHaveLength(Object.keys(DEFAULT_VISITED).length);
     expect(l.wishlist).toEqual(wish);
     expect(l.planned).toEqual(['604']);
@@ -72,9 +72,10 @@ describe('MapScreen', () => {
   it('summarises the visible layers in the globe label and updates it with filters', async () => {
     await renderWithProviders(<MapScreen />);
     const wishCount = repos.world.wishes().filter((w) => w.countryIso).length;
+    const planned = new Set(repos.planning.itineraries().map((it) => it.flag)).size;
     expect(
       screen.getByLabelText(
-        `Globo do seu mapa. Visitados: 6. Quero ir: ${wishCount}. Em planejamento: 1.`,
+        `Globo do seu mapa. Visitados: 6. Quero ir: ${wishCount}. Em planejamento: ${planned}.`,
       ),
     ).toBeOnTheScreen();
 
@@ -184,9 +185,15 @@ describe('CountrySummaryPanel', () => {
     expect(repos.world.visitedMap()['392']).toBeUndefined();
   });
 
-  it('shows the planned status for Peru', async () => {
+  it('shows the planned status for a country in my itineraries, and only then', async () => {
     await render('604');
     expect(screen.getByTestId('map-country-status')).toHaveProp(
+      'accessibilityLabel',
+      'Em planejamento',
+    );
+    for (const it of repos.planning.itineraries()) repos.planning.remove(it.id);
+    await render('604');
+    expect(screen.getByTestId('map-country-status')).not.toHaveProp(
       'accessibilityLabel',
       'Em planejamento',
     );

@@ -10,13 +10,11 @@ import {
   layout,
   radius,
   Text,
-  useToast,
 } from '@worlo/ui';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { useCatalog } from '@/data/catalog';
 import { usePlacePosts } from '@/data/community';
-import { updateItinerary, useItineraries } from '@/data/planning';
 import { postKey, toPlaceTip } from '@/features/community/model';
 import { img } from '@/lib/images';
 import { routes } from '@/navigation/routes';
@@ -27,6 +25,7 @@ import {
   LISBOA,
   savedItemFor,
   TipCard,
+  useAddToItinerary,
   useIsSaved,
   useToggleSaved,
 } from './shared';
@@ -43,23 +42,17 @@ export function PlaceScreen() {
   const name = decodeParam(rawId) || DEFAULT_PLACE;
   const { t } = useTranslation();
   const router = useRouter();
-  const toast = useToast();
   const toggleSaved = useToggleSaved();
-  const itineraries = useItineraries();
+  const addToItinerary = useAddToItinerary();
   // "Dicas de quem foi": community posts about this place (online).
   const tips = usePlacePosts(name).data ?? [];
 
   const found = findCityItem(name);
-  const item = found?.item ?? { name, meta: '', rating: '4,6' };
+  const item = found?.item ?? { name, meta: '' };
   const tab = found?.tab ?? 'attr';
-  const rating = item.rating ?? '4,6';
   const info = PLACE_INFO[name];
   const metaParts = item.meta ? item.meta.split(' · ') : [];
   const saved = useIsSaved(savedItemFor(item, tab).id);
-
-  // Deterministic counts per place (prototype formula).
-  const reviews = ((name.length * 37) % 900) + 120;
-  const travelers = ((name.length * 53) % 2000) + 300;
 
   const rows: [IconName, string, string][] = info
     ? info.rows
@@ -70,27 +63,7 @@ export function PlaceScreen() {
         ['hourglass', t('map.place.rows.duration'), t('map.place.fallback.duration')],
       ];
 
-  const onSave = () => toggleSaved(savedItemFor({ ...item, rating }, tab));
-
-  const addToItinerary = () => {
-    const target = itineraries[0];
-    if (!target) return;
-    updateItinerary(target.id, (it) => ({
-      ...it,
-      days: it.days.map((d, j) =>
-        j === it.days.length - 1
-          ? {
-              ...d,
-              items: [
-                ...d.items,
-                { time: 'A definir', icon: 'map-pin', title: name, note: LISBOA.name, cost: 0 },
-              ],
-            }
-          : d,
-      ),
-    }));
-    toast.show(t('map.place.addedToItinerary', { place: name, itinerary: target.title }));
-  };
+  const onSave = () => toggleSaved(savedItemFor(item, tab));
 
   return (
     <HeroScreen
@@ -127,7 +100,7 @@ export function PlaceScreen() {
             testID="place-add-itinerary"
             label={t('map.place.addToItinerary')}
             flex={1.3}
-            onPress={addToItinerary}
+            onPress={() => addToItinerary(name, LISBOA.name)}
           />
         </BottomBar>
       }
@@ -140,13 +113,12 @@ export function PlaceScreen() {
           <Text variant="h1Detail" accessibilityRole="header">
             {name}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <Icon name="star" weight="fill" size={16} color={colors.primary} />
-            <Text variant="label">{rating}</Text>
-            <Text variant="bodyS" tone="muted" style={{ flexShrink: 1 }}>
-              {t('map.place.stats', { reviews, travelers })}
-            </Text>
-          </View>
+          {item.rating ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Icon name="star" weight="fill" size={16} color={colors.primary} />
+              <Text variant="label">{item.rating}</Text>
+            </View>
+          ) : null}
         </View>
 
         <Text variant="bodyL" tone="support">

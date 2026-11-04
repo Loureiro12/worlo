@@ -1,7 +1,11 @@
-import { fireEvent, screen, within } from '@testing-library/react-native';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { palette } from '@worlo/ui';
-import { Share, StyleSheet } from 'react-native';
+import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
+import { PixelRatio, StyleSheet } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
 import { repos } from '@/data/repositories';
+import { computeAchievements } from '@/features/profile/achievements';
 import { demoId } from '@/mocks/demo';
 import type { ShareSubject } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
@@ -22,16 +26,27 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => mockParams,
 }));
 
-const shareSpy = jest.spyOn(Share, 'share');
-
 beforeEach(() => {
   resetStore();
   jest.clearAllMocks();
-  shareSpy.mockResolvedValue({ action: Share.sharedAction, activityType: undefined });
   mockParams = { subject: 'map' };
 });
 
 const previewStyle = () => StyleSheet.flatten(screen.getByTestId('share-preview').props.style);
+
+const ACH_TITLES: Record<string, string> = {
+  firstTrip: 'Primeira viagem',
+  fiveCountries: '5 países',
+  endOfWorld: 'Fim do mundo',
+  twentyCities: '20 cidades',
+  threeContinents: '3 continentes',
+};
+const pt = (id: string | undefined) => ACH_TITLES[id ?? ''] ?? '';
+const unlockedAchievements = () =>
+  computeAchievements({
+    trips: repos.trips.list(),
+    visitedMap: repos.world.visitedMap(),
+  }).flatMap((a) => (a.unlocked ? [a] : []));
 
 const SUBJECTS: ShareSubject[] = ['map', 'year', 'trip', 'retro', 'roteiro', 'ach'];
 const FORMATS: ShareFormat[] = ['story', 'post', 'square'];
@@ -63,8 +78,10 @@ const expectSubject: Record<ShareSubject, () => void> = {
   },
   ach: () => {
     expect(screen.getByText('Conquista desbloqueada')).toBeOnTheScreen();
-    expect(screen.getByText('Fim do mundo')).toBeOnTheScreen();
-    expect(screen.getByText('Patagônia · 2024')).toBeOnTheScreen();
+    // Without a route param: the latest one the account really unlocked.
+    const latest = unlockedAchievements().at(-1);
+    expect(screen.getByText(pt(latest?.id))).toBeOnTheScreen();
+    if (latest?.meta) expect(screen.getByText(latest.meta)).toBeOnTheScreen();
   },
 };
 
@@ -110,11 +127,13 @@ describe('ShareScreen (J)', () => {
     mockParams = { subject: 'year' };
     await renderWithProviders(<ShareScreen />);
     expect(screen.getByTestId('share-preview-year-title')).toHaveTextContent(
-      /viagens, 6 países e muita coisa boa$/,
+      /via(gem|gens), \d+ país(es)? e muita coisa boa$/,
     );
     expect(screen.getByTestId('share-preview-favorite')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('share-format-post'));
-    expect(screen.getByTestId('share-preview-year-title')).toHaveTextContent(/viagens, 6 países$/);
+    expect(screen.getByTestId('share-preview-year-title')).toHaveTextContent(
+      /via(gem|gens), \d+ país(es)?$/,
+    );
     expect(screen.getByTestId('share-preview-favorite')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('share-format-square'));
     expect(screen.queryByTestId('share-preview-favorite')).toBeNull();
@@ -130,10 +149,11 @@ describe('ShareScreen (J)', () => {
   });
 
   it('uses the achievement from the route', async () => {
-    mockParams = { subject: 'ach', ach: 'Primeira viagem' };
+    mockParams = { subject: 'ach', ach: 'firstTrip' };
     await renderWithProviders(<ShareScreen />);
     expect(screen.getByText('Primeira viagem')).toBeOnTheScreen();
-    expect(screen.getByText('Rio de Janeiro · 2019')).toBeOnTheScreen();
+    const first = unlockedAchievements().find((a) => a.id === 'firstTrip');
+    expect(screen.getByText(first?.meta ?? '')).toBeOnTheScreen();
   });
 
   it('switches subject with the chips', async () => {
@@ -193,21 +213,50 @@ describe('ShareScreen (J)', () => {
     expect(screen.getByLabelText('Copiar link')).toBeOnTheScreen();
   });
 
-  it('opens the native share sheet with the link', async () => {
+  it('shares the rendered 1080 px picture through the system sheet', async () => {
     await renderWithProviders(<ShareScreen />);
     await fireEvent.press(screen.getByTestId('share-dest-whatsapp'));
-    expect(shareSpy).toHaveBeenCalledWith({
-      message: 'Meu mundo no Worlo: https://worlo.app/anaviaja',
-    });
+    await waitFor(() =>
+      expect(Sharing.shareAsync).toHaveBeenCalledWith(
+        'file:///tmp/share.png',
+        expect.objectContaining({ mimeType: 'image/png' }),
+      ),
+    );
+    const options = jest.mocked(captureRef).mock.calls[0]?.[1];
+    expect((options?.width ?? 0) * PixelRatio.get()).toBeCloseTo(1080);
+    expect((options?.height ?? 0) * PixelRatio.get()).toBeCloseTo(1918);
   });
 
-  it('saves the image and copies the link with toasts', async () => {
+  it('saves the picture to the gallery and copies the link', async () => {
     await renderWithProviders(<ShareScreen />);
     await fireEvent.press(screen.getByTestId('share-dest-save'));
-    expect(screen.getByText('Imagem salva na galeria.')).toBeOnTheScreen();
+    expect(await screen.findByText('Imagem salva na galeria.')).toBeOnTheScreen();
+    expect(MediaLibrary.requestPermissionsAsync).toHaveBeenCalledWith(true, []);
+    expect(MediaLibrary.Asset.create).toHaveBeenCalledWith('file:///tmp/share.png');
     await fireEvent.press(screen.getByTestId('share-dest-link'));
-    expect(screen.getByText('Link copiado.')).toBeOnTheScreen();
-    expect(shareSpy).not.toHaveBeenCalled();
+    expect(await screen.findByText('Link copiado.')).toBeOnTheScreen();
+    expect(Sharing.shareAsync).not.toHaveBeenCalled();
+  });
+
+  it('says so when the gallery is denied or the picture fails', async () => {
+    await renderWithProviders(<ShareScreen />);
+    jest
+      .mocked(MediaLibrary.requestPermissionsAsync)
+      .mockResolvedValueOnce({ granted: false } as never);
+    await fireEvent.press(screen.getByTestId('share-dest-save'));
+    expect(await screen.findByText('Sem permissão pra salvar na galeria.')).toBeOnTheScreen();
+    expect(MediaLibrary.Asset.create).not.toHaveBeenCalled();
+
+    jest.mocked(captureRef).mockRejectedValueOnce(new Error('no view'));
+    await fireEvent.press(screen.getByTestId('share-dest-whatsapp'));
+    expect(await screen.findByText('Não deu pra gerar a imagem. Tente de novo.')).toBeOnTheScreen();
+  });
+
+  it('hides the achievement card when nothing is unlocked', async () => {
+    for (const trip of repos.trips.list()) repos.trips.remove(trip.id);
+    for (const iso of Object.keys(repos.world.visitedMap())) repos.world.toggleVisited(iso);
+    await renderWithProviders(<ShareScreen />);
+    expect(screen.queryByTestId('share-subject-ach')).toBeNull();
   });
 
   it('closes', async () => {

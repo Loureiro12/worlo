@@ -45,23 +45,22 @@ describe('CountryScreen', () => {
     ).toBeOnTheScreen();
 
     await fireEvent.press(screen.getByTestId('country-region-Lisboa e Vale do Tejo'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.region('Lisboa e Vale do Tejo'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.region('Lisboa e Vale do Tejo', '620'));
 
     await fireEvent.press(screen.getByTestId('country-city-Lisboa'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.city('Lisboa'));
 
     await fireEvent.press(screen.getByTestId('country-city-Porto'));
-    expect(screen.getByRole('alert')).toHaveTextContent('A página de Porto chega em breve.');
+    expect(mockRouter.push).toHaveBeenLastCalledWith(routes.city('Porto'));
     expect(screen.getByText(/Turismo de Portugal/)).toBeOnTheScreen();
   });
 
-  it('renders Japão with the wishlist status', async () => {
+  it('renders Japão and opens a region without a guide on its own page', async () => {
     mockParams = { id: '392' };
     await renderWithProviders(<CountryScreen />);
     expect(screen.getByText('Ásia')).toBeOnTheScreen();
-    expect(screen.getByText('Na sua lista Quero ir')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('country-region-Kanto'));
-    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.region('Kanto', '392'));
   });
 
   it('renders a minimal page for countries without a page', async () => {
@@ -144,7 +143,10 @@ describe('CityScreen', () => {
     await fireEvent.press(screen.getByTestId('city-crumb-region'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.region('Lisboa e Vale do Tejo'));
     await fireEvent.press(screen.getByTestId('city-add-itinerary'));
-    expect(screen.getByRole('alert')).toHaveTextContent('Lisboa entrou no seu roteiro.');
+    const itinerary = getItineraries()[0];
+    expect(screen.getByRole('alert')).toHaveTextContent(`Lisboa entrou em “${itinerary?.title}”.`);
+    const lastDay = getItineraries()[0]?.days.at(-1);
+    expect(lastDay?.items.at(-1)?.title).toBe('Lisboa');
   });
 });
 

@@ -29,12 +29,13 @@ import { useCatalog } from '@/data/catalog';
 import { repos } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
 import { useVisitedMap } from '@/data/world';
+import { countCities } from '@/features/profile/stats';
 import { countryFlag, useCountryName } from '@/lib/countries';
 import type { CountryId } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 import { CountrySummaryPanel } from './CountrySummaryPanel';
-import { PLANNED_COUNTRIES } from './shared';
+import { usePlannedCountries } from './shared';
 
 export type MapFilter = 'all' | 'visited' | 'wishlist';
 
@@ -44,10 +45,11 @@ export function mapLayers(
   wishlistIds: readonly CountryId[],
   filter: MapFilter,
   year: string,
+  plannedIds: readonly CountryId[] = [],
 ) {
   let visited = Object.keys(visitedMap);
   let wishlist: readonly CountryId[] = wishlistIds;
-  let planned: readonly CountryId[] = PLANNED_COUNTRIES;
+  let planned: readonly CountryId[] = plannedIds;
   if (year !== 'all') {
     visited = visited.filter((id) => visitedMap[id]?.includes(year));
     wishlist = [];
@@ -108,17 +110,18 @@ function MapContent() {
   // Empty demo state: the map is "apagado" (nothing marked).
   const shownVisitedMap = empty ? {} : visitedMap;
   const wishlistIds = useMemo(() => (empty ? [] : wishIds), [empty, wishIds]);
+  const plannedIds = usePlannedCountries();
   const layers = useMemo(() => {
-    const l = mapLayers(shownVisitedMap, wishlistIds, filter, year);
+    const l = mapLayers(shownVisitedMap, wishlistIds, filter, year, plannedIds);
     return empty ? { ...l, planned: [] } : l;
-  }, [shownVisitedMap, wishlistIds, filter, year, empty]);
+  }, [shownVisitedMap, wishlistIds, filter, year, empty, plannedIds]);
   const years = useMemo(
     () => [...new Set(Object.values(shownVisitedMap).flat())].sort().reverse(),
     [shownVisitedMap],
   );
 
   const visitedCount = Object.keys(shownVisitedMap).length;
-  const citiesCount = empty ? 0 : Math.max(0, CITIES.length - 1);
+  const citiesCount = empty ? 0 : countCities(repos.trips.list());
   const trips = empty ? 0 : tripsCount;
   const stats = [
     t('common.count.countries', { count: visitedCount }),
@@ -134,11 +137,11 @@ function MapContent() {
   const listIds = useMemo(() => {
     const ids = new Set<CountryId>([
       ...Object.keys(shownVisitedMap),
-      ...(empty ? [] : PLANNED_COUNTRIES),
+      ...(empty ? [] : plannedIds),
       ...wishlistIds,
     ]);
     return [...ids].sort((a, b) => countryName(a).localeCompare(countryName(b)));
-  }, [shownVisitedMap, wishlistIds, empty, countryName]);
+  }, [shownVisitedMap, wishlistIds, plannedIds, empty, countryName]);
 
   const overlapsTabBar = height >= window.height - 1;
   const tabBarTop = overlapsTabBar ? layout.tabBarHeight + insets.bottom : 0;

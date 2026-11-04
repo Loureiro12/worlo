@@ -10,7 +10,6 @@ import { LiveScreen } from './LiveScreen';
 import {
   copyDays,
   formatMoneyFlex,
-  localTime,
   tripFromLive,
   withDay,
   withoutStop,
@@ -56,19 +55,15 @@ describe('LiveScreen', () => {
     expect(screen.getByTestId('live-screen')).toBeOnTheScreen();
     expect(screen.getByText('🇵🇪 Cusco e Machu Picchu')).toBeOnTheScreen();
     expect(screen.getByText('Dia 2 · Vale Sagrado')).toBeOnTheScreen();
-    expect(screen.getByText('Você está em Pisac, Vale Sagrado')).toBeOnTheScreen();
-    expect(screen.getByText('Marina está viajando com você')).toBeOnTheScreen();
-    expect(screen.getByLabelText('Câmbio: 1 sol vale R$ 1,52')).toBeOnTheScreen();
+    expect(screen.getByText('Você está em Cusco, Peru')).toBeOnTheScreen();
   });
 
-  it('seeds the log with the sample entries', async () => {
+  it('starts with an empty log and invented nothing', async () => {
     await renderWithProviders(<LiveScreen />);
     const log = within(screen.getByTestId('live-log'));
-    expect(log.getByText(/fez check-in no hotel em San Blas\./)).toBeOnTheScreen();
-    expect(log.getByText(/adicionou 6 fotos em Pisac\./)).toBeOnTheScreen();
+    expect(log.getByText(/Nada registrado ainda/)).toBeOnTheScreen();
     expect(screen.getByText('Salvo no aparelho')).toBeOnTheScreen();
-    // samples are only shown, never persisted
-    expect(live().log).toHaveLength(0);
+    expect(screen.queryByText(/San Blas|Marina|17°C/)).toBeNull();
   });
 
   it('shows an empty state when there is no itinerary to travel with', async () => {
@@ -101,10 +96,8 @@ describe('LiveScreen', () => {
     expect(screen.getByText('Feito')).toBeOnTheScreen();
     expect(live().log[0]?.text).toBe('concluiu Vale Sagrado em um dia.');
     expect(live().log).toHaveLength(1);
-    // the samples stay below the first real entry
     const rows = within(screen.getByTestId('live-log'));
     expect(rows.getByText(/concluiu Vale Sagrado/)).toBeOnTheScreen();
-    expect(rows.getByText(/fez check-in no hotel em San Blas\./)).toBeOnTheScreen();
     await fireEvent.press(item);
     expect(live().done['1-0']).toBe(false);
     expect(live().log).toHaveLength(1);
@@ -117,39 +110,45 @@ describe('LiveScreen', () => {
     await submit();
     expect(screen.getByText('Escolha onde você está.')).toBeOnTheScreen();
     expect(live().log).toHaveLength(0);
-    await fireEvent.press(screen.getByTestId('live-near-2'));
+    await fireEvent.press(screen.getByTestId('live-near-0'));
     expect(screen.queryByText('Escolha onde você está.')).toBeNull();
     await fireEvent.press(screen.getByLabelText('4 de 5 estrelas'));
     await submit();
     expect(live().log[0]).toMatchObject({
       type: 'checkin',
       author: 'me',
-      text: 'fez check-in em Café Ayllu. ★★★★',
+      text: 'fez check-in em Vale Sagrado em um dia. ★★★★',
     });
-    expect(screen.getByText('Check-in em Café Ayllu.')).toBeOnTheScreen();
-    expect(screen.getByText(/fez check-in em Café Ayllu/)).toBeOnTheScreen();
+    expect(screen.getByText('Check-in em Vale Sagrado em um dia.')).toBeOnTheScreen();
   });
 
-  it('expense requires an amount, converts to R$ and adds to spent', async () => {
+  it('check-in also takes a place typed by hand', async () => {
+    await renderWithProviders(<LiveScreen />);
+    await fireEvent.press(screen.getByTestId('live-checkin'));
+    await fireEvent.changeText(screen.getByTestId('live-place'), 'Café da esquina');
+    await submit();
+    expect(live().log[0]?.text).toBe('fez check-in em Café da esquina.');
+  });
+
+  it('expense requires an amount and adds to spent', async () => {
     await renderWithProviders(<LiveScreen />);
     await fireEvent.press(screen.getByTestId('live-expense'));
     await submit();
     expect(screen.getByText('Quanto foi?')).toBeOnTheScreen();
-    await fireEvent.changeText(screen.getByLabelText('Valor em soles'), '12,50');
-    expect(screen.getByTestId('live-converted')).toHaveTextContent('≈ R$ 19');
+    await fireEvent.changeText(screen.getByLabelText('Valor em reais'), '12,50');
     await fireEvent.press(screen.getByTestId('live-cat-transport'));
     await submit();
-    expect(live().spent).toBeCloseTo(19);
+    expect(live().spent).toBeCloseTo(12.5);
     expect(live().log[0]).toMatchObject({
       type: 'expense',
-      text: 'gastou S/ 12,50 em transporte (≈ R$ 19).',
+      text: 'gastou R$ 12,50 em transporte.',
     });
-    expect(repos.planning.logs(demoId('live:peru'))[0]?.amount).toBeCloseTo(19);
+    expect(repos.planning.logs(demoId('live:peru'))[0]?.amount).toBeCloseTo(12.5);
     // a second expense adds up
     await fireEvent.press(screen.getByTestId('live-expense'));
-    await fireEvent.changeText(screen.getByLabelText('Valor em soles'), '10');
+    await fireEvent.changeText(screen.getByLabelText('Valor em reais'), '10');
     await submit();
-    expect(live().spent).toBeCloseTo(19 + 15.2);
+    expect(live().spent).toBeCloseTo(22.5);
     expect(screen.getByText('Gasto anotado.')).toBeOnTheScreen();
   });
 
@@ -168,7 +167,7 @@ describe('LiveScreen', () => {
     await submit();
     await waitFor(() => expect(logOf('photo')).toBeDefined());
     expect(picker.launchCameraAsync).toHaveBeenCalledWith(expect.objectContaining({ exif: true }));
-    expect(logOf('photo')).toMatchObject({ text: 'tirou uma foto em Pisac.' });
+    expect(logOf('photo')).toMatchObject({ text: 'tirou uma foto em Cusco.' });
     // The entry points at the picked photo (loose: the Peru trip doesn't exist yet).
     const photo = repos.photos.get(logOf('photo')?.photo ?? '');
     expect(photo).toMatchObject({ tripId: null, uploaded: false });
@@ -212,10 +211,10 @@ describe('LiveScreen', () => {
     await renderWithProviders(<LiveScreen />);
     await fireEvent.press(screen.getByTestId('live-end'));
     expect(screen.getByText('Encerrar a viagem?')).toBeOnTheScreen();
-    // 4 days · 0 extra photos + 6 · 1 check-in (seed) + 0 done today + 3
+    // Only what this trip logged: 4 days, no photos, no check-ins.
     expect(screen.getByTestId('live-end-days')).toHaveTextContent(/^4/);
-    expect(screen.getByTestId('live-end-photos')).toHaveTextContent(/^6/);
-    expect(screen.getByTestId('live-end-places')).toHaveTextContent(/^4/);
+    expect(screen.getByTestId('live-end-photos')).toHaveTextContent(/^0/);
+    expect(screen.getByTestId('live-end-places')).toHaveTextContent(/^0/);
     await fireEvent.press(screen.getByText('Encerrar e criar viagem'));
     expect(live().on).toBe(false);
     const trip = repos.trips.list()[0];
@@ -224,10 +223,10 @@ describe('LiveScreen', () => {
       place: 'Cusco',
       country: 'Peru',
       days: 4,
-      photos: 6,
-      places: 4,
+      photos: 0,
+      places: 0,
       countryIso: '604',
-      companions: [{ name: 'Marina Costa', status: 'ok' }],
+      companions: [],
     });
     expect(repos.world.visitedMap()['604']).toBeDefined();
     expect(mockRouter.replace).toHaveBeenCalledWith(`/trip/${trip?.id}`);
@@ -240,10 +239,6 @@ describe('planning helpers', () => {
     expect(formatMoneyFlex(1710)).toBe('R$ 1.710');
     expect(formatMoneyFlex(18.24)).toBe('R$ 18,24');
     expect(formatMoneyFlex(12.5, 'S/')).toBe('S/ 12,50');
-  });
-
-  it('computes the local time 2h behind', () => {
-    expect(localTime(new Date(2026, 9, 30, 1, 5))).toBe('23:05');
   });
 
   it('builds the past trip total from costs + spent', () => {

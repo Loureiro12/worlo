@@ -1,6 +1,8 @@
 import {
+  type InfiniteData,
   type QueryClient,
   type QueryKey,
+  useInfiniteQuery,
   useQuery as useOnlineQuery,
   useQueryClient,
 } from '@tanstack/react-query';
@@ -196,6 +198,8 @@ export const communityKeys = {
   all: ['community'] as const,
   feeds: ['community', 'feed'] as const,
   feed: (args: FeedArgs) => ['community', 'feed', args] as const,
+  /** Under `feed(args)`, so invalidating that prefix refreshes the pages too. */
+  feedPages: (args: FeedArgs) => ['community', 'feed', args, 'pages'] as const,
   post: (id: string) => ['community', 'post', id] as const,
   comments: (postId: string) => ['community', 'comments', postId] as const,
   traveler: (id: string) => ['community', 'traveler', id] as const,
@@ -227,12 +231,35 @@ export function useFeed(args: FeedArgs, { enabled = true }: { enabled?: boolean 
   });
 }
 
+export const FEED_PAGE_SIZE = 20;
+
+/** A feed that grows page by page ("Carregar mais"), newest first. */
+export function useFeedPages(args: FeedArgs, { enabled = true }: { enabled?: boolean } = {}) {
+  const { meId, t } = useMapContext();
+  const select = useCallback(
+    (data: FeedPages) => data.pages.flat().map((r) => toPost(r, { meId, t })),
+    [meId, t],
+  );
+  return useInfiniteQuery({
+    queryKey: communityKeys.feedPages(args),
+    queryFn: ({ pageParam }) =>
+      communityApi.feed({ ...args, limit: FEED_PAGE_SIZE, before: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    // A short page is the last one; the cursor is the oldest post seen.
+    getNextPageParam: (last) =>
+      last.length < FEED_PAGE_SIZE ? undefined : last[last.length - 1]?.created_at,
+    retry,
+    select,
+    enabled,
+  });
+}
+
 /** Posts about a place (Lugar / Cidade tips). */
 export function usePlacePosts(place: string | undefined) {
   return useFeed({ place }, { enabled: Boolean(place) });
 }
 
-/** A traveler's posts (perfil público, especialistas). */
+/** A traveler's latest posts (especialistas); their whole page uses `useFeedPages`. */
 export function useAuthorPosts(authorId: string | null | undefined, limit?: number) {
   return useFeed(
     { author: authorId ?? undefined, ...(limit ? { limit } : {}) },
@@ -240,10 +267,17 @@ export function useAuthorPosts(authorId: string | null | undefined, limit?: numb
   );
 }
 
+/** Cached feeds are plain lists (`useFeed`) or pages (`useFeedPages`). */
+type FeedPages = InfiniteData<FeedRow[], string | undefined>;
+type FeedCache = FeedRow[] | FeedPages;
+
+const feedRows = (cache: FeedCache | undefined): FeedRow[] =>
+  !cache ? [] : Array.isArray(cache) ? cache : cache.pages.flat();
+
 /** Feed rows already cached (opening a post from a list shows it instantly). */
 function cachedPost(client: QueryClient, id: string) {
-  for (const [key, rows] of client.getQueriesData<FeedRow[]>({ queryKey: communityKeys.feeds })) {
-    const row = rows?.find((r) => r.id === id);
+  for (const [key, cache] of client.getQueriesData<FeedCache>({ queryKey: communityKeys.feeds })) {
+    const row = feedRows(cache).find((r) => r.id === id);
     if (row) return { row, updatedAt: client.getQueryState(key)?.dataUpdatedAt };
   }
   return undefined;
@@ -335,9 +369,11 @@ function restore(client: QueryClient, snap: Snapshot) {
 }
 
 function updatePostRows(client: QueryClient, id: string, fn: (row: FeedRow) => FeedRow) {
-  client.setQueriesData<FeedRow[]>({ queryKey: communityKeys.feeds }, (rows) =>
-    rows?.map((r) => (r.id === id ? fn(r) : r)),
-  );
+  const update = (rows: FeedRow[]) => rows.map((r) => (r.id === id ? fn(r) : r));
+  client.setQueriesData<FeedCache>({ queryKey: communityKeys.feeds }, (cache) => {
+    if (!cache) return cache;
+    return Array.isArray(cache) ? update(cache) : { ...cache, pages: cache.pages.map(update) };
+  });
   client.setQueryData<FeedRow | null>(communityKeys.post(id), (row) => (row ? fn(row) : row));
 }
 

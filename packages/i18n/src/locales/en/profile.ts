@@ -250,8 +250,6 @@ const profile: TranslationSchema['profile'] = {
       title: 'Profile photo',
       camera: 'Take photo',
       gallery: 'Gallery',
-      fromTrips: 'Or use a photo from your trips',
-      pick: 'Choose photo {{n}}',
       remove: 'Remove photo',
       updated: 'Profile photo updated.',
       removed: 'Photo removed.',

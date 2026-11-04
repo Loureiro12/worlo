@@ -1,4 +1,5 @@
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Linking } from 'react-native';
 import { repos } from '@/data/repositories';
@@ -20,6 +21,12 @@ jest.mock('expo-router', () => ({
 }));
 
 // A real phone (simulators have no push): the permission row can show.
+jest.mock('@/data/communityApi', () => require('@/features/community/testServer').mockModule());
+jest.mock('expo-image-picker', () => ({
+  requestCameraPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  launchCameraAsync: jest.fn(),
+  launchImageLibraryAsync: jest.fn(),
+}));
 jest.mock('expo-device', () => ({ ...jest.requireActual('expo-device'), isDevice: true }));
 
 jest.mock('@/lib/auth', () => ({
@@ -201,13 +208,36 @@ describe('CfgScreen · account', () => {
   it('changes and removes the photo from the sheet', async () => {
     await openCfg('account');
     await fireEvent.press(screen.getByTestId('account-change-photo'));
-    await fireEvent.press(screen.getByTestId('photo-choice-0'));
-    expect(profile()?.avatarUrl).toMatch(/^https:\/\//);
-    expect(screen.getByRole('alert')).toHaveTextContent('Foto do perfil atualizada.');
+    jest.mocked(ImagePicker.launchImageLibraryAsync).mockResolvedValueOnce({
+      canceled: false,
+      assets: [{ uri: 'file:///me.jpg', mimeType: 'image/jpeg', width: 1, height: 1 }],
+    });
+    await fireEvent.press(screen.getByTestId('photo-gallery'));
+    expect(await screen.findByText('Foto do perfil atualizada.')).toBeOnTheScreen();
+    // The photo the person picked, uploaded: not a placeholder.
+    expect(profile()?.avatarUrl).toMatch(/photos\/|uploaded/);
+    expect(profile()?.avatarUrl).not.toMatch(/picsum/);
 
     await fireEvent.press(screen.getByTestId('account-change-photo'));
     await fireEvent.press(screen.getByTestId('photo-remove'));
     expect(profile()?.avatarUrl).toBeNull();
+  });
+
+  it('keeps the photo when the picker is canceled or the camera denied', async () => {
+    await openCfg('account');
+    const before = profile()?.avatarUrl;
+    await fireEvent.press(screen.getByTestId('account-change-photo'));
+    jest
+      .mocked(ImagePicker.launchImageLibraryAsync)
+      .mockResolvedValueOnce({ canceled: true, assets: null });
+    await fireEvent.press(screen.getByTestId('photo-gallery'));
+    await waitFor(() => expect(screen.getByTestId('photo-camera')).toBeEnabled());
+    jest
+      .mocked(ImagePicker.requestCameraPermissionsAsync)
+      .mockResolvedValueOnce({ granted: false } as never);
+    await fireEvent.press(screen.getByTestId('photo-camera'));
+    await waitFor(() => expect(ImagePicker.launchCameraAsync).not.toHaveBeenCalled());
+    expect(profile()?.avatarUrl).toBe(before);
   });
 });
 
