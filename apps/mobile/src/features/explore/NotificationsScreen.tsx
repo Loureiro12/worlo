@@ -29,10 +29,9 @@ import {
   useTimeAgo,
 } from '@/data/notifications';
 import { usePerson } from '@/data/people';
-import { repos } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
 import { avatarFor } from '@/lib/people';
-import { routes } from '@/navigation/routes';
+import { notificationTarget } from './notificationTarget';
 import { useInviteActions } from './useInviteActions';
 
 type Seg = 'all' | 'invites';
@@ -219,30 +218,6 @@ function useNotificationText(n: NotificationView): { who: string; text: string }
   }
 }
 
-/** Where a tap goes (null: just marks it read). */
-function targetOf(n: NotificationView, inviteId: string | undefined): Href | null {
-  const id = n.entityId;
-  switch (n.type) {
-    case 'invite':
-      return inviteId ? routes.invite(inviteId) : null;
-    case 'follow':
-      return n.actorId ? routes.traveler(n.actorId) : null;
-    case 'comment':
-    case 'community':
-      return id ? routes.post(id) : null;
-    case 'reminder':
-      if (n.entityType === 'booking') {
-        return typeof n.data.tour_id === 'string' ? routes.passeio(n.data.tour_id) : null;
-      }
-      return id ? routes.roteiro(id) : null;
-    default:
-      if (!id) return null;
-      if (n.entityType === 'trip') return repos.trips.get(id) ? routes.trip(id) : null;
-      if (n.entityType === 'wish') return routes.future(id);
-      return null;
-  }
-}
-
 function NotificationRow({
   notification: n,
   last,
@@ -275,7 +250,7 @@ function NotificationRow({
 
   const onPress = () => {
     notificationsData.markRead(n.id);
-    const href = targetOf(n, membership?.id);
+    const href = notificationTarget(n, membership?.id);
     if (href) navigate(href);
   };
 

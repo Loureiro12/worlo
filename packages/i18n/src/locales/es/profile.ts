@@ -199,6 +199,10 @@ const profile: TranslationSchema['profile'] = {
       itineraries: 'Itinerarios',
       itinerariesText: 'Recordatorios antes del viaje',
       promos: 'Ofertas de paseos',
+      channel: 'Avisos de Worlo',
+      deviceOff: 'Notificaciones desactivadas',
+      deviceOffText: 'Invitaciones, recordatorios y respuestas no llegan a este dispositivo.',
+      deviceOffAction: 'Activar',
     },
     demo: {
       text: 'Solo para pruebas: simula los estados de las pantallas.',

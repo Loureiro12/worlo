@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { type NotificationPrefs, updatePrefs, useMe, useProfilePrefs } from '@/data/profile';
 import { useTwoFactor } from '@/data/twoFactor';
+import { usePushPermission } from '@/features/push/usePushPermission';
 import { auth } from '@/lib/auth';
 import { type CfgSection, routes } from '@/navigation/routes';
 import { useStore } from '@/store';
@@ -35,6 +36,7 @@ export function SettingsScreen() {
   const demo = useStore((s) => s.demo);
   const setDemo = useStore((s) => s.setDemo);
   const [signingOut, setSigningOut] = useState(false);
+  const push = usePushPermission();
 
   const signOut = async () => {
     if (signingOut) return;
@@ -105,6 +107,16 @@ export function SettingsScreen() {
       </GroupCard>
 
       <GroupCard title={t('profile.settings.groups.notifications')}>
+        {push.status === 'denied' || push.status === 'undetermined' ? (
+          <MenuRow
+            testID="settings-notif-device"
+            icon="bell-slash"
+            label={t('profile.settings.notifications.deviceOff')}
+            sub={t('profile.settings.notifications.deviceOffText')}
+            value={t('profile.settings.notifications.deviceOffAction')}
+            onPress={push.enable}
+          />
+        ) : null}
         {NOTIFICATIONS.map(({ key, icon, hasSub }) => (
           <SwitchRow
             key={key}

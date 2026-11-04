@@ -69,7 +69,7 @@ schema_paths = []
 enabled = true
 # Specifies an ordered list of seed files to load during db reset.
 # Supports glob patterns relative to supabase directory: "./seeds/*.sql"
-sql_paths = ["./seeds/catalog.sql", "./seeds/demo.sql"]
+sql_paths = ["./seeds/catalog.sql", "./seeds/push.sql", "./seeds/demo.sql"]
 
 [db.network_restrictions]
 # Enable management of network restrictions.
@@ -429,8 +429,8 @@ site_url = "worlo://"
 [remotes.production.auth.email]
 max_frequency = "1m0s"
 
-# Seeds (catalog + demo world) also run on the hosted project; both are
-# idempotent (catalog upserts, demo rows only inserted once).
+# Seeds (catalog, push copy and demo world) also run on the hosted project; all are
+# idempotent (catalog and copy upsert, demo rows only inserted once).
 [remotes.production.db.seed]
 enabled = true
-sql_paths = ["./seeds/catalog.sql", "./seeds/demo.sql"]
+sql_paths = ["./seeds/catalog.sql", "./seeds/push.sql", "./seeds/demo.sql"]

@@ -2,7 +2,7 @@ import { useTranslation } from '@worlo/i18n';
 import { Button, FormError, TextField } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { registerThisDevice } from '@/data/devices';
+import { registerThisDevice, useRegisterOptions } from '@/data/devices';
 import { type AuthErrorCode, auth, mfa } from '@/lib/auth';
 import { routes } from '@/navigation/routes';
 import { AuthFooter, AuthScreen, AuthTitle } from './AuthParts';
@@ -19,6 +19,7 @@ export function TwoFactorScreen() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<AuthErrorCode | 'code' | null>(null);
   const [busy, setBusy] = useState(false);
+  const registerOptions = useRegisterOptions();
 
   const submit = async () => {
     if (busy) return;
@@ -34,7 +35,7 @@ export function TwoFactorScreen() {
       setError(failed);
       return;
     }
-    void registerThisDevice().catch(() => {});
+    void registerThisDevice({ ...registerOptions, ask: true }).catch(() => {});
     void enterApp(router, peekEntry() ?? { greet: true });
   };
 

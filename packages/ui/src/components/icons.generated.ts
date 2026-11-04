@@ -19,6 +19,7 @@ import { BankIcon } from 'phosphor-react-native/src/icons/Bank';
 import { BatteryFullIcon } from 'phosphor-react-native/src/icons/BatteryFull';
 import { BedIcon } from 'phosphor-react-native/src/icons/Bed';
 import { BellIcon } from 'phosphor-react-native/src/icons/Bell';
+import { BellSlashIcon } from 'phosphor-react-native/src/icons/BellSlash';
 import { BoatIcon } from 'phosphor-react-native/src/icons/Boat';
 import { BookmarkSimpleIcon } from 'phosphor-react-native/src/icons/BookmarkSimple';
 import { BowlFoodIcon } from 'phosphor-react-native/src/icons/BowlFood';
@@ -160,6 +161,7 @@ export const icons = {
   'battery-full': BatteryFullIcon,
   bed: BedIcon,
   bell: BellIcon,
+  'bell-slash': BellSlashIcon,
   boat: BoatIcon,
   'bookmark-simple': BookmarkSimpleIcon,
   'bowl-food': BowlFoodIcon,

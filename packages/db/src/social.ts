@@ -443,7 +443,15 @@ export function createSocialRepositories(db: LocalDatabase, w: Writer, me: () =>
         .sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt)),
     get: (id: string) => db.select().from(devices).where(eq(devices.id, id)).get(),
     /** This phone: created on sign-in, `lastSeenAt` refreshed on app start. */
-    register(input: { id: string; name: string; platform: string; sessionId: string | null }) {
+    register(input: {
+      id: string;
+      name: string;
+      platform: string;
+      sessionId: string | null;
+      /** Expo push token; null keeps the one already registered (no permission prompt yet). */
+      pushToken: string | null;
+      language: string;
+    }) {
       const userId = requireMe();
       const existing = devicesRepo.get(input.id);
       const ts = w.stamp();
@@ -453,6 +461,8 @@ export function createSocialRepositories(db: LocalDatabase, w: Writer, me: () =>
         name: input.name.slice(0, 80),
         platform: input.platform.slice(0, 20),
         sessionId: input.sessionId,
+        pushToken: input.pushToken ?? existing?.pushToken ?? null,
+        language: input.language,
         lastSeenAt: ts,
         updatedAt: ts,
       });

@@ -322,6 +322,10 @@ export const devices = sqliteTable('devices', {
   sessionId: text('session_id'),
   lastSeenAt: text('last_seen_at').notNull(),
   revokedAt: text('revoked_at'),
+  /** Expo push token (null: no permission, or a simulator). */
+  pushToken: text('push_token'),
+  /** App language of this device: the server writes its pushes in it. */
+  language: text('language').notNull().default('pt-BR'),
 });
 
 /** Dates a tour can be booked on (pull only: the team opens them, bookings fill them). */

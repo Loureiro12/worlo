@@ -27,6 +27,7 @@ jobs:
               - 'packages/sync/src/adapters/**'
               - 'apps/mobile/src/mocks/**'
               - 'apps/mobile/src/data/catalogSpec.ts'
+              - 'packages/i18n/src/locales/**'
 
   # Lint + typecheck + unit/component tests. On PRs Turborepo only runs the
   # workspaces affected by the diff; results are cached between runs.

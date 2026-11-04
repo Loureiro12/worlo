@@ -29,3 +29,6 @@ apps/*/e2e-artifacts/
 # Supabase
 supabase/.branches/
 supabase/.temp/
+
+# Firebase config for Android push (EAS: GOOGLE_SERVICES_JSON file variable)
+apps/mobile/google-services.json

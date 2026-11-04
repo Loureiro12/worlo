@@ -66,3 +66,19 @@ jest.mock('expo-crypto', () => ({
   ...jest.requireActual('expo-crypto'),
   randomUUID: () => require('node:crypto').randomUUID(),
 }));
+
+// Push notifications: no native module in Jest. Tests drive taps through
+// `useLastNotificationResponse` and read the badge / permission calls.
+jest.mock('expo-notifications', () => ({
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
+  AndroidImportance: { DEFAULT: 5 },
+  setNotificationHandler: jest.fn(),
+  getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted', canAskAgain: true })),
+  requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted', canAskAgain: true })),
+  getExpoPushTokenAsync: jest.fn(() => Promise.resolve({ data: 'ExponentPushToken[test]' })),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
+  setBadgeCountAsync: jest.fn(() => Promise.resolve(true)),
+  addPushTokenListener: jest.fn(() => ({ remove: jest.fn() })),
+  useLastNotificationResponse: jest.fn(() => null),
+  clearLastNotificationResponseAsync: jest.fn(() => Promise.resolve()),
+}));

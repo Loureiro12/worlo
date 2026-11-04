@@ -198,6 +198,11 @@ const profile = {
       itineraries: 'Roteiros',
       itinerariesText: 'Lembretes antes da viagem',
       promos: 'Ofertas de passeios',
+      /** Android system settings name of the push channel. */
+      channel: 'Avisos do Worlo',
+      deviceOff: 'Notificações desligadas',
+      deviceOffText: 'Convites, lembretes e respostas não chegam neste aparelho.',
+      deviceOffAction: 'Ativar',
     },
     demo: {
       text: 'Só pra testes: simula os estados das telas do app.',

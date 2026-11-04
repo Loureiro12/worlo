@@ -14,6 +14,7 @@ import { resetStore } from '@/store';
 import { db } from './database';
 import { env } from './env';
 import { preferences } from './preferences';
+import { setBadge } from './push';
 import { supabase } from './supabase';
 
 /**
@@ -212,6 +213,7 @@ export const auth = {
   async signOut(): Promise<void> {
     await supabase?.auth.signOut({ scope: 'local' }).catch(() => {});
     clearDevice();
+    setBadge(0);
   },
 
   /** Configurações → Excluir conta: removes the account and all its data on the server. */

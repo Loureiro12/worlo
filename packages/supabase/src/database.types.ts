@@ -155,14 +155,14 @@ isOneToOne: false
                   ]
                 },"devices": {
                   Row: {
-                    "created_at": string,"deleted_at": string | null,"id": string,"last_seen_at": string,"name": string,"platform": string,"revoked_at": string | null,"session_id": string | null,"updated_at": string,"user_id": string
+                    "created_at": string,"deleted_at": string | null,"id": string,"language": string,"last_seen_at": string,"name": string,"platform": string,"push_token": string | null,"revoked_at": string | null,"session_id": string | null,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "created_at"?: string,"deleted_at"?: string | null,"id": string,"last_seen_at"?: string,"name"?: string,"platform"?: string,"revoked_at"?: string | null,"session_id"?: string | null,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"deleted_at"?: string | null,"id": string,"language"?: string,"last_seen_at"?: string,"name"?: string,"platform"?: string,"push_token"?: string | null,"revoked_at"?: string | null,"session_id"?: string | null,"updated_at"?: string,"user_id"?: string
                   }
                   Update: {
-                    "created_at"?: string,"deleted_at"?: string | null,"id"?: string,"last_seen_at"?: string,"name"?: string,"platform"?: string,"revoked_at"?: string | null,"session_id"?: string | null,"updated_at"?: string,"user_id"?: string
+                    "created_at"?: string,"deleted_at"?: string | null,"id"?: string,"language"?: string,"last_seen_at"?: string,"name"?: string,"platform"?: string,"push_token"?: string | null,"revoked_at"?: string | null,"session_id"?: string | null,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -285,9 +285,9 @@ isOneToOne: false
                   ]
                 },"notifications": {
                   Row: {
-                    "actor_id": string | null,"created_at": string,"data": NonNullable<Json>,"deleted_at": string | null,"entity_id": string | null,"entity_type": string | null,"id": string,"read_at": string | null,"type": string,"updated_at": string,"user_id": string
+                    "actor_id": string | null,"created_at": string,"data": NonNullable<Json>,"deleted_at": string | null,"entity_id": string | null,"entity_type": string | null,"id": string,"read_at": string | null,"type": string,"updated_at": string,"user_id": string,"push_pref": string | null
                   }
-                  ComputedFields: never
+                  ComputedFields: "push_pref"
                   Insert: {
                     "actor_id"?: string | null,"created_at"?: string,"data"?: NonNullable<Json>,"deleted_at"?: string | null,"entity_id"?: string | null,"entity_type"?: string | null,"id"?: string,"read_at"?: string | null,"type": string,"updated_at"?: string,"user_id"?: string
                   }
@@ -381,6 +381,34 @@ isOneToOne: false
                   }
                   Update: {
                     "auto_organize_photos"?: boolean,"avatar_url"?: string | null,"bio"?: string,"city"?: string,"created_at"?: string,"currency"?: string,"deleted_at"?: string | null,"id"?: string,"name"?: string,"notification_prefs"?: NonNullable<Json>,"onboarded_at"?: string | null,"privacy"?: string,"privacy_detail"?: NonNullable<Json>,"units"?: string,"updated_at"?: string,"username"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"push_log": {
+                  Row: {
+                    "created_at": string,"request_id": number,"tokens": (string)[]
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "created_at"?: string,"request_id": number,"tokens": (string)[]
+                  }
+                  Update: {
+                    "created_at"?: string,"request_id"?: number,"tokens"?: (string)[]
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"push_templates": {
+                  Row: {
+                    "key": string,"lang": string,"text": string
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "key": string,"lang": string,"text": string
+                  }
+                  Update: {
+                    "key"?: string,"lang"?: string,"text"?: string
                   }
                   Relationships: [
                     
@@ -603,6 +631,15 @@ isOneToOne: false
                            },
 "post_visible":
 { Args: { "p_author": string,"p_deleted": string,"p_visibility": string }; Returns: boolean
+                           },
+"push_body":
+{ Args: { "n": Omit<Database["public"]['Tables']["notifications"]['Row'], Database["public"]['Tables']["notifications"]['ComputedFields']>,"p_lang": string }; Returns: string
+                           },
+"push_cleanup":
+{ Args: Record<PropertyKey, never>; Returns: number
+                           },
+"push_pref":
+{ Args: { "n": Omit<Database["public"]['Tables']["notifications"]['Row'], Database["public"]['Tables']["notifications"]['ComputedFields']> }; Returns: string
                            },
 "related":
 { Args: { "a": string,"b": string }; Returns: boolean

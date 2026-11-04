@@ -228,4 +228,26 @@ describe.runIf(url && key)('SQLite ↔ Supabase', () => {
     const row = await ana.first.from('businesses').select('status').eq('id', business.id).single();
     expect(row.data).toEqual({ status: 'review' });
   });
+
+  it('registers push tokens; one phone keeps one account', async () => {
+    const ana = await account('Ana');
+    const bia = await account('Bia');
+    const anaId = (await ana.first.auth.getUser()).data.user?.id as string;
+    const biaId = (await bia.first.auth.getUser()).data.user?.id as string;
+    const token = `ExponentPushToken[${randomUUID()}]`;
+    const phone = { name: 'iPhone', platform: 'ios', sessionId: null, pushToken: token };
+
+    const anaPhone = device(ana.first, anaId);
+    anaPhone.repos.devices.register({ ...phone, id: randomUUID(), language: 'en' });
+    await anaPhone.engine.sync();
+    const mine = await ana.first.from('devices').select('push_token, language').single();
+    expect(mine.data).toEqual({ push_token: token, language: 'en' });
+
+    // Bia signs in on the same phone: Ana's account stops getting its pushes.
+    const biaPhone = device(bia.first, biaId);
+    biaPhone.repos.devices.register({ ...phone, id: randomUUID(), language: 'pt-BR' });
+    await biaPhone.engine.sync();
+    await anaPhone.engine.sync();
+    expect(anaPhone.repos.devices.list()[0]?.pushToken).toBeNull();
+  });
 });

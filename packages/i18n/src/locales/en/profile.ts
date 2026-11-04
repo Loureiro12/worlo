@@ -197,6 +197,10 @@ const profile: TranslationSchema['profile'] = {
       itineraries: 'Itineraries',
       itinerariesText: 'Reminders before the trip',
       promos: 'Tour offers',
+      channel: 'Worlo alerts',
+      deviceOff: 'Notifications are off',
+      deviceOffText: "Invites, reminders and replies won't reach this device.",
+      deviceOffAction: 'Turn on',
     },
     demo: {
       text: 'Testing only: simulates the app screen states.',

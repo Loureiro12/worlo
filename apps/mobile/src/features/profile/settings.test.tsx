@@ -1,4 +1,6 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
+import * as Notifications from 'expo-notifications';
+import { Linking } from 'react-native';
 import { repos } from '@/data/repositories';
 import { type AuthResult, auth } from '@/lib/auth';
 import { preferences } from '@/lib/preferences';
@@ -16,6 +18,9 @@ jest.mock('expo-router', () => ({
   useRouter: () => mockRouter,
   useLocalSearchParams: () => mockParams,
 }));
+
+// A real phone (simulators have no push): the permission row can show.
+jest.mock('expo-device', () => ({ ...jest.requireActual('expo-device'), isDevice: true }));
 
 jest.mock('@/lib/auth', () => ({
   ...jest.requireActual('@/lib/auth'),
@@ -106,6 +111,36 @@ describe('SettingsScreen', () => {
     expect(profile()?.notificationPrefs.promos).toBe(true);
     await fireEvent.press(screen.getByRole('switch', { name: 'Memórias' }));
     expect(profile()?.notificationPrefs).toMatchObject({ memories: false, promos: true });
+  });
+
+  describe('when the phone blocks notifications', () => {
+    const permissions = Notifications.getPermissionsAsync as jest.Mock;
+    const blocked = (status: string, canAskAgain: boolean) =>
+      permissions.mockResolvedValue({ status, canAskAgain });
+    afterEach(() => blocked('granted', true));
+
+    it('shows nothing while they are allowed', async () => {
+      await renderWithProviders(<SettingsScreen />);
+      expect(screen.queryByTestId('settings-notif-device')).toBeNull();
+    });
+
+    it('asks the first time', async () => {
+      blocked('undetermined', true);
+      await renderWithProviders(<SettingsScreen />);
+      expect(await screen.findByText('Notificações desligadas')).toBeOnTheScreen();
+      await fireEvent.press(screen.getByTestId('settings-notif-device'));
+      expect(Notifications.requestPermissionsAsync).toHaveBeenCalled();
+    });
+
+    it('opens the system settings after "Não permitir"', async () => {
+      blocked('denied', false);
+      const openSettings = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
+      await renderWithProviders(<SettingsScreen />);
+      await fireEvent.press(await screen.findByTestId('settings-notif-device'));
+      expect(openSettings).toHaveBeenCalled();
+      expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+      openSettings.mockRestore();
+    });
   });
 
   it('switches the demo state', async () => {

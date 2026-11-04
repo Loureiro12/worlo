@@ -196,9 +196,24 @@ describe('photos', () => {
 describe('devices', () => {
   it('registers this device and refreshes it', () => {
     const { repos } = setup();
-    repos.devices.register({ id: 'dev', name: 'iPhone', platform: 'ios', sessionId: 's1' });
-    repos.devices.register({ id: 'dev', name: 'iPhone', platform: 'ios', sessionId: 's2' });
+    const phone = { id: 'dev', name: 'iPhone', platform: 'ios', language: 'pt-BR' };
+    repos.devices.register({ ...phone, sessionId: 's1', pushToken: null });
+    repos.devices.register({ ...phone, sessionId: 's2', pushToken: 'ExponentPushToken[x]' });
     expect(repos.devices.list()).toHaveLength(1);
-    expect(repos.devices.get('dev')?.sessionId).toBe('s2');
+    expect(repos.devices.get('dev')).toMatchObject({
+      sessionId: 's2',
+      pushToken: 'ExponentPushToken[x]',
+    });
+  });
+
+  it('keeps the push token when a refresh has none, and follows the language', () => {
+    const { repos } = setup();
+    const phone = { id: 'dev', name: 'iPhone', platform: 'ios', sessionId: 's1' };
+    repos.devices.register({ ...phone, pushToken: 'ExponentPushToken[x]', language: 'pt-BR' });
+    repos.devices.register({ ...phone, pushToken: null, language: 'en' });
+    expect(repos.devices.get('dev')).toMatchObject({
+      pushToken: 'ExponentPushToken[x]',
+      language: 'en',
+    });
   });
 });

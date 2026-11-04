@@ -1,7 +1,16 @@
+import { existsSync } from 'node:fs';
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // Brand colours (Identidade Visual v1); app.config can't import @worlo/ui.
 const carvao = '#131311';
+const coral = '#E45B33';
+
+// Android push tokens come from Firebase (FCM). EAS builds get the file from
+// the GOOGLE_SERVICES_JSON file variable; locally from ./google-services.json.
+// Without it the app runs normally, only without push on Android.
+const googleServicesFile =
+  process.env.GOOGLE_SERVICES_JSON ??
+  (existsSync('./google-services.json') ? './google-services.json' : undefined);
 
 // Google Sign-In needs the reversed iOS OAuth client id as a URL scheme. Until
 // the Google Cloud clients exist the plugin is left out and the button hidden.
@@ -38,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: 'com.worlo.app',
+    googleServicesFile,
     adaptiveIcon: {
       backgroundColor: carvao,
       foregroundImage: './assets/android-icon-foreground.png',
@@ -66,6 +76,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       { supportedLocales: { ios: ['pt-BR', 'en', 'es'], android: ['pt-BR', 'en', 'es'] } },
     ],
     'expo-apple-authentication',
+    [
+      'expo-notifications',
+      // Android status bar icon: white pin on transparent, tinted coral.
+      { icon: './assets/notification-icon.png', color: coral, defaultChannel: 'default' },
+    ],
     [
       'expo-image-picker',
       {

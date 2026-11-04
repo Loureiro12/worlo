@@ -4,14 +4,17 @@
  *   supabase/seeds/catalog.sql  read-only content (countries, cities, tours…)
  *   supabase/seeds/demo.sql     the demo world: Ana (ana@worlo.app), friends and
  *                               experts, with their data, invites, posts and chats
+ *   supabase/seeds/push.sql     push notification copy: `explore.notifs` of each
+ *                               language (@worlo/i18n), rendered by push_body()
  *
  *   pnpm --filter @worlo/mobile db:seed:generate
  *
- * Both are idempotent: catalog rows are updated in place, demo rows are only
- * inserted once (a reviewer's changes survive a re-run).
+ * All are idempotent: catalog rows and push copy are updated in place, demo
+ * rows are only inserted once (a reviewer's changes survive a re-run).
  */
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { resources } from '@worlo/i18n';
 import { type Catalog, catalogEntries } from '../src/data/catalogSpec';
 import * as mocks from '../src/mocks/data.generated';
 import { DEMO_USER } from '../src/mocks/demo';
@@ -53,6 +56,21 @@ ${insert(
   'tour_schedules',
   mocks.PASSEIOS.map((t) => ({ tour_id: t.id, capacity: TOUR_CAPACITY, days_ahead: TOUR_DAYS })),
   'on conflict (tour_id) do nothing',
+)}`,
+);
+
+// ── Push copy ──────────────────────────────────────────────────────────────
+
+const pushTemplates = Object.entries(resources).flatMap(([lang, { translation }]) =>
+  Object.entries(translation.explore.notifs).map(([key, text]) => ({ lang, key, text })),
+);
+writeFileSync(
+  out('push.sql'),
+  `${HEADER}
+${insert(
+  'push_templates',
+  pushTemplates,
+  'on conflict (lang, key) do update set text = excluded.text',
 )}`,
 );
 
@@ -131,5 +149,5 @@ delete from public.activities
 
 writeFileSync(out('demo.sql'), demo);
 console.log(
-  `catalog: ${catalog.length} rows · demo: ${DEMO_USERS.length} accounts, ${Object.values(tables).flat().length} rows`,
+  `catalog: ${catalog.length} rows · push: ${pushTemplates.length} templates · demo: ${DEMO_USERS.length} accounts, ${Object.values(tables).flat().length} rows`,
 );

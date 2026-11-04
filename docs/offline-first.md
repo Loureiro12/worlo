@@ -34,7 +34,7 @@ SyncEngine ── push _outbox ────────────────�
 | **Catálogo**           | `catalog` (países, cidades, lugares, passeios, roteiros recomendados…), uma linha por entidade: `id = '<kind>:<key>'`                                                             | só pull                                                                 |
 | **Compartilhados**     | `trips`/`wish_destinations` com `memberships` (dono + colaboradores), `trip_expenses`, `photos` (arquivo no Storage), `activities`                                                | push + pull, RLS por relação: dono, convidado (prévia) ou membro aceito |
 | **Pessoas e avisos**   | `people` (perfil público de quem se relaciona com você + especialistas), `follows`, `notifications` (criadas por triggers), `chat_threads`/`chat_members`/`messages`, `devices`   | push + pull (pull only: `people`, `activities`, `chat_threads`)         |
-| **Passeios (fase 3)**  | `tour_slots` (datas e vagas), `bookings` (minhas reservas), `businesses` (cadastros do Anuncie)                                                                                    | pull only: `tour_slots`, `bookings`; push + pull: `businesses`          |
+| **Passeios (fase 3)**  | `tour_slots` (datas e vagas), `bookings` (minhas reservas), `businesses` (cadastros do Anuncie)                                                                                   | pull only: `tour_slots`, `bookings`; push + pull: `businesses`          |
 | **Online (com cache)** | feed da comunidade, posts, comentários, votos, página de viajante, busca de pessoas — RPCs `community_feed`, `post_comments`, `traveler_profile`, `search_people`                 | React Query (`QueryProvider`); offline mostra o estado offline          |
 
 O catálogo é montado no app por `buildCatalog` (`apps/mobile/src/data/catalogSpec.ts`) nas mesmas estruturas que as telas já usavam. Editar conteúdo = editar linhas de `catalog` no Supabase; os aparelhos recebem no próximo sync, sem nova versão do app.
@@ -92,6 +92,16 @@ Login obrigatório: e-mail e senha, Apple (iOS) e Google (quando `EXPO_PUBLIC_GO
 - **Fechar uma data:** `update tour_slots set deleted_at = now() where …` (reservas existentes continuam valendo).
 - **Aprovar negócio:** `update businesses set status = 'approved' where id = …` (ou `'rejected'`).
 - **Reservas de um passeio:** `select * from bookings where tour_id = … and status = 'confirmed' order by date;`.
+
+## Notificações push (fase 4)
+
+- **Toda notificação vira push.** Um trigger em `notifications` (`push_notification()`) monta o texto e enfileira um envio para a API do Expo via pg_net, depois do commit. Se o push falhar, a ação que criou a notificação (convite, reserva…) não é desfeita.
+- **Mesmo texto do app.** A cópia é `explore.notifs` do `@worlo/i18n`, gerada em `supabase/seeds/push.sql` (`push_templates`) pelo `pnpm --filter @worlo/mobile db:seed:generate`; `push_body()` aplica as variáveis e o plural. Mudou texto em `explore.notifs`? Rode o gerador (a CI acusa se esquecer).
+- **Aparelhos.** O token e o idioma do app ficam em `devices` (`push_token`, `language`) e sobem pelo outbox. Só aparelhos com sessão viva recebem: sair da conta ou "Desconectar" encerra a sessão e corta o push. Um token pertence a uma conta só (`claim_push_token`). Simuladores não têm token.
+- **Preferências.** Os interruptores de Configurações › Notificações calam o push (Memórias, Comunidade: seguir/comentário/confirmações, Roteiros: lembretes de viagem). A lista dentro do app continua com tudo. Convites, atividade de viagem, lembrete de passeio e Anuncie sempre vão.
+- **Limpeza.** `push_cleanup()` roda a cada 15 min (pg_cron) e apaga tokens que o Expo devolveu como `DeviceNotRegistered` (app desinstalado).
+- **No app.** A permissão é pedida ao entrar na conta. Se estiver negada, Configurações mostra "Notificações desligadas" com atalho para os ajustes do sistema. Tocar no push abre a mesma tela que a linha em Notificações (`notificationTarget`); o número no ícone do app é o total de não lidas.
+- **Credenciais (uma vez).** iOS: chave APNs no EAS (`eas credentials`). Android: projeto Firebase, `google-services.json` como variável de arquivo `GOOGLE_SERVICES_JSON` no EAS e a chave de conta de serviço FCM v1 no EAS. Sem o arquivo, o Android funciona normalmente, só sem push.
 
 ## Decisões e limites conhecidos
 

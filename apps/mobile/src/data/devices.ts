@@ -1,4 +1,6 @@
 import type { Device } from '@worlo/db';
+import { useTranslation } from '@worlo/i18n';
+import { addPushTokenListener } from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { auth, mfa } from '@/lib/auth';
@@ -10,6 +12,7 @@ import {
   forgetDeviceId,
   knownDeviceId,
 } from '@/lib/device';
+import { pushToken } from '@/lib/push';
 import { supabase } from '@/lib/supabase';
 import { routes } from '@/navigation/routes';
 import { getCurrentUserId, repos } from './repositories';
@@ -20,6 +23,7 @@ import { useQuery } from './useQuery';
  * own rows only); this phone registers itself on sign-in and refreshes
  * `lastSeenAt` on app start. Disconnecting another device is the online RPC
  * `revoke_device` (it deletes that device's auth session on the server).
+ * The row also carries the push token and app language (server-sent pushes).
  */
 
 export type ConnectedDevice = Device & { current: boolean };
@@ -32,17 +36,28 @@ export function useDevices(): ConnectedDevice[] {
   }, []);
 }
 
+export type RegisterOptions = {
+  language: string;
+  /** Android channel name (system settings), in the app language. */
+  channelName: string;
+  /** Ask for push permission if it was never asked (system prompt, once). */
+  ask?: boolean;
+};
+
 /** Registers (or refreshes) this phone. Skipped while the 2FA code is pending (AAL1). */
-export async function registerThisDevice(): Promise<void> {
+export async function registerThisDevice(options: RegisterOptions): Promise<void> {
   const userId = getCurrentUserId();
   if (!userId || (await mfa.needsChallenge())) return;
   const sessionId = await currentSessionId();
+  const token = await pushToken({ ask: options.ask ?? false, channelName: options.channelName });
   if (getCurrentUserId() !== userId) return;
   repos.devices.register({
     id: deviceId(userId),
     name: deviceName(),
     platform: devicePlatform(),
     sessionId,
+    pushToken: token,
+    language: options.language,
   });
 }
 
@@ -64,10 +79,32 @@ export async function revokeDevice(id: string, online: boolean): Promise<RevokeR
  * online, and signs out locally when another device revoked this one (its row
  * comes back from sync with `revokedAt`).
  */
+/** Language and Android channel name for `registerThisDevice`. */
+export function useRegisterOptions(): RegisterOptions {
+  // i18n follows the language picked in Configurações (PreferencesProvider).
+  const { t, i18n } = useTranslation();
+  return { language: i18n.language, channelName: t('profile.settings.notifications.channel') };
+}
+
 export function useDeviceSession(userId: string | null, online: boolean) {
+  const { language, channelName } = useRegisterOptions();
+
+  // Signed in: register with the push token (asks for permission the first
+  // time); again when the language changes, so pushes follow it.
   useEffect(() => {
-    if (userId && online) void registerThisDevice().catch(() => {});
-  }, [userId, online]);
+    if (userId && online) {
+      void registerThisDevice({ language, channelName, ask: true }).catch(() => {});
+    }
+  }, [userId, online, language, channelName]);
+
+  // The system may rotate the native token (restore): fetch the Expo one again.
+  useEffect(() => {
+    if (!userId) return;
+    const subscription = addPushTokenListener(() => {
+      void registerThisDevice({ language, channelName }).catch(() => {});
+    });
+    return () => subscription.remove();
+  }, [userId, language, channelName]);
 
   const revoked = useQuery(() => {
     const id = userId ? knownDeviceId(userId) : null;
