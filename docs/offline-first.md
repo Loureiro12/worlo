@@ -109,3 +109,10 @@ Login obrigatório: e-mail e senha, Apple (iOS) e Google (quando `EXPO_PUBLIC_GO
 - **Marcações sem conflito.** Países visitados, salvos e o registro do modo viagem são linhas próprias; dois aparelhos marcando o mesmo país offline geram duas linhas, que a leitura junta (e desmarcar remove todas).
 - **Cursor por `updated_at`.** Uma transação longa no servidor pode commitar com timestamp anterior ao cursor de outro cliente e não ser vista. Com escritas curtas (upserts do próprio app) o risco é baixo. Se virar problema, troque por um cursor de sequência lógica (por exemplo, `xid`) ou adote [PowerSync](https://www.powersync.com/), que usa as mesmas convenções de tabela.
 - **Escritas recusadas não travam a fila.** Erros que tentar de novo não resolve (códigos Postgres 42, 23, 22, P0: permissão/RLS, constraint, dado inválido) tiram só a linha culpada da fila (ela vai para `_sync_rejected`, para diagnóstico) e o resto segue. Erros de rede continuam no outbox com retry e backoff. Mesmo assim, os repositórios validam tudo que o Postgres checa (`ValidationError`) para que isso seja exceção.
+
+## Erros e perda de dados
+
+- **Toda alteração já está no SQLite** antes de qualquer envio. O que pode se perder é só o que ainda está no outbox quando os dados locais são apagados (sair da conta, trocar de conta, aparelho desconectado em Segurança).
+- **Sair da conta** (`useSafeSignOut`) tenta enviar o outbox primeiro (até 8 s). Se algo continuar pendente, pergunta antes de descartar. O app também sincroniza ao ir para segundo plano.
+- **Erros inesperados** vão para `app_errors` (só inserção, RLS por usuário; a equipe lê no painel): telas que falham ao renderizar (`AppErrorBoundary`, que mostra "Algo deu errado" em vez de fechar o app), erros fatais de JS (`installGlobalErrorHandler`) e linhas que o servidor rejeitou de vez (`sync.rejected:<tabela>`). Ficam no aparelho até haver sessão.
+- **Globo:** anima só com a tela visível e o app em primeiro plano (`useScreenActive` → `paused`). Abas continuam montadas; um globo girando escondido ocupava mais de um núcleo de CPU.

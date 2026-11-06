@@ -6,6 +6,7 @@ import { Pressable, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { completeOnboarding } from '@/data/profile';
 import { useCountryName } from '@/lib/countries';
+import { useScreenActive } from '@/lib/useScreenActive';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 
@@ -13,6 +14,7 @@ const BRAZIL = '076';
 
 /** A6 · Comece pelo seu mapa: tap countries you already know (step 1 of 2). */
 export function OnboardingMapScreen() {
+  const active = useScreenActive();
   const { t } = useTranslation();
   const router = useRouter();
   const toast = useToast();
@@ -47,6 +49,7 @@ export function OnboardingMapScreen() {
       <StatusBar style="light" />
       <View style={{ position: 'absolute', left: 0, top: 170 }}>
         <Globe
+          paused={!active}
           testID="onboarding-globe"
           width={width}
           height={500}

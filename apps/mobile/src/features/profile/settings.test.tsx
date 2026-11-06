@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import { Linking } from 'react-native';
 import { repos } from '@/data/repositories';
+import * as SyncModule from '@/features/sync/SyncProvider';
 import { type AuthResult, auth } from '@/lib/auth';
 import { preferences } from '@/lib/preferences';
 import { routes } from '@/navigation/routes';
@@ -174,6 +175,34 @@ describe('SettingsScreen', () => {
     await act(async () => finish());
     expect(mockAuth.signOut).toHaveBeenCalledTimes(1);
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.welcome);
+  });
+
+  it('does not throw away changes that never reached the server without asking', async () => {
+    mockAuth.signOut.mockResolvedValue(undefined);
+    const flush = jest.spyOn(SyncModule, 'flushPendingChanges').mockResolvedValue(2);
+    await renderWithProviders(<SettingsScreen />);
+    await fireEvent.press(screen.getByTestId('settings-sign-out'));
+    expect(
+      await screen.findByText(/2 alterações ainda não chegaram ao servidor/),
+    ).toBeOnTheScreen();
+    expect(mockAuth.signOut).not.toHaveBeenCalled();
+
+    // Back online: the retry sends them and signs out.
+    flush.mockResolvedValue(0);
+    await fireEvent.press(screen.getByTestId('sign-out-pending-retry'));
+    await waitFor(() => expect(mockAuth.signOut).toHaveBeenCalledTimes(1));
+    expect(mockRouter.replace).toHaveBeenCalledWith(routes.welcome);
+    flush.mockRestore();
+  });
+
+  it('signs out anyway when the person chooses to discard', async () => {
+    mockAuth.signOut.mockResolvedValue(undefined);
+    const flush = jest.spyOn(SyncModule, 'flushPendingChanges').mockResolvedValue(1);
+    await renderWithProviders(<SettingsScreen />);
+    await fireEvent.press(screen.getByTestId('settings-sign-out'));
+    await fireEvent.press(await screen.findByTestId('sign-out-pending-discard'));
+    await waitFor(() => expect(mockAuth.signOut).toHaveBeenCalledTimes(1));
+    flush.mockRestore();
   });
 });
 

@@ -3,10 +3,10 @@ import { Button, FormError, TextField } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { registerThisDevice, useRegisterOptions } from '@/data/devices';
-import { type AuthErrorCode, auth, mfa } from '@/lib/auth';
-import { routes } from '@/navigation/routes';
+import { type AuthErrorCode, mfa } from '@/lib/auth';
 import { AuthFooter, AuthScreen, AuthTitle } from './AuthParts';
 import { enterApp, failureCode, peekEntry } from './entry';
+import { useSafeSignOut } from './useSafeSignOut';
 
 /**
  * Verificação em duas etapas, after signing in on an account with 2FA on: the
@@ -39,10 +39,7 @@ export function TwoFactorScreen() {
     void enterApp(router, peekEntry() ?? { greet: true });
   };
 
-  const signOut = async () => {
-    await auth.signOut();
-    router.replace(routes.welcome);
-  };
+  const { signOut, confirm: signOutConfirm } = useSafeSignOut();
 
   const message =
     error === 'code'
@@ -91,6 +88,7 @@ export function TwoFactorScreen() {
         loading={busy}
         onPress={() => void submit()}
       />
+      {signOutConfirm}
     </AuthScreen>
   );
 }

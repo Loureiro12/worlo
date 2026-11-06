@@ -7,11 +7,12 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Defs, Ellipse, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useProfile } from '@/data/profile';
 import { useSync } from '@/features/sync/SyncProvider';
-import { auth, mfa } from '@/lib/auth';
+import { mfa } from '@/lib/auth';
 import { firstName } from '@/lib/people';
 import { routes } from '@/navigation/routes';
 import { useAuth } from '@/providers/AuthProvider';
 import { clearEntry, peekEntry } from './entry';
+import { useSafeSignOut } from './useSafeSignOut';
 
 /** Total time on screen before moving on (04_INTERACTIONS → Splash). */
 export const SPLASH_MS = 3000;
@@ -94,6 +95,7 @@ export function SplashScreen() {
     };
   }, [userId]);
   const gate = mfaGate && mfaGate.user === userId ? mfaGate : null;
+  const safe = useSafeSignOut();
 
   let destination: Href | null = null;
   if (session.status === 'signedOut') destination = routes.welcome;
@@ -176,15 +178,18 @@ export function SplashScreen() {
   if (stuck) {
     const kind = sync.online ? 'error' : 'offline';
     return (
-      <FullScreenState
-        kind={kind}
-        onDark
-        title={t(`auth.gate.${kind}Title`)}
-        text={t(`auth.gate.${kind}Text`)}
-        retryLabel={t('common.actions.retry')}
-        onRetry={sync.retry}
-        secondary={{ label: t('auth.gate.signOut'), onPress: () => void auth.signOut() }}
-      />
+      <>
+        <FullScreenState
+          kind={kind}
+          onDark
+          title={t(`auth.gate.${kind}Title`)}
+          text={t(`auth.gate.${kind}Text`)}
+          retryLabel={t('common.actions.retry')}
+          onRetry={sync.retry}
+          secondary={{ label: t('auth.gate.signOut'), onPress: () => void safe.signOut() }}
+        />
+        {safe.confirm}
+      </>
     );
   }
 

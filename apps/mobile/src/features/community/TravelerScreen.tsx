@@ -29,6 +29,7 @@ import { useVisitedMap } from '@/data/world';
 import { countCities } from '@/features/profile/stats';
 import { img } from '@/lib/images';
 import { firstName, joinNames } from '@/lib/people';
+import { useScreenActive } from '@/lib/useScreenActive';
 import { demoKey } from '@/mocks/demo';
 import type { Trip } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
@@ -109,6 +110,7 @@ export function TravelerScreen() {
 }
 
 function TravelerContent({ id }: { id: string }) {
+  const active = useScreenActive();
   const styles = useStyles();
   const { t } = useTranslation();
   const router = useRouter();
@@ -296,6 +298,7 @@ function TravelerContent({ id }: { id: string }) {
         <View style={styles.globeCard}>
           <View style={{ position: 'absolute', left: 110, top: -10 }}>
             <Globe
+              paused={!active}
               width={260}
               height={230}
               visited={profile.countries}

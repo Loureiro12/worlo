@@ -2,12 +2,11 @@ import { isLanguage, useTranslation } from '@worlo/i18n';
 import { Button, RadioRow, Screen, Text } from '@worlo/ui';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { View } from 'react-native';
 import { type NotificationPrefs, updatePrefs, useMe, useProfilePrefs } from '@/data/profile';
 import { useTwoFactor } from '@/data/twoFactor';
+import { useSafeSignOut } from '@/features/auth/useSafeSignOut';
 import { usePushPermission } from '@/features/push/usePushPermission';
-import { auth } from '@/lib/auth';
 import { type CfgSection, routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 import { currencySymbol, DEMO_STATES } from './options';
@@ -35,15 +34,8 @@ export function SettingsScreen() {
   const { currency, units, privacy, notifications } = useProfilePrefs();
   const demo = useStore((s) => s.demo);
   const setDemo = useStore((s) => s.setDemo);
-  const [signingOut, setSigningOut] = useState(false);
+  const { signOut, busy: signingOut, confirm: signOutConfirm } = useSafeSignOut();
   const push = usePushPermission();
-
-  const signOut = async () => {
-    if (signingOut) return;
-    setSigningOut(true);
-    await auth.signOut();
-    router.replace(routes.welcome);
-  };
 
   const language = isLanguage(i18n.language) ? i18n.language : 'pt-BR';
   const open = (section: CfgSection) => () => router.push(routes.cfg(section));
@@ -196,9 +188,19 @@ export function SettingsScreen() {
         loading={signingOut}
         onPress={() => void signOut()}
       />
+      {signOutConfirm}
 
       <Text variant="caption" tone="muted" align="center" style={{ fontSize: 12 }}>
         {t('profile.settings.version', { version })}
+      </Text>
+      <Text
+        testID="settings-credits"
+        variant="caption"
+        tone="muted"
+        align="center"
+        style={{ fontSize: 11, marginTop: -8 }}
+      >
+        {t('profile.settings.credits')}
       </Text>
     </Screen>
   );

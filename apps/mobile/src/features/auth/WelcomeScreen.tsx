@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useScreenActive } from '@/lib/useScreenActive';
 import { routes } from '@/navigation/routes';
 
 const VISITED = ['076', '620', '250', '380', '032', '152'];
@@ -12,6 +13,7 @@ const WISHLIST = ['392', '352'];
 
 /** A2 · Boas-vindas: spinning globe, brand copy, "Começar" / "Já tenho conta". */
 export function WelcomeScreen() {
+  const active = useScreenActive();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -23,6 +25,7 @@ export function WelcomeScreen() {
       {/* 510×560 at (-60, 30) on a 390pt screen: overflows both sides by 60. */}
       <View style={{ position: 'absolute', left: -60, top: 30 }}>
         <Globe
+          paused={!active}
           width={width + 120}
           height={560}
           visited={VISITED}

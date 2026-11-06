@@ -84,7 +84,7 @@ describe('ExploreScreen', () => {
     await renderWithProviders(<TripsScreen />);
     await fireEvent.press(screen.getByTestId('trips-seg-wish'));
     expect(screen.getByText('Fernando de Noronha')).toBeOnTheScreen();
-    expect(screen.getByText('Salvo agora')).toBeOnTheScreen();
+    expect(screen.getByText(/Salvo agora/)).toBeOnTheScreen();
   });
 
   it('opens the city or country page from a place card', async () => {

@@ -8,6 +8,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
 } from 'react';
@@ -17,6 +18,7 @@ import { dataEvents } from '@/data/events';
 import { repos, setSyncRequester } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
 import { db } from '@/lib/database';
+import { flushErrorReports, recordError } from '@/lib/errorLog';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -38,6 +40,20 @@ type SyncContextValue = {
 
 const SyncContext = createContext<SyncContextValue | null>(null);
 
+type PendingFlusher = (timeoutMs: number) => Promise<number>;
+let pendingFlusher: PendingFlusher | null = null;
+function setPendingFlusher(fn: PendingFlusher | null) {
+  pendingFlusher = fn;
+}
+
+/**
+ * Tries to push the outbox (up to `timeoutMs`) and resolves how many changes
+ * are still only on this device. Used before signing out, which erases them.
+ */
+export async function flushPendingChanges(timeoutMs = 8000): Promise<number> {
+  return pendingFlusher ? pendingFlusher(timeoutMs) : 0;
+}
+
 const notConfigured = {
   upsert: () => Promise.reject(new Error('Backend not configured')),
   pull: () => Promise.reject(new Error('Backend not configured')),
@@ -50,10 +66,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         local: createLocalStore(db, { onChange: () => dataEvents.emit() }),
         remote: supabase ? createSupabaseRemoteStore(supabase) : notConfigured,
         tables: syncOrder,
+        // A rejected row never reaches the server: keep a trace for the team.
+        onRejected: (table, error, count) =>
+          recordError(new Error(`${count} row(s): ${error}`), `sync.rejected:${table}`),
       }),
   );
   // After every sync, drop what the user can no longer see (removed from a trip…).
-  const [run] = useState(() => () => engine.sync().finally(() => repos.collab.prune()));
+  const [run] = useState(
+    () => () =>
+      engine.sync().finally(() => {
+        repos.collab.prune();
+        void flushErrorReports();
+      }),
+  );
   const [scheduler] = useState(() => createSyncScheduler({ sync: run }));
   const status = useSyncExternalStore(
     (listener) => engine.subscribe(listener),
@@ -70,6 +95,23 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     () => repos.profile.get() !== undefined && repos.catalog.rows().length > 0,
     [],
   );
+
+  // Sair da conta: give pending changes a last chance to reach the server.
+  const onlineNow = useRef(online);
+  onlineNow.current = online;
+  useEffect(() => {
+    setPendingFlusher(async (timeoutMs) => {
+      if (onlineNow.current) {
+        await Promise.race([
+          run().catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+        ]);
+      }
+      await engine.refreshPending().catch(() => {});
+      return engine.getStatus().pending;
+    });
+    return () => setPendingFlusher(null);
+  }, [engine, run]);
 
   useEffect(() => {
     setSyncRequester(() => {
@@ -118,6 +160,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         supabase?.auth.startAutoRefresh();
         scheduler.request();
       } else {
+        // Leaving the app: send what is waiting now, the system may close it later.
+        if (state === 'background') scheduler.request();
         supabase?.auth.stopAutoRefresh();
       }
     });
