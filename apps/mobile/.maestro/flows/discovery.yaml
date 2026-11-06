@@ -1,5 +1,5 @@
 # Discovery + Share (02_SCREENS → E1, E2, J · 03_FLOWS → F7, F11).
-# Explorar → Passeios → Tejo → date + 1 person → Reservar (book_tour) → cancel; Perfil → Compartilhar.
+# Explorar → Passeios → Tejo → supplier booking link; Perfil → Compartilhar.
 appId: com.worlo.app
 tags:
   - full
@@ -24,61 +24,18 @@ tags:
 - tapOn:
     id: passeio-card-tejo
 
-# E2 · Detalhe: sold-out day keeps the date, pick another, +1 person, book
+# E2 · Detalhe: booking happens on the supplier's site (no booking inside Worlo).
+# The seeded tours have no booking link yet, so the button says so.
 - extendedWaitUntil:
     visible:
       id: passeio-screen
     timeout: 10000
 - assertVisible: Pôr do sol de veleiro no Tejo
-- scrollUntilVisible:
-    element:
-      id: passeio-people-plus
-    direction: DOWN
-- tapOn:
-    id: passeio-date-2
-- assertVisible: Esse dia esgotou. Tenta outro?
-- tapOn:
-    id: passeio-date-3
-- tapOn:
-    id: passeio-people-plus
-- assertVisible:
-    id: passeio-total
-    text: € 135
-- tapOn:
-    id: passeio-book
-# Dates come from tour_slots (day +1 … +6), so the toast date is dynamic.
-- extendedWaitUntil:
-    visible: "Reserva confirmada pra .*Bom passeio!"
-    timeout: 10000
+- assertNotVisible:
+    id: passeio-date-0
 - assertVisible:
     id: passeio-book
-    text: Reservado
-- tapOn:
-    id: header-back
-# The chip sits inside an accessible card (iOS merges it), so match its text.
-- extendedWaitUntil:
-    visible:
-      text: ".*Reservado.*"
-    timeout: 5000
-
-# Cancel (keeps the flow re-runnable without a db reset)
-- tapOn:
-    id: passeio-card-tejo
-- tapOn:
-    id: passeio-book
-- extendedWaitUntil:
-    visible:
-      id: booking-sheet
-    timeout: 5000
-- assertVisible: "O pagamento é feito direto com .*"
-- tapOn:
-    id: booking-cancel
-- extendedWaitUntil:
-    visible: "Reserva cancelada.*"
-    timeout: 10000
-- assertVisible:
-    id: passeio-book
-    text: Reservar
+    text: Reserva pelo fornecedor em breve
 - tapOn:
     id: header-back
 

@@ -12,14 +12,12 @@ import {
   Screen,
   ScreenHeader,
   SearchPill,
-  StatusChip,
   Text,
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { DemoGate } from '@/components/DemoGate';
-import { useBookedTours } from '@/data/bookings';
 import { useCatalog } from '@/data/catalog';
 import { formatMoney, matchesQuery } from '@/lib/format';
 import { img } from '@/lib/images';
@@ -131,7 +129,6 @@ export function PasseiosScreen() {
 function TourCard({ tour, onOpen }: { tour: Tour; onOpen: () => void }) {
   const { t } = useTranslation();
   const styles = useStyles();
-  const booked = useBookedTours().has(tour.id);
   const { saved, toggle } = useTourSave(tour);
   const price = formatMoney(tour.price, tour.cur);
   const fromPrice = t('discovery.list.fromPrice', { price });
@@ -141,18 +138,13 @@ function TourCard({ tour, onOpen }: { tour: Tour; onOpen: () => void }) {
       <Pressable
         testID={`passeio-card-${tour.id}`}
         accessibilityRole="button"
-        accessibilityLabel={[
-          t('discovery.list.cardA11y', {
-            name: tour.name,
-            place: tour.place,
-            duration: tour.dur,
-            rating: tour.rating,
-            price,
-          }),
-          booked ? t('discovery.list.booked') : null,
-        ]
-          .filter(Boolean)
-          .join(', ')}
+        accessibilityLabel={t('discovery.list.cardA11y', {
+          name: tour.name,
+          place: tour.place,
+          duration: tour.dur,
+          rating: tour.rating,
+          price,
+        })}
         onPress={onOpen}
         style={({ pressed }) => [styles.cardInner, pressed ? styles.pressed : null]}
       >
@@ -162,16 +154,6 @@ function TourCard({ tour, onOpen }: { tour: Tour; onOpen: () => void }) {
               {fromPrice}
             </Text>
           </View>
-          {booked ? (
-            <StatusChip
-              testID={`passeio-card-booked-${tour.id}`}
-              kind="dark"
-              size="sm"
-              icon="check"
-              label={t('discovery.list.booked')}
-              style={styles.booked}
-            />
-          ) : null}
         </Photo>
         <View style={styles.body}>
           <Text variant="cardTitle" style={{ fontSize: 19 }}>
@@ -229,7 +211,6 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.colors.surface,
     justifyContent: 'center',
   },
-  booked: { position: 'absolute', left: 10, top: 10 },
   heart: { position: 'absolute', top: 20, right: 20 },
   body: { paddingHorizontal: 6, gap: 4 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 8 },

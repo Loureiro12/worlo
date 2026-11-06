@@ -37,18 +37,23 @@ export type AnuncieForm = {
   city: string;
   desc: string;
   email: string;
+  /** Page where travelers book (optional; must be a web link). */
+  link: string;
 };
-export type AnuncieError = 'name' | 'city' | 'email';
+export type AnuncieError = 'name' | 'city' | 'email' | 'link';
 
 const EMAIL = /.+@.+\..+/;
 const isAnuncieError = (code: string): code is AnuncieError =>
-  code === 'name' || code === 'city' || code === 'email';
+  code === 'name' || code === 'city' || code === 'email' || code === 'link';
+const WEB_URL = /^https?:\/\/\S+$/i;
 
 /** 04_INTERACTIONS → Validações: nome → cidade → e-mail (first missing wins). */
 export function anuncieError(form: AnuncieForm): AnuncieError | null {
   if (!form.name.trim()) return 'name';
   if (!form.city.trim()) return 'city';
   if (!EMAIL.test(form.email.trim())) return 'email';
+  const link = form.link.trim();
+  if (link && !WEB_URL.test(link)) return 'link';
   return null;
 }
 
@@ -66,6 +71,7 @@ export function AnuncieScreen() {
     city: '',
     desc: '',
     email: '',
+    link: '',
   });
   const [error, setError] = useState<AnuncieError | null>(null);
   const [sent, setSent] = useState(false);
@@ -87,7 +93,7 @@ export function AnuncieScreen() {
       return;
     }
     try {
-      repos.businesses.submit({ ...form, description: form.desc });
+      repos.businesses.submit({ ...form, description: form.desc, bookingUrl: form.link });
     } catch (e) {
       if (e instanceof ValidationError && isAnuncieError(e.code)) {
         setError(e.code);
@@ -221,6 +227,19 @@ export function AnuncieScreen() {
             autoCorrect={false}
             autoComplete="email"
             textContentType="emailAddress"
+            returnKeyType="next"
+          />
+          <TextField
+            testID="anuncie-link"
+            label={t('discovery.anuncie.fields.link')}
+            placeholder={t('discovery.anuncie.fields.linkPlaceholder')}
+            value={form.link}
+            onChangeText={(link) => change({ link })}
+            invalid={error === 'link'}
+            keyboardType="url"
+            autoCapitalize="none"
+            autoCorrect={false}
+            textContentType="URL"
             returnKeyType="done"
             onSubmitEditing={submit}
           />
