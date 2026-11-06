@@ -562,7 +562,11 @@ describe('FirstMapScreen', () => {
     repos.profile.update({ onboardedAt: null });
   });
 
-  it('shows the stats and finishes onboarding on the map', async () => {
+  it('shows the real stats and finishes onboarding on the map', async () => {
+    // A new account: what onboarding saved is all there is.
+    for (const trip of repos.trips.list()) repos.trips.remove(trip.id);
+    for (const iso of Object.keys(repos.world.visitedMap())) repos.world.toggleVisited(iso);
+    repos.trips.create({ title: 'Rio', place: 'Rio de Janeiro', year: '2024' });
     useStore.setState({ onboardingVisited: ['076', '620'] });
     await renderWithProviders(<FirstMapScreen />);
     expect(screen.getByText('Seu mapa começou.')).toBeOnTheScreen();
@@ -573,6 +577,16 @@ describe('FirstMapScreen', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Ver meu mapa' }));
     expect(repos.profile.get()?.onboardedAt).toEqual(expect.any(String));
     expect(mockRouter.replace).toHaveBeenCalledWith(routes.map);
+  });
+
+  it('lets onboarding add more than one trip', async () => {
+    await renderWithProviders(<FirstMapScreen />);
+    await fireEvent.press(screen.getByTestId('first-map-add'));
+    expect(mockRouter.push).toHaveBeenCalledWith(
+      routes.tripForm({ mode: 'onboarding', kind: 'past' }),
+    );
+    // Still onboarding: the form comes back here after saving.
+    expect(repos.profile.get()?.onboardedAt).toBeNull();
   });
 
   it('can go explore instead', async () => {

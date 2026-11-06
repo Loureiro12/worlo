@@ -5,22 +5,30 @@ import { StatusBar } from 'expo-status-bar';
 import { useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { completeOnboarding } from '@/data/profile';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
+import { countCities } from '@/features/profile/stats';
+import { useScreenActive } from '@/lib/useScreenActive';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 
 /** A8 · Primeiro mapa pessoal, shown after saving the onboarding trip. */
 export function FirstMapScreen() {
+  const active = useScreenActive();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const visited = useStore((s) => s.onboardingVisited);
-
-  // The onboarding trip is the first one: 1 trip, 1 city.
+  const picked = useStore((s) => s.onboardingVisited);
+  // Every trip saved during onboarding counts (one or many).
+  const trips = useQuery(() => repos.trips.list(), []);
+  const marked = useQuery(() => Object.keys(repos.world.visitedMap()), []);
+  const visited = [...new Set([...picked, ...marked])];
+  const cities = countCities(trips);
   const stats = [
     { n: visited.length, label: t('auth.firstMap.countries', { count: visited.length }) },
-    { n: 1, label: t('auth.firstMap.trips', { count: 1 }) },
-    { n: 1, label: t('auth.firstMap.cities', { count: 1 }) },
+    { n: trips.length, label: t('auth.firstMap.trips', { count: trips.length }) },
+    { n: cities, label: t('auth.firstMap.cities', { count: cities }) },
   ];
 
   const go = (target: typeof routes.map) => {
@@ -36,6 +44,7 @@ export function FirstMapScreen() {
       <StatusBar style="light" />
       <View style={{ position: 'absolute', left: -20, top: 200 }}>
         <Globe
+          paused={!active}
           width={width + 40}
           height={420}
           visited={visited}
@@ -90,6 +99,14 @@ export function FirstMapScreen() {
             />
           ))}
         </View>
+        <Button
+          testID="first-map-add"
+          variant="outlineInverse"
+          icon="plus"
+          label={t('auth.firstMap.addAnother')}
+          fullWidth
+          onPress={() => router.push(routes.tripForm({ mode: 'onboarding', kind: 'past' }))}
+        />
         <Button
           testID="first-map-see"
           label={t('auth.firstMap.seeMap')}

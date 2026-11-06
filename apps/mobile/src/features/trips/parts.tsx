@@ -8,10 +8,14 @@ import {
   Divider,
   Icon,
   type IconName,
+  Photo,
   radius,
+  StatusChip,
   Text,
 } from '@worlo/ui';
+import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
+import type { PeopleResult } from '@/data/community';
 import type { Person } from '@/data/people';
 import { useMe } from '@/data/profile';
 import { matchesQuery } from '@/lib/format';
@@ -110,22 +114,44 @@ function InvitePill() {
  * People I follow not yet on the list (by user id), filtered by the search
  * (3 without query, up to 6 with).
  */
+/** Someone who can be invited: a person I follow or anyone found on the server. */
+export type InviteCandidate = Pick<Person, 'id' | 'name' | 'username' | 'avatarUrl'>;
+
+/** A server search result as someone to invite. */
+export const toCandidate = (p: PeopleResult): InviteCandidate => ({
+  id: p.id,
+  name: p.name,
+  username: p.username,
+  avatarUrl: p.avatarUrl,
+});
+
+/**
+ * People to invite: the ones I follow that match, then anyone on Worlo found by
+ * name or @username (server search, online) — invites are not limited to
+ * friends, a new account follows nobody yet.
+ */
 export function suggestFriends(
-  following: readonly Person[],
+  following: readonly InviteCandidate[],
   exclude: readonly string[],
   query: string,
-): Person[] {
-  return following
-    .filter((p) => !exclude.includes(p.id) && matchesQuery(`${p.name} @${p.username}`, query))
-    .slice(0, query.trim() ? 6 : 3);
+  found: readonly InviteCandidate[] = [],
+): InviteCandidate[] {
+  const max = query.trim() ? 6 : 3;
+  const mine = following.filter(
+    (p) => !exclude.includes(p.id) && matchesQuery(`${p.name} @${p.username}`, query),
+  );
+  const others = query.trim()
+    ? found.filter((p) => !exclude.includes(p.id) && !mine.some((m) => m.id === p.id))
+    : [];
+  return [...mine, ...others].slice(0, max);
 }
 
 export function FriendSuggestions({
   friends,
   onInvite,
 }: {
-  friends: readonly Person[];
-  onInvite: (friend: Person) => void;
+  friends: readonly InviteCandidate[];
+  onInvite: (friend: InviteCandidate) => void;
 }) {
   const { t } = useTranslation();
   if (friends.length === 0) return null;
@@ -281,6 +307,72 @@ export function PeopleCard({
           ))}
         </View>
       ) : null}
+    </Card>
+  );
+}
+
+/**
+ * Card of a plan — a roteiro or a "Quero ir" (4.2): same size, cover, title and
+ * place; the status chip says which one it is. The cover is the photo chosen
+ * for it, or its solid color with the flag.
+ */
+export function PlanCard({
+  testID,
+  onPress,
+  accessibilityLabel,
+  cover,
+  tint,
+  flag,
+  status,
+  title,
+  subtitle,
+  children,
+}: {
+  testID: string;
+  onPress: () => void;
+  accessibilityLabel: string;
+  cover?: string | null;
+  tint: string;
+  flag: string;
+  status: { kind: 'planned' | 'wishlist'; label: string };
+  title: string;
+  subtitle: string;
+  children?: ReactNode;
+}) {
+  return (
+    <Card
+      testID={testID}
+      radius={24}
+      padding={10}
+      style={{ paddingBottom: 16 }}
+      onPress={onPress}
+      accessibilityLabel={accessibilityLabel}
+    >
+      <Photo uri={cover ?? null} tint={tint} height={120} radius={radius.r16}>
+        {cover ? null : (
+          <View
+            testID={`${testID}-solid`}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ fontSize: 40, lineHeight: 48 }} accessibilityElementsHidden>
+              {flag}
+            </Text>
+          </View>
+        )}
+        <StatusChip
+          kind={status.kind}
+          size="sm"
+          label={status.label}
+          style={{ position: 'absolute', top: 10, left: 10 }}
+        />
+      </Photo>
+      <View style={{ paddingHorizontal: 6, gap: 4 }}>
+        <Text variant="h3">{title}</Text>
+        <Text variant="bodyS" tone="support" numberOfLines={2}>
+          {subtitle}
+        </Text>
+        {children}
+      </View>
     </Card>
   );
 }

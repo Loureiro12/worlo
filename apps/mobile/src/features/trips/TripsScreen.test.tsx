@@ -1,5 +1,7 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { getItineraries } from '@/data/planning';
+import { repos } from '@/data/repositories';
+import { world } from '@/data/world';
 import { demoId } from '@/mocks/demo';
 import { routes } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
@@ -40,11 +42,25 @@ describe('TripsScreen', () => {
     await renderWithProviders(<TripsScreen />);
     await fireEvent.press(screen.getByTestId('trips-seg-wish'));
     expect(screen.getByText('Japão')).toBeOnTheScreen();
-    expect(screen.getAllByText('Melhor época: mar – mai')).toHaveLength(2); // Japão, Marrocos
+    expect(screen.getAllByText(/Melhor época: mar – mai/)).toHaveLength(2); // Japão, Marrocos
     await fireEvent.press(screen.getByTestId('future-row-392'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.future(demoId('wish:392')));
     await fireEvent.press(screen.getByTestId('trips-add-destination'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.tripForm({ mode: 'new', kind: 'future' }));
+  });
+
+  it('"Quero ir" cards look like itinerary cards: cover or solid color, and a status', async () => {
+    await renderWithProviders(<TripsScreen />);
+    await fireEvent.press(screen.getByTestId('trips-seg-wish'));
+    expect(screen.getByTestId('future-row-392-solid')).toBeOnTheScreen();
+    expect(screen.getAllByText('Quero ir').length).toBeGreaterThan(0);
+    await act(() => {
+      world.setFutureCover(demoId('wish:392'), 'https://example.com/kyoto.jpg');
+    });
+    expect(screen.queryByTestId('future-row-392-solid')).toBeNull();
+    expect(repos.world.wishes().find((w) => w.id === demoId('wish:392'))?.coverUrl).toBe(
+      'https://example.com/kyoto.jpg',
+    );
   });
 
   it('shows itineraries with progress and creates a blank one', async () => {
@@ -58,12 +74,28 @@ describe('TripsScreen', () => {
     await fireEvent.press(screen.getByTestId('trips-recs'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.recs);
 
+    // Creating asks where to: a city from the search…
     const before = getItineraries().length;
     await fireEvent.press(screen.getByTestId('trips-create-rot'));
+    await fireEvent.changeText(screen.getByTestId('rot-new-dest'), 'lisb');
+    await fireEvent.press(await screen.findByTestId('rot-new-dest-option-0'));
+    await fireEvent.press(screen.getByTestId('rot-new-create'));
     const created = getItineraries()[0];
     expect(getItineraries()).toHaveLength(before + 1);
-    expect(created).toMatchObject({ title: 'Novo roteiro', status: 'Rascunho' });
+    expect(created).toMatchObject({
+      title: 'Roteiro em Lisboa',
+      place: 'Lisboa, Portugal',
+      flag: '🇵🇹',
+      status: 'Rascunho',
+    });
     expect(mockRouter.push).toHaveBeenCalledWith(routes.roteiro(created?.id ?? ''));
+
+    // …or any place typed, even one no list has.
+    await fireEvent.press(screen.getByTestId('trips-create-rot'));
+    await fireEvent.changeText(screen.getByTestId('rot-new-dest'), 'Sítio do vovô');
+    await fireEvent.press(await screen.findByTestId('rot-new-dest-custom'));
+    await fireEvent.press(screen.getByTestId('rot-new-create'));
+    expect(getItineraries()[0]).toMatchObject({ title: 'Roteiro em Sítio do vovô', flag: '📍' });
   });
 
   it('shows the empty state of each segment on first use', async () => {

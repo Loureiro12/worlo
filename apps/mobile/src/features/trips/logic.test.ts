@@ -4,6 +4,8 @@ import { savedLabel } from '@/data/world';
 import { demoId } from '@/mocks/demo';
 import { matchCountry, splitDestination, tripFormError, yearOf } from './destination';
 import { formatAmount, splitShare, summarizeMoney, tripCurrency } from './money';
+import { suggestFriends } from './parts';
+import { inviteToken } from './TripsScreen';
 
 /** Demo trips as the screens get them (SQLite row → view, `details` json included). */
 const demoTrip = (key: string) => {
@@ -114,5 +116,32 @@ describe('wishlist saved label', () => {
         name: 'Marina',
       },
     );
+  });
+});
+
+describe('invites', () => {
+  const person = (id: string, name: string, username: string) => ({
+    id,
+    name,
+    username,
+    avatarUrl: null,
+  });
+
+  it('suggests people I follow, then anyone found on Worlo (a new account follows nobody)', () => {
+    const marina = person('1', 'Marina Costa', 'marina');
+    const rita = person('9', 'Rita Souza', 'rita');
+    // The server already filtered `found` by the query.
+    expect(suggestFriends([], [], 'rit', [rita]).map((p) => p.id)).toEqual(['9']);
+    expect(suggestFriends([marina], [], 'ma', [marina, rita]).map((p) => p.id)).toEqual(['1', '9']);
+    expect(suggestFriends([marina], ['9'], 'ma', [rita]).map((p) => p.id)).toEqual(['1']);
+    // No query: only friends, never strangers.
+    expect(suggestFriends([marina], [], '', [rita]).map((p) => p.id)).toEqual(['1']);
+  });
+
+  it('reads the invite code from a code or a whole link', () => {
+    expect(inviteToken('worlo://join/tok123abc')).toBe('tok123abc');
+    expect(inviteToken('Abra: worlo://join/tok123abc obrigado')).toBe('tok123abc');
+    expect(inviteToken('  tok123abc ')).toBe('tok123abc');
+    expect(inviteToken('oi')).toBeNull();
   });
 });

@@ -12,7 +12,7 @@ import {
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { View } from 'react-native';
+import { Share, View } from 'react-native';
 import {
   collab as collabData,
   createInviteLink,
@@ -20,7 +20,9 @@ import {
   OfflineError,
   useInviteCandidates,
 } from '@/data/collab';
+import { useSearchPeople } from '@/data/community';
 import { useMe } from '@/data/profile';
+import { getCurrentUserId } from '@/data/repositories';
 import { tripsData, useTrip } from '@/data/trips';
 import { useQuery } from '@/data/useQuery';
 import { useFuture, world } from '@/data/world';
@@ -28,7 +30,7 @@ import { avatarFor, firstName, ME } from '@/lib/people';
 import { links, useCopyLink } from '@/lib/useCopyLink';
 import type { Collaborator } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
-import { CollabNote, FriendSuggestions, suggestFriends } from './parts';
+import { CollabNote, FriendSuggestions, suggestFriends, toCandidate } from './parts';
 
 export type PeopleTarget = { kind: 'trip' | 'future'; id: string };
 
@@ -49,10 +51,12 @@ export function PeopleSheet({
   const { t } = useTranslation();
   const toast = useToast();
   const router = useRouter();
-  const copyLink = useCopyLink();
+  const _copyLink = useCopyLink();
   const [query, setQuery] = useState('');
   const me = useMe();
   const following = useInviteCandidates();
+  const found = useSearchPeople(query);
+  const meId = getCurrentUserId();
   const trip = useTrip(target?.kind === 'trip' ? target.id : undefined);
   const future = useFuture(target?.kind === 'future' ? target.id : undefined);
   const subject = target?.kind === 'trip' ? trip : target ? future : undefined;
@@ -104,7 +108,15 @@ export function PeopleSheet({
     if (!target) return;
     try {
       const token = await createInviteLink(type, target.id);
-      await copyLink(links.tripInvite(token));
+      // The system sheet (WhatsApp, Mensagens…): the link opens the app where it
+      // is tappable; the code works anywhere (Viagens › Tenho um convite).
+      await Share.share({
+        message: t('trips.people.inviteMessage', {
+          title,
+          link: links.tripInvite(token),
+          code: token,
+        }),
+      });
     } catch (e) {
       toast.show(
         e instanceof OfflineError ? t('common.states.offlineTitle') : t('common.states.errorTitle'),
@@ -214,14 +226,22 @@ export function PeopleSheet({
             onChangeText={setQuery}
             autoCorrect={false}
           />
-          <FriendSuggestions friends={suggestFriends(following, taken, query)} onInvite={invite} />
+          <FriendSuggestions
+            friends={suggestFriends(
+              following,
+              [...taken, ...(meId ? [meId] : [])],
+              query,
+              found.map(toCandidate),
+            )}
+            onInvite={invite}
+          />
           <Button
             testID="people-copy-link"
             variant="outline"
             size="md"
-            icon="link"
+            icon="export"
             fullWidth
-            label={t('trips.people.copyLink')}
+            label={t('trips.people.shareInvite')}
             onPress={() => void shareLink()}
           />
         </>

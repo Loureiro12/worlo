@@ -1,55 +1,101 @@
 import { useTranslation } from '@worlo/i18n';
 import {
+  Button,
   Card,
   colors,
   EmptyState,
+  FormError,
   Icon,
   IconButton,
   Mosaic,
-  Photo,
   ProgressBar,
-  radius,
+  palette,
   Screen,
   Segmented,
-  StatusChip,
-  StatusMarker,
+  Sheet,
   TabHeader,
   Text,
+  TextField,
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { View } from 'react-native';
 import { AddTripSheet } from '@/components/AddTripSheet';
 import { DemoGate, useIsEmpty } from '@/components/DemoGate';
+import { DestinationField } from '@/components/DestinationField';
 import { useCatalog } from '@/data/catalog';
 import { createItinerary, useItineraries } from '@/data/planning';
 import { useTrips } from '@/data/trips';
 import { useFutures, wishKey } from '@/data/world';
 import { img } from '@/lib/images';
 import { firstName, joinNames } from '@/lib/people';
+import type { Place } from '@/lib/places';
 import { demoKey } from '@/mocks/demo';
 import type { Future, Itinerary, Trip } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
 import type { TripsSegment } from '@/store/slices/trips';
-import { DashedButton } from './parts';
+import { DashedButton, PlanCard } from './parts';
 
-/** Blank itinerary ("Criar roteiro"): one free day, opens in the editor. */
-export function useCreateItinerary() {
+/**
+ * "Criar roteiro": asks where to (search, or anything typed), then opens a blank
+ * itinerary with one free day in the editor.
+ */
+export function useCreateItinerary(): { open: () => void; sheet: ReactNode } {
   const { t } = useTranslation();
   const router = useRouter();
-  return () => {
+  const [visible, setVisible] = useState(false);
+  const [dest, setDest] = useState('');
+  const [picked, setPicked] = useState<Place | null>(null);
+
+  const create = () => {
+    const typed = dest.trim();
+    const place = picked?.label ?? typed;
     const itinerary = createItinerary({
-      title: t('trips.rot.newTitle'),
-      place: t('trips.rot.newPlace'),
-      flag: '📍',
+      title: place
+        ? t('trips.rot.titleFor', { place: picked?.name ?? typed.split(',')[0] })
+        : t('trips.rot.newTitle'),
+      place: place || t('trips.rot.newPlace'),
+      flag: picked?.flag ?? '📍',
       dates: t('trips.rot.newDates'),
       status: t('trips.rot.newStatus'),
       sugKey: 'generic',
       days: [{ label: t('trips.rot.newDay'), items: [] }],
     });
+    setVisible(false);
+    setDest('');
+    setPicked(null);
     router.push(routes.roteiro(itinerary.id));
   };
+
+  const sheet = (
+    <Sheet
+      testID="rot-new-sheet"
+      visible={visible}
+      onClose={() => setVisible(false)}
+      closeLabel={t('common.actions.close')}
+      title={t('trips.rot.create')}
+      footer={
+        <Button
+          testID="rot-new-create"
+          fullWidth
+          label={t('trips.rot.createCta')}
+          onPress={create}
+        />
+      }
+    >
+      <DestinationField
+        testID="rot-new-dest"
+        label={t('tripForm.dest')}
+        placeholder={t('tripForm.destPlaceholder')}
+        value={dest}
+        onChangeText={setDest}
+        onPick={setPicked}
+      />
+    </Sheet>
+  );
+
+  return { open: () => setVisible(true), sheet };
 }
 
 /** B3 · Viagens: Realizadas (by year), Quero ir and Roteiros. */
@@ -58,6 +104,7 @@ export function TripsScreen() {
   const segment = useStore((s) => s.tripsSegment);
   const setSegment = useStore((s) => s.setTripsSegment);
   const [adding, setAdding] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   return (
     <DemoGate loading error>
@@ -94,9 +141,72 @@ export function TripsScreen() {
         {segment === 'past' ? <PastSegment /> : null}
         {segment === 'wish' ? <WishSegment /> : null}
         {segment === 'rot' ? <RotSegment /> : null}
+        <Button
+          testID="trips-join"
+          variant="ghost"
+          icon="ticket"
+          label={t('trips.joinCode.open')}
+          onPress={() => setJoining(true)}
+        />
       </Screen>
       <AddTripSheet visible={adding} onClose={() => setAdding(false)} />
+      <JoinSheet visible={joining} onClose={() => setJoining(false)} />
     </DemoGate>
+  );
+}
+
+/** "worlo://join/abc123", "…/join/abc123" or just "abc123" → the invite token. */
+export function inviteToken(text: string): string | null {
+  const value = text.trim();
+  const fromLink = /join\/([A-Za-z0-9_-]+)/.exec(value)?.[1];
+  const token = fromLink ?? value;
+  return /^[A-Za-z0-9_-]{6,}$/.test(token) ? token : null;
+}
+
+/** "Tenho um convite": the code (or the whole link) someone sent. */
+function JoinSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
+  const router = useRouter();
+  const [text, setText] = useState('');
+  const [invalid, setInvalid] = useState(false);
+  const join = () => {
+    const token = inviteToken(text);
+    if (!token) return setInvalid(true);
+    setText('');
+    onClose();
+    router.push(routes.join(token));
+  };
+  return (
+    <Sheet
+      testID="trips-join-sheet"
+      visible={visible}
+      onClose={onClose}
+      closeLabel={t('common.actions.close')}
+      title={t('trips.joinCode.title')}
+      footer={
+        <Button testID="trips-join-go" fullWidth label={t('trips.joinCode.go')} onPress={join} />
+      }
+    >
+      <Text variant="body" tone="support">
+        {t('trips.joinCode.text')}
+      </Text>
+      <TextField
+        testID="trips-join-code"
+        label={t('trips.joinCode.label')}
+        value={text}
+        invalid={invalid}
+        autoCapitalize="none"
+        autoCorrect={false}
+        onChangeText={(v) => {
+          setText(v);
+          setInvalid(false);
+        }}
+        onSubmitEditing={join}
+      />
+      {invalid ? (
+        <FormError testID="trips-join-error" message={t('trips.joinCode.invalid')} />
+      ) : null}
+    </Sheet>
   );
 }
 
@@ -255,36 +365,19 @@ function FutureRow({ future, onPress }: { future: Future; onPress: () => void })
   const { COUNTRIES } = useCatalog();
   const best = COUNTRIES[future.cid]?.best;
   const meta = best ? t('trips.wish.best', { value: best }) : future.saved;
+  const subtitle = [future.note, meta].filter(Boolean).join(' · ');
   return (
-    <Card
+    <PlanCard
       testID={`future-row-${wishKey(future.id)}`}
       onPress={onPress}
-      padding={14}
-      style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 }}
-      accessibilityLabel={meta ? `${future.name}, ${meta}` : future.name}
-    >
-      <View
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 24,
-          backgroundColor: colors.background,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Text style={{ fontSize: 26, lineHeight: 32 }}>{future.flag}</Text>
-      </View>
-      <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
-        <Text variant="cardTitle">{future.name}</Text>
-        {meta ? (
-          <Text variant="caption" weight={600} tone="muted">
-            {meta}
-          </Text>
-        ) : null}
-      </View>
-      <StatusMarker status="wishlist" size={14} onDark={false} />
-    </Card>
+      accessibilityLabel={[future.name, t('trips.wish.status'), meta].filter(Boolean).join('. ')}
+      cover={future.cover}
+      tint={future.tint || palette.coral100}
+      flag={future.flag}
+      status={{ kind: 'wishlist', label: t('trips.wish.status') }}
+      title={future.name}
+      subtitle={subtitle}
+    />
   );
 }
 
@@ -293,7 +386,7 @@ function RotSegment() {
   const router = useRouter();
   const itineraries = useItineraries();
   const empty = useIsEmpty() || itineraries.length === 0;
-  const create = useCreateItinerary();
+  const { open: create, sheet: createSheet } = useCreateItinerary();
 
   return (
     <View style={{ gap: 12 }}>
@@ -319,6 +412,7 @@ function RotSegment() {
         ))
       )}
       <DashedButton testID="trips-create-rot" label={t('trips.rot.create')} onPress={create} />
+      {createSheet}
       <Card
         testID="trips-recs"
         surface="dark"
@@ -358,45 +452,28 @@ function ItineraryCard({ itinerary, onPress }: { itinerary: Itinerary; onPress: 
   const progressText = t('trips.rot.progress', { done: progress.done, total: progress.total });
   const place = `${itinerary.flag} ${itinerary.place} · ${itinerary.dates}`;
   return (
-    <Card
+    <PlanCard
       testID={`rot-card-${demoKey(itinerary.id, 'itinerary')}`}
-      radius={24}
-      padding={10}
-      style={{ paddingBottom: 16 }}
       onPress={onPress}
       accessibilityLabel={`${itinerary.title}. ${place}. ${itinerary.status}. ${progressText}`}
+      tint={palette.coral100}
+      flag={itinerary.flag}
+      status={{ kind: 'planned', label: itinerary.status }}
+      title={itinerary.title}
+      subtitle={place}
     >
-      <Photo
-        uri={img(`rot-${demoKey(itinerary.id, 'itinerary')}`, 700, 300)}
-        tint={colors.border}
-        height={120}
-        radius={radius.r16}
-      >
-        <StatusChip
-          kind="planned"
-          size="sm"
-          label={itinerary.status}
-          style={{ position: 'absolute', top: 10, left: 10 }}
-        />
-      </Photo>
-      <View style={{ paddingHorizontal: 6, gap: 4 }}>
-        <Text variant="h3">{itinerary.title}</Text>
-        <Text variant="bodyS" tone="support">
-          {place}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
-          <View style={{ flex: 1 }}>
-            <ProgressBar
-              value={progress.value}
-              track={colors.background}
-              label={t('trips.rot.progressLabel')}
-            />
-          </View>
-          <Text variant="caption" weight={700} tone="muted" style={{ fontSize: 12 }}>
-            {progressText}
-          </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
+        <View style={{ flex: 1 }}>
+          <ProgressBar
+            value={progress.value}
+            track={colors.background}
+            label={t('trips.rot.progressLabel')}
+          />
         </View>
+        <Text variant="caption" weight={700} tone="muted" style={{ fontSize: 12 }}>
+          {progressText}
+        </Text>
       </View>
-    </Card>
+    </PlanCard>
   );
 }

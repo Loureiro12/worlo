@@ -62,6 +62,7 @@ export function toFuture(row: WishDestination, saved: string): FutureView {
     flag: row.flag,
     note: row.note,
     tint: row.tint,
+    cover: row.coverUrl ?? null,
     collab: collaboratorsOf('wish', row),
     saved,
     userId: row.userId,
@@ -135,6 +136,8 @@ export const world = {
       tint: input.tint,
       companions: input.collab ? companionsOf(input.collab) : undefined,
     }),
+  /** Capa do "Quero ir" (an uploaded photo's URL), or null for the solid color. */
+  setFutureCover: (id: string, url: string | null) => repos.world.updateWish(id, { coverUrl: url }),
   /** Legacy free-text companions (people without a Worlo account). */
   setFutureCompanions: (id: string, collab: Collaborator[]) =>
     repos.world.updateWish(id, { companions: companionsOf(collab) }),

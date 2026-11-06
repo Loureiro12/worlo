@@ -7,6 +7,7 @@ import {
   FactTile,
   HeroScreen,
   Icon,
+  IconButton,
   layout,
   Screen,
   ScreenHeader,
@@ -18,10 +19,10 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
+import { changeWishCover } from '@/data/avatar';
 import { useCatalog } from '@/data/catalog';
 import { createItinerary } from '@/data/planning';
-import { useFuture } from '@/data/world';
-import { img } from '@/lib/images';
+import { useFuture, world } from '@/data/world';
 import { routes } from '@/navigation/routes';
 import { PeopleSheet } from './PeopleSheet';
 import { PeopleCard } from './parts';
@@ -74,15 +75,41 @@ export function FutureScreen() {
     toast.show(t('trips.future.started'));
   };
 
+  // Capa: from the gallery (uploaded); tapping again with a cover removes it.
+  const onCover = async () => {
+    if (future.cover) {
+      world.setFutureCover(future.id, null);
+      return;
+    }
+    try {
+      const result = await changeWishCover(future.id);
+      if (result === 'updated') toast.show(t('trips.future.coverUpdated'));
+      else if (result === 'offline') toast.show(t('common.states.offlineTitle'), 'info');
+    } catch {
+      toast.show(t('profile.photos.pickError'), 'error');
+    }
+  };
+
   return (
     <HeroScreen
       testID="future-screen"
-      heroUri={img(`fut-${future.name}`, 800, 500)}
+      heroUri={future.cover ?? null}
       heroTint={future.tint}
       heroHeight={280}
       onBack={back}
       backLabel={t('common.actions.back')}
       withTabBar
+      actions={
+        future.canEdit ? (
+          <IconButton
+            testID="future-cover"
+            icon="image"
+            tone="photo"
+            label={future.cover ? t('trips.future.removeCover') : t('trips.future.cover')}
+            onPress={() => void onCover()}
+          />
+        ) : undefined
+      }
     >
       <View style={{ paddingHorizontal: layout.gutter, paddingTop: 20, gap: 20 }}>
         <View style={{ gap: 8 }}>
