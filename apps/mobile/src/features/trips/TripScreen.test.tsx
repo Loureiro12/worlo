@@ -1,8 +1,8 @@
 import { act, fireEvent, screen, within } from '@testing-library/react-native';
 import { createLocalStore } from '@worlo/db';
-import * as Clipboard from 'expo-clipboard';
+import { Share } from 'react-native';
 import { collab } from '@/data/collab';
-import { repos } from '@/data/repositories';
+import { getCurrentUserId, repos } from '@/data/repositories';
 import { db } from '@/lib/database';
 import { demoId } from '@/mocks/demo';
 import { userId } from '@/mocks/demoWorld';
@@ -98,31 +98,40 @@ describe('TripScreen', () => {
     expect(screen.getByTestId('expense-error')).toHaveTextContent('Dá um nome pro gasto.');
 
     await fireEvent.changeText(screen.getByTestId('expense-name'), 'Sequência de camarão');
-    await fireEvent.press(screen.getByTestId('expense-split-Marina'));
-    expect(screen.getByTestId('expense-split-text')).toHaveTextContent(
-      'Fica R$ 105 pra cada um (2 pessoas)',
-    );
-    await fireEvent.press(screen.getByTestId('expense-split-João'));
+    // Everyone on the trip takes part by default; João sat this one out.
     expect(screen.getByTestId('expense-split-text')).toHaveTextContent(
       'Fica R$ 70 pra cada um (3 pessoas)',
     );
-    await fireEvent.press(screen.getByTestId('expense-receipt'));
+    await fireEvent.press(screen.getByTestId('expense-split-João'));
+    expect(screen.getByTestId('expense-split-text')).toHaveTextContent(
+      'Fica R$ 105 pra cada um (2 pessoas)',
+    );
+    // Marina paid.
+    await fireEvent.press(screen.getByTestId('expense-payer-Marina'));
+    expect(screen.queryByTestId('expense-receipt')).toBeNull();
     await fireEvent.press(screen.getByTestId('expense-save'));
 
-    expect(repos.trips.expenses(FLORIPA)[0]).toMatchObject({
+    const saved = repos.trips.expenses(FLORIPA)[0];
+    expect(saved).toMatchObject({
       name: 'Sequência de camarão',
       amount: 210,
       amountLabel: 'R$ 210',
       category: 'Comida',
-      receipt: true,
-      split: ['Marina Costa', 'João Pereira'],
-      meta: 'Comida · hoje · dividido com Marina e João',
+      meta: 'Comida · pago por Marina · 2 pessoas',
     });
+    // Marina has an account: she is her user id; I am mine.
+    const marina = repos.people.list().find((p) => p.name === 'Marina Costa')?.id;
+    expect(saved?.paidBy).toBe(marina);
+    expect(saved?.split).toEqual(expect.arrayContaining([marina, getCurrentUserId()]));
+    expect(saved?.split).toHaveLength(2);
     const pending = await createLocalStore(db).pendingMutations(100);
     expect(pending.map((m) => m.table)).toEqual(['trip_expenses']);
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Gasto salvo. Marina e João devem R$ 70 cada.',
+      'Gasto salvo. Fica R$ 105 pra cada: Você e Marina.',
     );
+    // Divisão: I owe Marina my half.
+    expect(screen.getByTestId('trip-split')).toBeOnTheScreen();
+    expect(screen.getByTestId('split-transfer-Você-Marina')).toHaveTextContent(/R\$ 105/);
     expect(screen.getByTestId('trip-money-total')).toHaveTextContent('R$ 5.070');
     expect(screen.getByText('R$ 845 por dia · 6 dias')).toBeOnTheScreen();
     expect(screen.getByText('Sequência de camarão')).toBeOnTheScreen();
@@ -144,7 +153,7 @@ describe('TripScreen', () => {
     await fireEvent.changeText(screen.getByTestId('expense-name'), 'Gasolina');
     await fireEvent.press(screen.getByTestId('expense-cat-transport'));
     await fireEvent.press(screen.getByTestId('expense-save'));
-    expect(screen.getByRole('alert')).toHaveTextContent('Gasto salvo.');
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Gasto salvo\./);
     expect(screen.getByTestId('trip-money-total')).toHaveTextContent('US$ 45,5');
     expect(
       within(screen.getByTestId('trip-money-cat-transport')).getByText('100%'),
@@ -204,10 +213,19 @@ describe('PeopleSheet (trip)', () => {
     expect(screen.queryByTestId('member-João Pereira')).not.toBeOnTheScreen();
     expect(screen.getByRole('alert')).toHaveTextContent('João saiu da viagem.');
 
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: Share.sharedAction, activityType: undefined });
     await fireEvent.press(screen.getByTestId('people-copy-link'));
     expect(mockCreateInviteLink).toHaveBeenCalledWith('trip', PATAGONIA);
-    expect(screen.getByRole('alert')).toHaveTextContent('Link copiado.');
-    expect(Clipboard.setStringAsync).toHaveBeenCalledWith('worlo://join/tok123');
+    // The system sheet gets the link (opens the app) and the code (Viagens › Tenho um convite).
+    const message =
+      share.mock.calls[0]?.[0] && 'message' in share.mock.calls[0][0]
+        ? share.mock.calls[0][0].message
+        : '';
+    expect(message).toContain('worlo://join/tok123');
+    expect(message).toContain('código: tok123');
+    share.mockRestore();
   });
 
   it('accepting the Jeri invite makes it editable; a collaborator cannot remove anyone', async () => {

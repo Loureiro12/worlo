@@ -40,14 +40,21 @@ tags:
     id: expense-name
 - inputText: Sequencia de camarao
 - tapOn: "Novo gasto" # dismisses the keyboard (non-interactive title)
-- tapOn:
-    id: expense-split-Marina
-- tapOn:
-    id: expense-split-João
+# Everyone takes part by default; João sat this one out, Marina paid.
 - assertVisible: Fica R\$ 70 pra cada um \(3 pessoas\)
 - tapOn:
+    id: expense-split-João
+- assertVisible: Fica R\$ 105 pra cada um \(2 pessoas\)
+- tapOn:
+    id: expense-payer-Marina
+- tapOn:
     id: expense-save
-- assertVisible: Gasto salvo. Marina e João devem R\$ 70 cada.
+- assertVisible: "Gasto salvo. Fica R\\$ 105 pra cada: Você e Marina."
+# Divisão: who pays whom
+- scrollUntilVisible:
+    element:
+      id: trip-split
+    direction: DOWN
 - scrollUntilVisible:
     element:
       text: Sequencia de camarao
@@ -60,9 +67,15 @@ tags:
     id: trips-add
 - tapOn:
     id: add-trip-past
+# Destination search (offline GeoNames): type, pick the city
 - tapOn:
     id: trip-form-dest
-- inputText: Kyoto, Japao
+- inputText: Kyoto
+- tapOn:
+    id: trip-form-dest-option-0
+- assertVisible:
+    id: trip-form-dest
+    text: Quioto, Japão
 - tapOn:
     id: trip-form-name
 - inputText: Cerejeiras em Kyoto

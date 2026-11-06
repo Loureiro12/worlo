@@ -1,9 +1,17 @@
 import type { TripExpenseRow, TripRow } from '@worlo/db';
 import type { IconName } from '@worlo/ui';
+import {
+  balances,
+  companionKey,
+  type Party,
+  type SplitExpense,
+  settle,
+  type Transfer,
+} from '@/features/trips/split';
 import type { Collaborator, Trip, TripDetails } from '@/mocks/types';
 import type { TripExpense } from '@/store/slices/trips';
 import { accessOf, collaboratorsOf, companionsOf, isListed } from './collab';
-import { repos } from './repositories';
+import { getCurrentUserId, repos } from './repositories';
 import { useQuery } from './useQuery';
 
 /**
@@ -61,7 +69,69 @@ export function toExpense(row: TripExpenseRow): TripExpense {
     amount: row.amount,
     cat: row.category,
     split: row.split,
+    paidBy: row.paidBy ?? null,
+    author: row.userId ?? null,
   };
+}
+
+/**
+ * Who shares a trip's costs: me, the members who accepted and the companions
+ * without an account (keys: user id or "name:<name>").
+ */
+export function tripParties(
+  collab: readonly Collaborator[],
+  meId: string | null,
+  you: string,
+): Party[] {
+  const parties: Party[] = meId ? [{ key: meId, name: you }] : [];
+  for (const c of collab) {
+    if (c.status !== 'ok') continue;
+    const key = c.userId ?? companionKey(c.name);
+    if (!parties.some((p) => p.key === key)) parties.push({ key, name: c.name });
+  }
+  return parties;
+}
+
+/** Expenses as the split math sees them (older rows: the author paid). */
+export function splitInputs(
+  expenses: readonly TripExpense[],
+  parties: readonly Party[],
+  meId: string | null,
+): SplitExpense[] {
+  const keyOf = (name: string) =>
+    parties.find((p) => p.key === name || p.name === name)?.key ?? companionKey(name);
+  return expenses
+    .filter((e) => (e.amount ?? 0) > 0)
+    .map((e) => {
+      if (e.paidBy) {
+        return { amount: e.amount ?? 0, paidBy: e.paidBy, participants: e.split ?? [] };
+      }
+      const payer = e.author ?? meId ?? '';
+      return {
+        amount: e.amount ?? 0,
+        paidBy: payer,
+        participants: [payer, ...(e.split ?? []).map(keyOf)],
+      };
+    });
+}
+
+export type TripSplit = {
+  parties: Party[];
+  balance: Map<string, number>;
+  transfers: Transfer[];
+};
+
+/** Balances and who pays whom, live. */
+export function useTripSplit(
+  tripId: string | undefined,
+  collab: readonly Collaborator[],
+  you: string,
+): TripSplit {
+  const expenses = useTripExpenses(tripId);
+  const meId = getCurrentUserId();
+  const parties = tripParties(collab, meId, you);
+  const balance = balances(splitInputs(expenses, parties, meId), parties);
+  return { parties, balance, transfers: settle(balance) };
 }
 
 /** My trips and the ones I joined, newest first (pending invites stay out). */
@@ -118,5 +188,6 @@ export const tripsData = {
       category: expense.cat ?? '',
       split: expense.split ?? [],
       receipt: expense.receipt ?? false,
+      paidBy: expense.paidBy ?? null,
     }),
 };

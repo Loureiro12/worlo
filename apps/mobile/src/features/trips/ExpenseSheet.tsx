@@ -2,33 +2,33 @@ import { useTranslation } from '@worlo/i18n';
 import {
   Button,
   Chip,
-  colors,
   FormError,
-  Icon,
   MoneyInput,
   parseMoney,
-  radius,
   Sheet,
   Text,
   TextField,
   useToast,
 } from '@worlo/ui';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
-import { tripsData } from '@/data/trips';
+import { View } from 'react-native';
+import { getCurrentUserId } from '@/data/repositories';
+import { tripParties, tripsData } from '@/data/trips';
 import { firstName, joinNames } from '@/lib/people';
 import type { Trip } from '@/mocks/types';
-import { EXPENSE_CATEGORIES, type ExpenseCategoryKey, formatAmount, splitShare } from './money';
+import { EXPENSE_CATEGORIES, type ExpenseCategoryKey, formatAmount } from './money';
 
 type Draft = {
   value: string;
   name: string;
   cat: ExpenseCategoryKey;
-  split: string[];
-  receipt: boolean;
+  /** Who paid (party key); null = me. */
+  paidBy: string | null;
+  /** Who took part (party keys); null = everyone. */
+  participants: string[] | null;
 };
 
-const blank: Draft = { value: '', name: '', cat: 'food', split: [], receipt: false };
+const blank: Draft = { value: '', name: '', cat: 'food', paidBy: null, participants: null };
 
 /**
  * Sheet "Novo gasto" (F5): amount, description, category, split with accepted
@@ -50,11 +50,16 @@ export function ExpenseSheet({
   const { t } = useTranslation();
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>(blank);
-  const [error, setError] = useState<'value' | 'name' | null>(null);
+  const [error, setError] = useState<'value' | 'name' | 'participants' | null>(null);
 
-  const collaborators = trip.collab.filter((c) => c.status === 'ok').map((c) => c.name);
+  // Divisão: anyone on the trip can have paid, and any of them can take part.
+  const parties = tripParties(trip.collab, getCurrentUserId(), t('trips.split.you'));
+  const shared = parties.length > 1;
+  const payer = draft.paidBy ?? parties[0]?.key ?? '';
+  const participants = draft.participants ?? parties.map((p) => p.key);
   const amount = parseMoney(draft.value);
-  const each = splitShare(amount, draft.split.length);
+  const each = participants.length ? amount / participants.length : amount;
+  const nameOf = (key: string) => parties.find((p) => p.key === key)?.name ?? '';
   const and = t('common.list.and');
 
   const update = (patch: Partial<Draft>) => {
@@ -71,27 +76,34 @@ export function ExpenseSheet({
   const save = () => {
     if (!(amount > 0)) return setError('value');
     if (!draft.name.trim()) return setError('name');
+    if (shared && participants.length === 0) return setError('participants');
     const category = EXPENSE_CATEGORIES.find((c) => c.key === draft.cat) ?? EXPENSE_CATEGORIES[1];
     const label = t(`trips.money.categories.${category.key}`);
-    const names = joinNames(draft.split.map(firstName), and);
     tripsData.addExpense(trip.id, {
       icon: category.icon,
       name: draft.name.trim(),
-      meta: draft.split.length
-        ? t('trips.expense.metaSplit', { category: label, names })
+      meta: shared
+        ? t('trips.split.meta', {
+            category: label,
+            payer: firstName(nameOf(payer)),
+            count: participants.length,
+          })
         : t('trips.expense.meta', { category: label }),
       val: formatAmount(amount, currency),
-      receipt: draft.receipt,
+      receipt: false,
       amount,
       cat: category.name,
-      split: draft.split,
+      split: shared ? participants : [],
+      paidBy: shared ? payer : null,
     });
     toast.show(
-      draft.split.length
-        ? t('trips.expense.savedSplit', {
-            count: draft.split.length,
-            names,
+      shared
+        ? t('trips.split.saved', {
             value: formatAmount(each, currency),
+            names: joinNames(
+              participants.map((k) => firstName(nameOf(k))),
+              and,
+            ),
           })
         : t('trips.expense.saved'),
     );
@@ -144,70 +156,67 @@ export function ExpenseSheet({
           ))}
         </View>
       </View>
-      {collaborators.length ? (
-        <View style={{ gap: 8 }}>
-          <Text variant="label">{t('trips.expense.splitWith')}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {collaborators.map((name) => {
-              const on = draft.split.includes(name);
-              return (
+      {shared ? (
+        <>
+          <View style={{ gap: 8 }}>
+            <Text variant="label">{t('trips.split.paidBy')}</Text>
+            <View
+              accessibilityRole="radiogroup"
+              style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
+            >
+              {parties.map((p) => (
                 <Chip
-                  key={name}
-                  testID={`expense-split-${firstName(name)}`}
-                  label={firstName(name)}
-                  selected={on}
-                  onPress={() =>
-                    update({
-                      split: on ? draft.split.filter((n) => n !== name) : [...draft.split, name],
-                    })
-                  }
+                  key={p.key}
+                  testID={`expense-payer-${firstName(p.name)}`}
+                  label={firstName(p.name)}
+                  selected={payer === p.key}
+                  onPress={() => update({ paidBy: p.key })}
                 />
-              );
-            })}
+              ))}
+            </View>
           </View>
-          {draft.split.length && amount > 0 ? (
-            <Text testID="expense-split-text" variant="caption" weight={700} tone="success">
-              {t('trips.expense.splitText', {
-                value: formatAmount(each, currency),
-                count: draft.split.length + 1,
+          <View style={{ gap: 8 }}>
+            <Text variant="label">{t('trips.split.participants')}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+              {parties.map((p) => {
+                const on = participants.includes(p.key);
+                return (
+                  <Chip
+                    key={p.key}
+                    testID={`expense-split-${firstName(p.name)}`}
+                    label={firstName(p.name)}
+                    selected={on}
+                    onPress={() =>
+                      update({
+                        participants: on
+                          ? participants.filter((k) => k !== p.key)
+                          : [...participants, p.key],
+                      })
+                    }
+                  />
+                );
               })}
-            </Text>
-          ) : null}
-        </View>
+            </View>
+            {participants.length && amount > 0 ? (
+              <Text testID="expense-split-text" variant="caption" weight={700} tone="success">
+                {t('trips.expense.splitText', {
+                  value: formatAmount(each, currency),
+                  count: participants.length,
+                })}
+              </Text>
+            ) : null}
+          </View>
+        </>
       ) : null}
-      <Pressable
-        testID="expense-receipt"
-        accessibilityRole="switch"
-        accessibilityState={{ checked: draft.receipt }}
-        accessibilityLabel={t('trips.expense.receiptAttach')}
-        onPress={() => update({ receipt: !draft.receipt })}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          paddingVertical: 12,
-          paddingHorizontal: 14,
-          borderRadius: radius.r16,
-          borderWidth: 1,
-          borderStyle: draft.receipt ? 'solid' : 'dashed',
-          borderColor: draft.receipt ? colors.success : colors.border,
-        }}
-      >
-        <Icon
-          name={draft.receipt ? 'receipt' : 'camera'}
-          weight={draft.receipt ? 'fill' : 'regular'}
-          size={22}
-          color={draft.receipt ? colors.success : colors.textMuted}
-        />
-        <Text variant="body" weight={600} style={{ flex: 1 }}>
-          {draft.receipt ? t('trips.expense.receiptAttached') : t('trips.expense.receiptAttach')}
-        </Text>
-      </Pressable>
       {error ? (
         <FormError
           testID="expense-error"
           message={
-            error === 'value' ? t('trips.expense.errorAmount') : t('trips.expense.errorName')
+            error === 'value'
+              ? t('trips.expense.errorAmount')
+              : error === 'name'
+                ? t('trips.expense.errorName')
+                : t('trips.split.errorParticipants')
           }
         />
       ) : null}
