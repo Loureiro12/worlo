@@ -19,16 +19,19 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { useCatalog } from '@/data/catalog';
+import { DestinationField } from '@/components/DestinationField';
 import {
   collab as collabData,
   createInviteLink,
   OfflineError,
   useInviteCandidates,
 } from '@/data/collab';
+import { useSearchPeople } from '@/data/community';
+import { getCurrentUserId } from '@/data/repositories';
 import { tripsData, useTrip } from '@/data/trips';
 import { world } from '@/data/world';
 import { avatarFor, firstName, joinNames } from '@/lib/people';
+import { countryInfo, type Place } from '@/lib/places';
 import { links, useCopyLink } from '@/lib/useCopyLink';
 import type { Collaborator } from '@/mocks/types';
 import { routes, type TripFormParams } from '@/navigation/routes';
@@ -40,7 +43,7 @@ import {
   tripFormError,
   yearOf,
 } from './destination';
-import { CollabNote, FriendSuggestions, suggestFriends } from './parts';
+import { CollabNote, FriendSuggestions, suggestFriends, toCandidate } from './parts';
 
 type Kind = TripFormParams['kind'];
 type Mode = TripFormParams['mode'];
@@ -55,15 +58,15 @@ type Params = { mode?: string; kind?: string; id?: string; dest?: string };
  * and Editar. Destination + name are required; collaborators start pending.
  */
 export function TripFormScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const toast = useToast();
   const copyLink = useCopyLink();
   const following = useInviteCandidates();
+  const meId = getCurrentUserId();
   const params = useLocalSearchParams<Params>();
   const mode: Mode = params.mode === 'onboarding' || params.mode === 'edit' ? params.mode : 'new';
   const editing = useTrip(mode === 'edit' ? params.id : undefined);
-  const { COUNTRIES } = useCatalog();
 
   const [kind, setKind] = useState<Kind>(
     mode === 'edit' ? 'past' : params.kind === 'future' ? 'future' : 'past',
@@ -75,6 +78,7 @@ export function TripFormScreen() {
         : editing.place
       : (params.dest ?? ''),
   );
+  const [picked, setPicked] = useState<Place | null>(null);
   const [name, setName] = useState(editing?.title ?? '');
   const [when, setWhen] = useState(editing?.period ?? '');
   // Who went / goes: accounts (user id) and legacy free-text names; the owner is not editable here.
@@ -83,6 +87,7 @@ export function TripFormScreen() {
   );
   const names = collab.map((c) => c.name);
   const [query, setQuery] = useState('');
+  const found = useSearchPeople(query);
   const [types, setTypes] = useState<string[]>([]);
   const [food, setFood] = useState('');
   const [shopping, setShopping] = useState('');
@@ -130,8 +135,16 @@ export function TripFormScreen() {
       return;
     }
     const state = useStore.getState();
-    const cid = matchCountry(dest, state.countryNames);
-    const { place, country } = splitDestination(dest);
+    // A place picked from the search knows its country; typed text is matched.
+    const cid = picked?.countryId ?? matchCountry(dest, state.countryNames);
+    const { place, country } =
+      picked?.kind === 'city'
+        ? { place: picked.name, country: picked.countryName }
+        : picked?.kind === 'country'
+          ? { place: picked.name, country: '' }
+          : splitDestination(dest);
+    const flagOfDest =
+      picked?.flag ?? (cid ? (countryInfo(cid, i18n.language)?.flag ?? '📍') : '📍');
     const firstNames = (names: string[]) => joinNames(names.map(firstName), and);
 
     const accounts = collab.flatMap((c) => (c.userId ? [c.userId] : []));
@@ -167,7 +180,7 @@ export function TripFormScreen() {
       const wish = world.addFuture({
         countryIso: cid ?? null,
         name: name.trim(),
-        flag: cid ? (COUNTRIES[cid]?.flag ?? '📍') : '📍',
+        flag: flagOfDest,
         note: t('tripForm.defaults.destNote', { dest: dest.trim() }),
         tint: palette.coral100,
         collab,
@@ -189,7 +202,7 @@ export function TripFormScreen() {
       place,
       country,
       countryIso: cid ?? null,
-      flag: cid ? (COUNTRIES[cid]?.flag ?? '📍') : '📍',
+      flag: flagOfDest,
       period: when.trim() || t('tripForm.defaults.period'),
       year,
       days: 1,
@@ -259,10 +272,9 @@ export function TripFormScreen() {
           ]}
         />
       ) : null}
-      <TextField
+      <DestinationField
         testID="trip-form-dest"
         label={t('tripForm.dest')}
-        icon="map-pin"
         placeholder={t('tripForm.destPlaceholder')}
         value={dest}
         invalid={error === 'dest'}
@@ -270,7 +282,7 @@ export function TripFormScreen() {
           setDest(text);
           setError(null);
         }}
-        returnKeyType="next"
+        onPick={setPicked}
       />
       <TextField
         testID="trip-form-name"
@@ -349,8 +361,9 @@ export function TripFormScreen() {
         <FriendSuggestions
           friends={suggestFriends(
             following,
-            collab.flatMap((c) => (c.userId ? [c.userId] : [])),
+            [...collab.flatMap((c) => (c.userId ? [c.userId] : [])), ...(meId ? [meId] : [])],
             query,
+            found.map(toCandidate),
           )}
           onInvite={(f) => {
             setCollab((c) => [...c, { name: f.name, status: 'pending', userId: f.id }]);

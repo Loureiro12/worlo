@@ -53,6 +53,30 @@ describe('TripFormScreen', () => {
     expect(await createLocalStore(db).pendingMutations(100)).toEqual([]);
   });
 
+  it('searches the destination and keeps its country and flag', async () => {
+    await renderWithProviders(<TripFormScreen />);
+    await fireEvent.changeText(screen.getByTestId('trip-form-dest'), 'munique');
+    await fireEvent.press(await screen.findByTestId('trip-form-dest-option-0'));
+    expect(screen.getByTestId('trip-form-dest')).toHaveDisplayValue('Munique, Alemanha');
+    await fireEvent.changeText(screen.getByTestId('trip-form-name'), 'Oktoberfest');
+    await fireEvent.press(screen.getByTestId('trip-form-save'));
+    expect(repos.trips.list()[0]).toMatchObject({
+      place: 'Munique',
+      country: 'Alemanha',
+      countryIso: '276',
+      flag: '🇩🇪',
+    });
+  });
+
+  it('takes a destination no list has, as typed', async () => {
+    await renderWithProviders(<TripFormScreen />);
+    await fireEvent.changeText(screen.getByTestId('trip-form-dest'), 'Sítio do vovô');
+    await fireEvent.press(await screen.findByTestId('trip-form-dest-custom'));
+    await fireEvent.changeText(screen.getByTestId('trip-form-name'), 'Férias');
+    await fireEvent.press(screen.getByTestId('trip-form-save'));
+    expect(repos.trips.list()[0]).toMatchObject({ place: 'Sítio do vovô', countryIso: null });
+  });
+
   it('saves a past trip, lights the country and returns to Realizadas', async () => {
     await renderWithProviders(<TripFormScreen />);
     await fill('Kyoto, Japão', 'Cerejeiras');

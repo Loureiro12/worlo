@@ -10,6 +10,7 @@
       "**",
       "!**/drizzle",
       "!**/database.types.ts",
+      "!**/*.generated.json",
       "!**/.expo",
       "!**/android",
       "!**/ios",
