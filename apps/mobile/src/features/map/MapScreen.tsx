@@ -1,6 +1,5 @@
 import { useTranslation } from '@worlo/i18n';
 import {
-  alpha,
   Button,
   Chip,
   ChipRow,
@@ -31,6 +30,7 @@ import { useQuery } from '@/data/useQuery';
 import { useVisitedMap } from '@/data/world';
 import { countCities } from '@/features/profile/stats';
 import { countryFlag, useCountryName } from '@/lib/countries';
+import { useScreenActive } from '@/lib/useScreenActive';
 import type { CountryId } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
 import { useStore } from '@/store';
@@ -69,13 +69,14 @@ export function mapLayers(
 /** B2 · Mapa: fullscreen globe with filters, controls, legend and the country summary. */
 export function MapScreen() {
   return (
-    <DemoGate loading error dark>
+    <DemoGate loading error>
       <MapContent />
     </DemoGate>
   );
 }
 
 function MapContent() {
+  const active = useScreenActive();
   const { t } = useTranslation();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -154,11 +155,12 @@ function MapContent() {
         const { width: w, height: h } = e.nativeEvent.layout;
         if (w > 0 && h > 0 && (w !== width || h !== height)) setSize({ width: w, height: h });
       }}
-      style={{ flex: 1, backgroundColor: colors.backgroundDark, overflow: 'hidden' }}
+      style={{ flex: 1, backgroundColor: colors.background, overflow: 'hidden' }}
     >
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View style={{ position: 'absolute', left: 0, top: 0 }}>
         <Globe
+          paused={!active}
           ref={globe}
           testID="map-globe"
           width={width}
@@ -174,7 +176,8 @@ function MapContent() {
           markers
           cities={globeCities}
           photosLabel={(n) => t('common.count.photos', { count: n })}
-          glow
+          glow={false}
+          theme="light"
           centerOnPick
           onPickCountry={pick}
           accessibilityLabel={t('map.globeLabel', {
@@ -188,7 +191,7 @@ function MapContent() {
       {/* Header: gradient carvão → transparent */}
       <LinearGradient
         pointerEvents="box-none"
-        colors={[colors.backgroundDark, colors.backgroundDark, 'transparent']}
+        colors={[colors.background, colors.background, 'transparent']}
         locations={[0, 0.6, 1]}
         style={{
           position: 'absolute',
@@ -209,14 +212,14 @@ function MapContent() {
             gap: 8,
           }}
         >
-          <Text variant="h1" tone="inverse" accessibilityRole="header" numberOfLines={1}>
+          <Text variant="h1" accessibilityRole="header" numberOfLines={1}>
             {t('map.title')}
           </Text>
           <Text
             testID="map-stats"
             variant="caption"
             weight={600}
-            tone="inverseMuted"
+            tone="muted"
             numberOfLines={1}
             style={{ flexShrink: 1 }}
           >
@@ -226,7 +229,6 @@ function MapContent() {
         <Segmented<MapFilter>
           testID="map-filter"
           label={t('map.filter.label')}
-          onDark
           height={36}
           value={filter}
           onChange={setFilter}
@@ -242,7 +244,6 @@ function MapContent() {
               <Chip
                 key={y}
                 testID={`map-year-${y}`}
-                onDark
                 label={y === 'all' ? t('map.years.all') : y}
                 selected={year === y}
                 onPress={() => setYear(y)}
@@ -400,12 +401,12 @@ function MapControl({
   testID: string;
 }) {
   return (
-    <View style={{ borderRadius: 22, borderWidth: 1, borderColor: alpha.darkBorder }}>
+    <View style={{ borderRadius: 22, borderWidth: 1, borderColor: colors.border }}>
       <IconButton
         testID={testID}
         icon={icon}
         label={label}
-        tone="map"
+        tone="light"
         size={44}
         onPress={onPress}
       />
@@ -418,7 +419,7 @@ function MapLegend({ bottom }: { bottom: number }) {
   const item = (status: 'visited' | 'planned' | 'wishlist', label: string, size: number) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
       <StatusMarker status={status} size={size} />
-      <Text variant="caption" weight={600} tone="inverse" style={{ fontSize: 12 }}>
+      <Text variant="caption" weight={600} style={{ fontSize: 12 }}>
         {label}
       </Text>
     </View>
@@ -443,16 +444,16 @@ function MapLegend({ bottom }: { bottom: number }) {
           paddingVertical: 10,
           paddingHorizontal: 14,
           borderRadius: radius.full,
-          backgroundColor: alpha.mapControl,
+          backgroundColor: colors.surface,
           borderWidth: 1,
-          borderColor: alpha.darkBorder,
+          borderColor: colors.border,
         }}
       >
         {item('visited', t('map.legend.visited'), 14)}
         {item('planned', t('map.legend.planned'), 12)}
         {item('wishlist', t('map.legend.wishlist'), 12)}
       </View>
-      <Text variant="caption" tone="inverseMuted" weight={400}>
+      <Text variant="caption" tone="muted" weight={400}>
         {t('map.legend.hint')}
       </Text>
     </View>

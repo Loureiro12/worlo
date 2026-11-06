@@ -10,14 +10,12 @@ import {
   palette,
   Screen,
   ScreenHeader,
-  Segmented,
   Text,
   UnreadDot,
   useToast,
 } from '@worlo/ui';
 import type { Href } from 'expo-router';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useIsEmpty } from '@/components/DemoGate';
 import { inviteKey, myMembership } from '@/data/collab';
@@ -34,7 +32,6 @@ import { avatarFor } from '@/lib/people';
 import { notificationTarget } from './notificationTarget';
 import { useInviteActions } from './useInviteActions';
 
-type Seg = 'all' | 'invites';
 const GROUPS = ['today', 'week', 'earlier'] as const;
 
 /** Icon bubbles for notifications without a person (prototype notifVals). */
@@ -81,9 +78,9 @@ export function NotificationsScreen() {
   const styles = useStyles();
   const empty = useIsEmpty();
   const notifications = useNotifications();
-  const [seg, setSeg] = useState<Seg>('all');
 
-  const list = empty ? [] : notifications.filter((n) => seg === 'all' || n.type === 'invite');
+  // One list: invites and everything else together, newest first.
+  const list = empty ? [] : notifications;
   const groups = GROUPS.map((key) => ({ key, items: list.filter((n) => n.group === key) })).filter(
     (g) => g.items.length > 0,
   );
@@ -112,20 +109,10 @@ export function NotificationsScreen() {
       }
     >
       <Text variant="h1">{t('explore.notifs.title')}</Text>
-      <Segmented
-        testID="notifs-seg"
-        label={t('explore.notifs.filterLabel')}
-        value={seg}
-        onChange={setSeg}
-        options={[
-          { value: 'all', label: t('explore.notifs.segAll') },
-          { value: 'invites', label: t('explore.notifs.segInvites') },
-        ]}
-      />
       {groups.length === 0 ? (
         <View testID="notifs-empty" style={styles.emptyCard}>
           <Text variant="body" tone="muted">
-            {empty || seg === 'all' ? t('explore.notifs.empty') : t('explore.notifs.noInvites')}
+            {t('explore.notifs.empty')}
           </Text>
         </View>
       ) : (

@@ -172,13 +172,12 @@ describe('NotificationsScreen', () => {
     expect(screen.queryByLabelText(/não lida/)).toBeNull();
   });
 
-  it('filters to invites only', async () => {
+  it('shows invites and everything else together, with no filter to switch', async () => {
     await renderWithProviders(<NotificationsScreen />);
-    await fireEvent.press(screen.getByTestId('notifs-seg-invites'));
+    expect(screen.queryByTestId('notifs-seg')).toBeNull();
     expect(screen.getByTestId('notif-n1')).toBeOnTheScreen();
+    expect(screen.getByTestId('notif-n2')).toBeOnTheScreen();
     expect(screen.getByTestId('notif-n3')).toBeOnTheScreen();
-    expect(screen.queryByTestId('notif-n2')).toBeNull();
-    expect(screen.queryByText('Esta semana')).toBeNull();
   });
 
   it('shows the empty state on first use', async () => {

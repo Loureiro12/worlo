@@ -7,6 +7,7 @@ import {
   colors,
   HeroScreen,
   Icon,
+  IconButton,
   layout,
   Photo,
   palette,
@@ -134,18 +135,10 @@ export function CityScreen() {
                   tint={THUMB_TINTS[i % THUMB_TINTS.length] ?? palette.coral100}
                   onOpen={() => router.push(routes.place(item.name))}
                   onSave={() => toggleSaved(savedItemFor(item, tab))}
+                  onAdd={() => addToItinerary(item.name, id)}
                   onCollections={() => openCollections(item)}
                 />
               ))}
-            </View>
-
-            <View style={{ paddingHorizontal: layout.gutter }}>
-              <Button
-                testID="city-add-itinerary"
-                label={t('map.city.addToItinerary')}
-                fullWidth
-                onPress={() => addToItinerary(id, id)}
-              />
             </View>
           </>
         ) : null}
@@ -235,12 +228,14 @@ function CityRow({
   tint,
   onOpen,
   onSave,
+  onAdd,
   onCollections,
 }: {
   item: CityItem;
   tint: string;
   onOpen: () => void;
   onSave: () => void;
+  onAdd: () => void;
   onCollections: () => void;
 }) {
   const { t } = useTranslation();
@@ -260,7 +255,7 @@ function CityRow({
           alignItems: 'center',
           gap: 12,
           padding: 10,
-          paddingRight: 48 + (item.rating ? 44 : 0),
+          paddingRight: 88 + (item.rating ? 44 : 0),
           borderRadius: radius.r16,
           backgroundColor: colors.surface,
           boxShadow: pressed ? shadow.hover : undefined,
@@ -294,6 +289,13 @@ function CityRow({
         }}
       >
         {item.rating ? <Rating value={item.rating} /> : null}
+        <IconButton
+          testID={`city-add-${item.name}`}
+          icon="plus"
+          size={40}
+          label={t('map.city.addExperience', { name: item.name })}
+          onPress={onAdd}
+        />
         <SaveToggle
           testID={`city-save-${item.name}`}
           saved={saved}

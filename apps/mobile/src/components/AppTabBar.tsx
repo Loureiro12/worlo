@@ -1,6 +1,6 @@
 import { useTranslation } from '@worlo/i18n';
 import { type IconName, LivePill, OfflineBanner, TabBar } from '@worlo/ui';
-import { usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import type { BottomTabBarProps } from 'expo-router/tabs';
 import { View } from 'react-native';
 import { useItinerary, useLive } from '@/data/planning';
@@ -24,15 +24,14 @@ const keyOf = (routeName: string) => routeName.replace(/[()]/g, '') as TabKey;
 export function AppTabBar({ state, navigateToTab }: BottomTabBarProps) {
   const { t } = useTranslation();
   const router = useRouter();
-  const pathname = usePathname();
   const offline = useStore((s) => s.demo === 'offline');
   const setDemo = useStore((s) => s.setDemo);
   const live = useLive();
   const liveIt = useItinerary(live.on ? live.itineraryId : '');
   const liveLabel = liveIt?.days[live.day - 1]?.label ?? '';
 
-  // Carvão bar only on the Map tab root (the globe); detail pages stay light.
-  const dark = pathname === '/map';
+  // The map is light now (QA round 1): the bar is light everywhere.
+  const dark = false;
 
   return (
     <View>

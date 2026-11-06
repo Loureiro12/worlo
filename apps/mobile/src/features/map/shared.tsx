@@ -239,6 +239,17 @@ export function useAddToItinerary() {
       toast.show(t('map.place.noItinerary'), 'info');
       return;
     }
+    // The same experience once per itinerary (the city is its context, not a stop).
+    const already = target.days.some((d) =>
+      d.items.some((s) => s.title === name && (s.note === note || !s.note)),
+    );
+    if (already) {
+      toast.show(
+        t('map.place.alreadyInItinerary', { place: name, itinerary: target.title }),
+        'info',
+      );
+      return;
+    }
     const stop = {
       time: t('map.place.timeTbd'),
       icon: 'map-pin' as const,

@@ -133,7 +133,7 @@ describe('CityScreen', () => {
     expect(screen.getByTestId('collection-sheet')).toBeOnTheScreen();
   });
 
-  it('shows the community tip, breadcrumb links and the itinerary CTA', async () => {
+  it('shows the community tip, breadcrumb links and adds experiences (not the city)', async () => {
     await renderWithProviders(<CityScreen />);
     expect(await screen.findByText('Dica da comunidade')).toBeOnTheScreen();
     // Marina's Lisboa tip (seeds: 7 confirm, 1 disputes).
@@ -142,11 +142,26 @@ describe('CityScreen', () => {
     expect(mockRouter.push).toHaveBeenCalledWith(routes.post(demoId('post:p1')));
     await fireEvent.press(screen.getByTestId('city-crumb-region'));
     expect(mockRouter.push).toHaveBeenCalledWith(routes.region('Lisboa e Vale do Tejo'));
-    await fireEvent.press(screen.getByTestId('city-add-itinerary'));
+    expect(screen.queryByTestId('city-add-itinerary')).toBeNull();
+
+    const button = screen.getAllByTestId(/^city-add-/)[0];
+    const name = String(button?.props.testID).replace('city-add-', '');
+    await fireEvent.press(screen.getByTestId(`city-add-${name}`));
     const itinerary = getItineraries()[0];
-    expect(screen.getByRole('alert')).toHaveTextContent(`Lisboa entrou em “${itinerary?.title}”.`);
-    const lastDay = getItineraries()[0]?.days.at(-1);
-    expect(lastDay?.items.at(-1)?.title).toBe('Lisboa');
+    expect(screen.getByRole('alert')).toHaveTextContent(`${name} entrou em “${itinerary?.title}”.`);
+    // The experience is the stop; Lisboa is where it happens.
+    expect(getItineraries()[0]?.days.at(-1)?.items.at(-1)).toMatchObject({
+      title: name,
+      note: 'Lisboa',
+    });
+
+    // Not twice.
+    const stops = getItineraries()[0]?.days.flatMap((d) => d.items).length;
+    await fireEvent.press(screen.getByTestId(`city-add-${name}`));
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      `${name} já está em “${itinerary?.title}”.`,
+    );
+    expect(getItineraries()[0]?.days.flatMap((d) => d.items).length).toBe(stops);
   });
 });
 
