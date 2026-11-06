@@ -87,6 +87,15 @@ const auth = {
     errorText: 'Algo deu errado do nosso lado. Tenta de novo daqui a pouco.',
     signOut: 'Sair da conta',
   },
+  signOutPending: {
+    title: 'Alterações ainda não enviadas',
+    text_one:
+      '{{count}} alteração ainda não chegou ao servidor. Se você sair agora, ela será perdida.',
+    text_other:
+      '{{count}} alterações ainda não chegaram ao servidor. Se você sair agora, elas serão perdidas.',
+    retry: 'Tentar enviar de novo',
+    discard: 'Sair e descartar',
+  },
   twoFactor: {
     title: 'Verificação em duas etapas',
     text: 'Digite o código de 6 dígitos do seu app autenticador pra entrar.',
@@ -122,6 +131,7 @@ const auth = {
     globeLabel: 'Globo. Toque nos países que você já conhece pra marcar.',
   },
   firstMap: {
+    addAnother: 'Adicionar outra viagem',
     overline: 'Roteiro salvo',
     title: 'Seu mapa começou.',
     text: 'Cada viagem que você guarda acende um pedaço do mundo.',

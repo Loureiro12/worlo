@@ -37,6 +37,11 @@ const discovery: TranslationSchema['discovery'] = {
     cancelFailed: 'No se pudo cancelar ahora. ¿Lo intentas de nuevo?',
   },
   tour: {
+    perPersonShort: 'por persona',
+    bookWith: 'Reservar con {{host}}',
+    noLink: 'Reserva con el proveedor pronto',
+    externalNote: 'La reserva y el pago se hacen directamente con {{host}}, en su sitio.',
+    linkError: 'No se pudo abrir el sitio de reserva.',
     reviews_one: '{{count}} reseña',
     reviews_other: '{{count}} reseñas',
     verified: 'Negocio verificado',
@@ -79,6 +84,8 @@ const discovery: TranslationSchema['discovery'] = {
       reviewsText: 'Los viajeros confirman y valoran cada experiencia.',
     },
     fields: {
+      link: 'Enlace de reserva (opcional)',
+      linkPlaceholder: 'https://tunegocio.com/reservar',
       name: 'Nombre del negocio',
       namePlaceholder: 'Rio Tejo Sailing',
       type: 'Tipo',
@@ -96,6 +103,7 @@ const discovery: TranslationSchema['discovery'] = {
       lodging: 'Alojamiento',
     },
     errors: {
+      link: 'Usa un enlace que empiece con https://',
       name: 'Falta el nombre del negocio.',
       city: 'Dinos en qué ciudad trabajas.',
       email: 'Revisa el correo de contacto.',

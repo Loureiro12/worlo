@@ -91,7 +91,7 @@ const map: TranslationSchema['map'] = {
     shareTip: 'Share a tip',
     reliabilityHigh: 'Highly reliable',
     confirm: '{{pct}} confirm',
-    addToItinerary: 'Add to itinerary',
+    addExperience: 'Add {{name}} to the itinerary',
     minimal: "We're still putting together the {{name}} guide.",
   },
   place: {
@@ -104,6 +104,7 @@ const map: TranslationSchema['map'] = {
     addToItinerary: 'Add to itinerary',
     addedToItinerary: '{{place}} was added to “{{itinerary}}”.',
     noItinerary: 'Create an itinerary first to add this place.',
+    alreadyInItinerary: '{{place}} is already in “{{itinerary}}”.',
     timeTbd: 'To be decided',
     genericDesc:
       '{{name}} is one of the places people remember most from {{city}}. The tips below come from Worlo travelers.',

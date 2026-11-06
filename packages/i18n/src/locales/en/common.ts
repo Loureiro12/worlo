@@ -39,6 +39,16 @@ const common: TranslationSchema['common'] = {
     wishlist: 'Want to go',
     verified: 'Verified',
   },
+  destination: {
+    results: 'Places found',
+    country: 'Country',
+    useTyped: 'Use “{{text}}” as the destination',
+  },
+  crash: {
+    title: 'Something went wrong on this screen',
+    text: 'Your data is saved on this device. Try again or go back to the start.',
+    home: 'Back to the start',
+  },
   states: {
     loading: 'Loading…',
     offlineBanner: 'Offline · showing what is saved',

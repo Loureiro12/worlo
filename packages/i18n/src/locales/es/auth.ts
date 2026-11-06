@@ -88,6 +88,14 @@ const auth: TranslationSchema['auth'] = {
     errorText: 'Algo salió mal de nuestro lado. Intenta de nuevo en un rato.',
     signOut: 'Cerrar sesión',
   },
+  signOutPending: {
+    title: 'Cambios sin enviar',
+    text_one: '{{count}} cambio todavía no llegó al servidor. Si cierras sesión ahora, se perderá.',
+    text_other:
+      '{{count}} cambios todavía no llegaron al servidor. Si cierras sesión ahora, se perderán.',
+    retry: 'Intentar enviar de nuevo',
+    discard: 'Cerrar sesión y descartar',
+  },
   twoFactor: {
     title: 'Verificación en dos pasos',
     text: 'Escribe el código de 6 dígitos de tu app de autenticación para entrar.',
@@ -123,6 +131,7 @@ const auth: TranslationSchema['auth'] = {
     globeLabel: 'Globo. Toca los países que ya conoces para marcarlos.',
   },
   firstMap: {
+    addAnother: 'Añadir otro viaje',
     overline: 'Viaje guardado',
     title: 'Tu mapa empezó.',
     text: 'Cada viaje que guardas ilumina un pedazo del mundo.',

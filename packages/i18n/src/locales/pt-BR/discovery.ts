@@ -36,6 +36,11 @@ const discovery = {
     cancelFailed: 'Não deu pra cancelar agora. Tenta de novo?',
   },
   tour: {
+    perPersonShort: 'por pessoa',
+    bookWith: 'Reservar com {{host}}',
+    noLink: 'Reserva pelo fornecedor em breve',
+    externalNote: 'A reserva e o pagamento são feitos direto com {{host}}, no site deles.',
+    linkError: 'Não deu pra abrir o site de reserva.',
     reviews_one: '{{count}} avaliação',
     reviews_other: '{{count}} avaliações',
     verified: 'Negócio verificado',
@@ -78,6 +83,8 @@ const discovery = {
       reviewsText: 'Viajantes confirmam e avaliam cada experiência.',
     },
     fields: {
+      link: 'Link de reserva (opcional)',
+      linkPlaceholder: 'https://seunegocio.com/reservar',
       name: 'Nome do negócio',
       namePlaceholder: 'Rio Tejo Sailing',
       type: 'Tipo',
@@ -95,6 +102,7 @@ const discovery = {
       lodging: 'Hospedagem',
     },
     errors: {
+      link: 'Use um link que comece com https://',
       name: 'Falta o nome do negócio.',
       city: 'Diga em qual cidade você atua.',
       email: 'Confere o e-mail de contato.',

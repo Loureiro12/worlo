@@ -91,7 +91,7 @@ const map: TranslationSchema['map'] = {
     shareTip: 'Compartir un consejo',
     reliabilityHigh: 'Alta confiabilidad',
     confirm: '{{pct}} confirman',
-    addToItinerary: 'Agregar al itinerario',
+    addExperience: 'Añadir {{name}} al itinerario',
     minimal: 'Todavía estamos armando la guía de {{name}}.',
   },
   place: {
@@ -104,6 +104,7 @@ const map: TranslationSchema['map'] = {
     addToItinerary: 'Agregar al itinerario',
     addedToItinerary: '{{place}} entró en “{{itinerary}}”.',
     noItinerary: 'Crea un itinerario primero para añadir este lugar.',
+    alreadyInItinerary: '{{place}} ya está en “{{itinerary}}”.',
     timeTbd: 'Por definir',
     genericDesc:
       '{{name}} es uno de los lugares más recordados por quienes pasan por {{city}}. Los consejos de abajo son de viajeros de Worlo.',

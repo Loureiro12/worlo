@@ -26,12 +26,15 @@ const profile: TranslationSchema['profile'] = {
     places_other: 'lugares',
   },
   achievements: {
-    title: 'Logros',
+    firstCountry: 'Primer país',
     firstTrip: 'Primer viaje',
     fiveCountries: '5 países',
-    endOfWorld: 'Fin del mundo',
-    twentyCities: '20 ciudades',
-    threeContinents: '3 continentes',
+    tenCities: '10 ciudades',
+    frequentTraveler: 'Viajero frecuente',
+    experienceExplorer: 'Explorador de experiencias',
+    tripWithFriends: 'Primer viaje con amigos',
+    newContinent: 'Nuevo continente',
+    title: 'Logros',
     remaining_one: 'falta {{count}}',
     remaining_other: 'faltan {{count}}',
     progressToast: '{{title}}: {{meta}}.',
@@ -76,6 +79,7 @@ const profile: TranslationSchema['profile'] = {
     stay: 'Alojamiento',
   },
   saved: {
+    open: 'Abrir {{name}}',
     overline: 'Guardados',
     title: 'Lugares guardados',
     summary: '{{places}} en {{cities}}',
@@ -109,6 +113,7 @@ const profile: TranslationSchema['profile'] = {
     sheetText: 'Toca un lugar para ponerlo en esta colección.',
     sheetEmpty: 'Todos tus guardados ya están en esta colección.',
     added: '{{name}} entró en la colección.',
+    trips: 'Tus viajes a estos lugares',
     notFound: 'Esta colección ya no existe.',
   },
   photos: {
@@ -213,6 +218,7 @@ const profile: TranslationSchema['profile'] = {
       error: 'Error del servidor',
     },
     signOut: 'Cerrar sesión',
+    credits: 'Ciudades: GeoNames (CC BY 4.0) · Clima: MET Norway (CC BY 4.0)',
     version: 'Worlo · versión {{version}}',
   },
   currencies: {

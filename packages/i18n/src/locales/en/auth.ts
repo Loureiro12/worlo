@@ -87,6 +87,14 @@ const auth: TranslationSchema['auth'] = {
     errorText: 'Something went wrong on our side. Try again in a bit.',
     signOut: 'Log out',
   },
+  signOutPending: {
+    title: 'Changes not sent yet',
+    text_one: "{{count}} change hasn't reached the server. If you sign out now, it will be lost.",
+    text_other:
+      "{{count}} changes haven't reached the server. If you sign out now, they will be lost.",
+    retry: 'Try sending again',
+    discard: 'Sign out and discard',
+  },
   twoFactor: {
     title: 'Two-step verification',
     text: 'Enter the 6-digit code from your authenticator app to sign in.',
@@ -122,6 +130,7 @@ const auth: TranslationSchema['auth'] = {
     globeLabel: 'Globe. Tap the countries you already know to mark them.',
   },
   firstMap: {
+    addAnother: 'Add another trip',
     overline: 'Trip saved',
     title: 'Your map has begun.',
     text: 'Every trip you keep lights up a piece of the world.',

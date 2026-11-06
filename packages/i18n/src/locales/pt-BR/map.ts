@@ -90,7 +90,7 @@ const map = {
     shareTip: 'Compartilhar uma dica',
     reliabilityHigh: 'Alta confiabilidade',
     confirm: '{{pct}} confirmam',
-    addToItinerary: 'Adicionar ao roteiro',
+    addExperience: 'Adicionar {{name}} ao roteiro',
     minimal: 'Ainda estamos montando o guia de {{name}}.',
   },
   place: {
@@ -103,6 +103,7 @@ const map = {
     addToItinerary: 'Adicionar ao roteiro',
     addedToItinerary: '{{place}} entrou em “{{itinerary}}”.',
     noItinerary: 'Crie um roteiro primeiro pra adicionar este lugar.',
+    alreadyInItinerary: '{{place}} já está em “{{itinerary}}”.',
     timeTbd: 'A definir',
     genericDesc:
       '{{name}} é um dos lugares mais lembrados por quem passa por {{city}}. As dicas abaixo são de viajantes do Worlo.',

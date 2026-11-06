@@ -25,12 +25,15 @@ const profile = {
     places_other: 'lugares',
   },
   achievements: {
-    title: 'Conquistas',
+    firstCountry: 'Primeiro país',
     firstTrip: 'Primeira viagem',
     fiveCountries: '5 países',
-    endOfWorld: 'Fim do mundo',
-    twentyCities: '20 cidades',
-    threeContinents: '3 continentes',
+    tenCities: '10 cidades',
+    frequentTraveler: 'Viajante frequente',
+    experienceExplorer: 'Explorador de experiências',
+    tripWithFriends: 'Primeira viagem com amigos',
+    newContinent: 'Novo continente',
+    title: 'Conquistas',
     remaining_one: 'falta {{count}}',
     remaining_other: 'faltam {{count}}',
     progressToast: '{{title}}: {{meta}}.',
@@ -75,6 +78,7 @@ const profile = {
     stay: 'Hospedagem',
   },
   saved: {
+    open: 'Abrir {{name}}',
     overline: 'Salvos',
     title: 'Lugares salvos',
     summary: '{{places}} em {{cities}}',
@@ -108,6 +112,7 @@ const profile = {
     sheetText: 'Toque num lugar pra colocar nessa coleção.',
     sheetEmpty: 'Todos os seus salvos já estão nessa coleção.',
     added: '{{name}} entrou na coleção.',
+    trips: 'Suas viagens para esses lugares',
     notFound: 'Essa coleção não existe mais.',
   },
   photos: {
@@ -213,6 +218,7 @@ const profile = {
       error: 'Erro de servidor',
     },
     signOut: 'Sair da conta',
+    credits: 'Cidades: GeoNames (CC BY 4.0) · Clima: MET Norway (CC BY 4.0)',
     version: 'Worlo · versão {{version}}',
   },
   currencies: {

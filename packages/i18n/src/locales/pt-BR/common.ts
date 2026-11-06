@@ -38,6 +38,16 @@ const common = {
     wishlist: 'Quero ir',
     verified: 'Verificado',
   },
+  destination: {
+    results: 'Destinos encontrados',
+    country: 'País',
+    useTyped: 'Usar “{{text}}” como destino',
+  },
+  crash: {
+    title: 'Algo deu errado nesta tela',
+    text: 'Seus dados estão salvos no aparelho. Tente de novo ou volte pro início.',
+    home: 'Voltar pro início',
+  },
   states: {
     loading: 'Carregando…',
     offlineBanner: 'Sem conexão · mostrando o que está salvo',

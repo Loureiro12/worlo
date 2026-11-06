@@ -39,6 +39,16 @@ const common: TranslationSchema['common'] = {
     wishlist: 'Quiero ir',
     verified: 'Verificado',
   },
+  destination: {
+    results: 'Destinos encontrados',
+    country: 'País',
+    useTyped: 'Usar “{{text}}” como destino',
+  },
+  crash: {
+    title: 'Algo salió mal en esta pantalla',
+    text: 'Tus datos están guardados en el dispositivo. Inténtalo de nuevo o vuelve al inicio.',
+    home: 'Volver al inicio',
+  },
   states: {
     loading: 'Cargando…',
     offlineBanner: 'Sin conexión · mostrando lo guardado',

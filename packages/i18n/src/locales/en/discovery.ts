@@ -37,6 +37,11 @@ const discovery: TranslationSchema['discovery'] = {
     cancelFailed: "Couldn't cancel right now. Try again?",
   },
   tour: {
+    perPersonShort: 'per person',
+    bookWith: 'Book with {{host}}',
+    noLink: 'Supplier booking coming soon',
+    externalNote: 'Booking and payment are made directly with {{host}}, on their site.',
+    linkError: "Couldn't open the booking site.",
     reviews_one: '{{count}} review',
     reviews_other: '{{count}} reviews',
     verified: 'Verified business',
@@ -79,6 +84,8 @@ const discovery: TranslationSchema['discovery'] = {
       reviewsText: 'Travelers confirm and rate every experience.',
     },
     fields: {
+      link: 'Booking link (optional)',
+      linkPlaceholder: 'https://yourbusiness.com/book',
       name: 'Business name',
       namePlaceholder: 'Rio Tejo Sailing',
       type: 'Type',
@@ -96,6 +103,7 @@ const discovery: TranslationSchema['discovery'] = {
       lodging: 'Lodging',
     },
     errors: {
+      link: 'Use a link that starts with https://',
       name: 'The business name is missing.',
       city: 'Tell us which city you work in.',
       email: 'Check the contact email.',
