@@ -18,6 +18,7 @@ import { Pressable, View } from 'react-native';
 import { useCollections } from '@/data/saved';
 import { img } from '@/lib/images';
 import type { SavedCategory, SavedItem } from '@/mocks/types';
+import { routes } from '@/navigation/routes';
 
 /* Building blocks shared by the profile/settings screens. Promotion candidates
    for @worlo/ui: GroupCard, MenuRow, SwitchRow, CheckRow. */
@@ -239,6 +240,13 @@ export function useCategoryLabel() {
 }
 
 /** Saved place card: thumb 64 · name · cat · meta · rating "em N coleções" · actions. */
+/** Where a saved item leads: its tour or its place page. */
+export function savedItemHref(item: Pick<SavedItem, 'id' | 'name'>) {
+  return item.id.startsWith('pas-')
+    ? routes.passeio(item.id.slice('pas-'.length))
+    : routes.place(item.name);
+}
+
 export function SavedItemRow({
   item,
   actions,
@@ -249,6 +257,7 @@ export function SavedItemRow({
   testID?: string;
 }) {
   const { t } = useTranslation();
+  const router = useRouter();
   const categoryLabel = useCategoryLabel();
   const inCollections = useCollections().filter((c) => c.ids.includes(item.id)).length;
   return (
@@ -263,23 +272,44 @@ export function SavedItemRow({
         backgroundColor: colors.surface,
       }}
     >
-      <Photo uri={img(item.id, 160, 160)} tint={colors.border} width={64} height={64} radius={12} />
-      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
-        <Text variant="body" weight={700} numberOfLines={2} style={{ lineHeight: 20 }}>
-          {item.name}
-        </Text>
-        <Text variant="caption" tone="muted" weight={400} numberOfLines={1}>
-          {`${categoryLabel(item.cat)} · ${item.meta}`}
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Rating value={item.rating} size={12} />
-          {inCollections ? (
-            <Text variant="caption" tone="muted" weight={600} style={{ fontSize: 12 }}>
-              {`· ${t('profile.saved.inCollections', { count: inCollections })}`}
-            </Text>
-          ) : null}
+      <Pressable
+        testID={testID ? `${testID}-open` : undefined}
+        accessibilityRole="button"
+        accessibilityLabel={t('profile.saved.open', { name: item.name })}
+        onPress={() => router.push(savedItemHref(item))}
+        style={({ pressed }) => ({
+          flex: 1,
+          minWidth: 0,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Photo
+          uri={img(item.id, 160, 160)}
+          tint={colors.border}
+          width={64}
+          height={64}
+          radius={12}
+        />
+        <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+          <Text variant="body" weight={700} numberOfLines={2} style={{ lineHeight: 20 }}>
+            {item.name}
+          </Text>
+          <Text variant="caption" tone="muted" weight={400} numberOfLines={1}>
+            {`${categoryLabel(item.cat)} · ${item.meta}`}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Rating value={item.rating} size={12} />
+            {inCollections ? (
+              <Text variant="caption" tone="muted" weight={600} style={{ fontSize: 12 }}>
+                {`· ${t('profile.saved.inCollections', { count: inCollections })}`}
+              </Text>
+            ) : null}
+          </View>
         </View>
-      </View>
+      </Pressable>
       <View style={{ gap: 2 }}>{actions}</View>
     </View>
   );

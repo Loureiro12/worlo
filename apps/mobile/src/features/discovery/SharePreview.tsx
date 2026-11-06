@@ -12,6 +12,7 @@ import {
 } from '@worlo/ui';
 import { type ReactNode, useState } from 'react';
 import { type LayoutChangeEvent, View } from 'react-native';
+import { useScreenActive } from '@/lib/useScreenActive';
 import type { ShareSubject } from '@/navigation/routes';
 import type { ShareFormat } from '@/store/slices/discovery';
 import type { PictureRef } from './exportImage';
@@ -158,6 +159,7 @@ function Overline({ children, color }: { children: string; color: string }) {
 }
 
 function MapBody({ theme, content, labels }: BodyProps) {
+  const active = useScreenActive();
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const onLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -170,6 +172,7 @@ function MapBody({ theme, content, labels }: BodyProps) {
       <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout}>
         {globe.height > 0 ? (
           <Globe
+            paused={!active}
             width={globe.width}
             height={globe.height}
             visited={content.map.visited}

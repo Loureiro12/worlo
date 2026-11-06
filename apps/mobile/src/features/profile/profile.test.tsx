@@ -68,12 +68,12 @@ describe('ProfileScreen', () => {
 
   it('shares an unlocked achievement and shows progress for a locked one', async () => {
     await renderWithProviders(<ProfileScreen />);
-    await fireEvent.press(screen.getByTestId('achievement-endOfWorld'));
-    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('ach', { ach: 'endOfWorld' }));
+    // The demo account has trips: "Primeira viagem" is unlocked.
+    await fireEvent.press(screen.getByTestId('achievement-firstTrip'));
+    expect(mockRouter.push).toHaveBeenCalledWith(routes.share('ach', { ach: 'firstTrip' }));
 
-    await fireEvent.press(screen.getByTestId('achievement-twentyCities'));
-    const left = 20 - countCities(repos.trips.list());
-    expect(screen.getByRole('alert')).toHaveTextContent(`20 cidades: faltam ${left}.`);
+    await fireEvent.press(screen.getByTestId('achievement-experienceExplorer'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Explorador de experiências: faltam 20.');
   });
 
   it('navigates from the header buttons, cards and rows', async () => {

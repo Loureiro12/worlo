@@ -11,14 +11,19 @@ import {
   Text,
   useToast,
 } from '@worlo/ui';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { CollectionCover } from '@/components/CollectionCover';
 import { useIsEmpty } from '@/components/DemoGate';
+import { isListed } from '@/data/collab';
+import { repos } from '@/data/repositories';
 import { toggleInCollection, useCollections, useSavedItems } from '@/data/saved';
+import { useQuery } from '@/data/useQuery';
+import { normalize } from '@/lib/format';
 import { img } from '@/lib/images';
 import { links, useCopyLink } from '@/lib/useCopyLink';
+import { routes } from '@/navigation/routes';
 import { SavedItemRow, StackHeader, useCategoryLabel } from './parts';
 
 /** F3 · Coleção: mosaic, items with remove and "Adicionar dos salvos". */
@@ -33,6 +38,8 @@ export function CollectionScreen() {
   const saved = useSavedItems();
   const categoryLabel = useCategoryLabel();
   const [adding, setAdding] = useState(false);
+  const router = useRouter();
+  const allTrips = useQuery(() => repos.trips.list(), []);
 
   const header = (
     <StackHeader
@@ -63,6 +70,11 @@ export function CollectionScreen() {
     .filter((x) => x !== undefined);
   const available = saved.filter((x) => !collection.ids.includes(x.id));
   const cities = new Set(items.map((x) => x.city)).size;
+  // "Viagens a esses lugares": my trips to a city of this collection.
+  const placesHere = new Set(items.map((x) => normalize(x.city)));
+  const trips = allTrips.filter(
+    (trip) => placesHere.has(normalize(trip.place.split(',')[0] ?? '')) && isListed('trip', trip),
+  );
 
   return (
     <Screen testID="collection-screen" withTabBar gap={20} header={header}>
@@ -112,6 +124,23 @@ export function CollectionScreen() {
           ))}
         </View>
       )}
+
+      {trips.length ? (
+        <View style={{ gap: 8 }}>
+          <Text variant="h3" accessibilityRole="header">
+            {t('profile.collection.trips')}
+          </Text>
+          {trips.map((trip) => (
+            <ListRow
+              key={trip.id}
+              testID={`collection-trip-${trip.id}`}
+              title={trip.title}
+              meta={`${trip.flag} ${trip.place} · ${trip.period}`}
+              onPress={() => router.push(routes.trip(trip.id))}
+            />
+          ))}
+        </View>
+      ) : null}
 
       <Button
         testID="collection-add"

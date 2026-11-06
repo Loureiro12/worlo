@@ -5,7 +5,7 @@ import * as Sharing from 'expo-sharing';
 import { PixelRatio, StyleSheet } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import { repos } from '@/data/repositories';
-import { computeAchievements } from '@/features/profile/achievements';
+import { readAchievements } from '@/features/profile/achievements';
 import { demoId } from '@/mocks/demo';
 import type { ShareSubject } from '@/navigation/routes';
 import { resetStore, useStore } from '@/store';
@@ -35,18 +35,17 @@ beforeEach(() => {
 const previewStyle = () => StyleSheet.flatten(screen.getByTestId('share-preview').props.style);
 
 const ACH_TITLES: Record<string, string> = {
+  firstCountry: 'Primeiro país',
   firstTrip: 'Primeira viagem',
   fiveCountries: '5 países',
-  endOfWorld: 'Fim do mundo',
-  twentyCities: '20 cidades',
-  threeContinents: '3 continentes',
+  tenCities: '10 cidades',
+  frequentTraveler: 'Viajante frequente',
+  experienceExplorer: 'Explorador de experiências',
+  tripWithFriends: 'Primeira viagem com amigos',
+  newContinent: 'Novo continente',
 };
 const pt = (id: string | undefined) => ACH_TITLES[id ?? ''] ?? '';
-const unlockedAchievements = () =>
-  computeAchievements({
-    trips: repos.trips.list(),
-    visitedMap: repos.world.visitedMap(),
-  }).flatMap((a) => (a.unlocked ? [a] : []));
+const unlockedAchievements = () => readAchievements().flatMap((a) => (a.unlocked ? [a] : []));
 
 const SUBJECTS: ShareSubject[] = ['map', 'year', 'trip', 'retro', 'roteiro', 'ach'];
 const FORMATS: ShareFormat[] = ['story', 'post', 'square'];

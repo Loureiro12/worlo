@@ -25,8 +25,9 @@ import { type Privacy, updatePrefs, useMe, useProfilePrefs } from '@/data/profil
 import { repos } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
 import { WORLD_COUNTRIES } from '@/lib/countries';
+import { useScreenActive } from '@/lib/useScreenActive';
 import { routes } from '@/navigation/routes';
-import { type Achievement, computeAchievements } from './achievements';
+import { type Achievement, useAchievements } from './achievements';
 import { GroupCard, MenuRow } from './parts';
 import { countCities, countPhotos, formatNumber, worldPercent } from './stats';
 
@@ -40,6 +41,7 @@ export function ProfileScreen() {
 }
 
 function ProfileContent() {
+  const active = useScreenActive();
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const toast = useToast();
@@ -50,7 +52,7 @@ function ProfileContent() {
   const wishes = useQuery(() => repos.world.wishes(), []);
   const trips = useQuery(() => repos.trips.list(), []);
   const photos = useQuery(() => repos.photos.list(), []);
-  const achievements = computeAchievements({ trips, visitedMap });
+  const achievements = useAchievements();
   const savedCount = useQuery(() => repos.saved.items().length, []);
   const collectionsCount = useQuery(() => repos.saved.collections().length, []);
 
@@ -123,6 +125,7 @@ function ProfileContent() {
       >
         <View style={{ position: 'absolute', left: 90, top: -10 }}>
           <Globe
+            paused={!active}
             width={300}
             height={260}
             visited={visited}

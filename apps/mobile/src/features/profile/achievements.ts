@@ -1,22 +1,53 @@
 import type { IconName } from '@worlo/ui';
-import { normalize } from '@/lib/format';
+import { collaboratorsOf, isListed } from '@/data/collab';
+import { repos } from '@/data/repositories';
+import { useQuery } from '@/data/useQuery';
 import { countCities } from './stats';
 
-/** Achievements (B5 · Conquistas), worked out from the user's own trips and map. */
+/**
+ * Conquistas (QA round 1, 8 official rules). Everything is computed from the
+ * account's own data, so progress moves by itself as trips, the map and
+ * travel mode fill up.
+ *
+ *   firstCountry        1 country marked on the map
+ *   firstTrip           1 trip
+ *   fiveCountries       5 countries
+ *   tenCities           10 different cities across trips
+ *   frequentTraveler    5 trips
+ *   experienceExplorer  20 experiences recorded in travel mode
+ *   tripWithFriends     a trip with someone else on it
+ *   newContinent        a country outside the continent of the first trip
+ */
 export type AchievementId =
+  | 'firstCountry'
   | 'firstTrip'
   | 'fiveCountries'
-  | 'endOfWorld'
-  | 'twentyCities'
-  | 'threeContinents';
+  | 'tenCities'
+  | 'frequentTraveler'
+  | 'experienceExplorer'
+  | 'tripWithFriends'
+  | 'newContinent';
 
 export type Achievement = {
   id: AchievementId;
   icon: IconName;
 } & ({ unlocked: true; meta: string } | { unlocked: false; remaining: number });
 
-type TripFacts = { title: string; place: string; year: string };
-type Input = { trips: readonly TripFacts[]; visitedMap: Record<string, string[]> };
+type TripFacts = {
+  title: string;
+  place: string;
+  year: string;
+  countryIso?: string | null;
+  /** Someone else was on this trip (member or companion). */
+  withFriends?: boolean;
+};
+
+export type AchievementInput = {
+  trips: readonly TripFacts[];
+  visitedMap: Record<string, string[]>;
+  /** Experiences recorded in travel mode (activities, stops done). */
+  experiences?: number;
+};
 
 /** ISO 3166 numeric codes (the ids of the globe) by continent. */
 const CONTINENTS: Record<string, string> = {
@@ -39,84 +70,122 @@ const CONTINENT_OF = new Map(
 
 export const continentOf = (countryId: string) => CONTINENT_OF.get(countryId);
 
-const FIVE_COUNTRIES = 5;
-const TWENTY_CITIES = 20;
-const THREE_CONTINENTS = 3;
-
-/** The southern tip of South America: what "Fim do mundo" celebrates. */
-const END_OF_WORLD = /patagonia|ushuaia|calafate|torres del paine|terra do fogo|tierra del fuego/;
-
 const firstYear = (years: readonly string[] | undefined) => [...(years ?? [])].sort()[0] ?? '';
 
-export function computeAchievements({ trips, visitedMap }: Input): Achievement[] {
-  const dated = [...trips].sort((a, b) => a.year.localeCompare(b.year));
-  const first = dated[0];
-  const endOfWorld = dated.find((t) => END_OF_WORLD.test(normalize(`${t.title} ${t.place}`)));
+type Rule = {
+  id: AchievementId;
+  icon: IconName;
+  /** How far the account is, and the goal. */
+  progress: (input: Required<AchievementInput>) => { have: number; goal: number; meta: string };
+};
 
-  // The year each milestone was reached: the Nth country / continent, oldest first.
-  const countries = Object.keys(visitedMap);
-  const countryYears = countries.map((id) => firstYear(visitedMap[id])).sort();
-  const continentYears = new Map<string, string>();
-  for (const id of countries) {
-    const continent = continentOf(id);
-    if (!continent) continue;
-    const year = firstYear(visitedMap[id]);
-    const known = continentYears.get(continent);
-    if (known === undefined || year < known) continentYears.set(continent, year);
+const byYear = <T extends { year: string }>(list: readonly T[]) =>
+  [...list].sort((a, b) => a.year.localeCompare(b.year));
+
+const RULES: readonly Rule[] = [
+  {
+    id: 'firstCountry',
+    icon: 'flag',
+    progress: ({ visitedMap }) => {
+      const years = Object.values(visitedMap).map(firstYear).sort();
+      return { have: Object.keys(visitedMap).length, goal: 1, meta: years[0] ?? '' };
+    },
+  },
+  {
+    id: 'firstTrip',
+    icon: 'airplane-takeoff',
+    progress: ({ trips }) => {
+      const first = byYear(trips)[0];
+      return { have: trips.length, goal: 1, meta: first ? `${first.place} · ${first.year}` : '' };
+    },
+  },
+  {
+    id: 'fiveCountries',
+    icon: 'globe-hemisphere-west',
+    progress: ({ visitedMap }) => {
+      const years = Object.values(visitedMap).map(firstYear).sort();
+      return { have: years.length, goal: 5, meta: years[4] ?? '' };
+    },
+  },
+  {
+    id: 'tenCities',
+    icon: 'buildings',
+    progress: ({ trips }) => ({ have: countCities(trips), goal: 10, meta: '' }),
+  },
+  {
+    id: 'frequentTraveler',
+    icon: 'arrows-clockwise',
+    progress: ({ trips }) => ({
+      have: trips.length,
+      goal: 5,
+      meta: byYear(trips)[4]?.year ?? '',
+    }),
+  },
+  {
+    id: 'experienceExplorer',
+    icon: 'map-trifold',
+    progress: ({ experiences }) => ({ have: experiences, goal: 20, meta: '' }),
+  },
+  {
+    id: 'tripWithFriends',
+    icon: 'users-three',
+    progress: ({ trips }) => {
+      const first = byYear(trips.filter((t) => t.withFriends))[0];
+      return {
+        have: first ? 1 : 0,
+        goal: 1,
+        meta: first ? `${first.place} · ${first.year}` : '',
+      };
+    },
+  },
+  {
+    id: 'newContinent',
+    icon: 'compass',
+    progress: ({ trips, visitedMap }) => {
+      // Home continent: the first trip's country, else the first country marked.
+      const firstTripCountry = byYear(trips).find((t) => t.countryIso)?.countryIso ?? null;
+      const marked = Object.entries(visitedMap).sort(([, a], [, b]) =>
+        firstYear(a).localeCompare(firstYear(b)),
+      );
+      const home = continentOf(firstTripCountry ?? marked[0]?.[0] ?? '');
+      const away = marked.find(([id]) => home && continentOf(id) && continentOf(id) !== home);
+      return { have: away ? 1 : 0, goal: 1, meta: away ? firstYear(away[1]) : '' };
+    },
+  },
+];
+
+export function computeAchievements(input: AchievementInput): Achievement[] {
+  const full = { experiences: 0, ...input };
+  return RULES.map((rule) => {
+    const { have, goal, meta } = rule.progress(full);
+    return have >= goal
+      ? { id: rule.id, icon: rule.icon, unlocked: true, meta }
+      : { id: rule.id, icon: rule.icon, unlocked: false, remaining: goal - have };
+  });
+}
+
+/** The account's achievements from the device's data (trips, map, travel mode). */
+export function readAchievements(): Achievement[] {
+  {
+    const trips = repos.trips
+      .list()
+      .filter((row) => isListed('trip', row))
+      .map((row) => ({
+        title: row.title,
+        place: row.place,
+        year: row.year,
+        countryIso: row.countryIso,
+        withFriends: collaboratorsOf('trip', row).some((c) => c.status === 'ok'),
+      }));
+    return computeAchievements({
+      trips,
+      visitedMap: repos.world.visitedMap(),
+      experiences: repos.planning.experienceCount(),
+    });
   }
-  const continents = [...continentYears.values()].sort();
-  const cities = countCities(trips);
+}
 
-  return [
-    first
-      ? {
-          id: 'firstTrip',
-          icon: 'airplane-takeoff',
-          unlocked: true,
-          meta: `${first.place} · ${first.year}`,
-        }
-      : { id: 'firstTrip', icon: 'airplane-takeoff', unlocked: false, remaining: 1 },
-    countries.length >= FIVE_COUNTRIES
-      ? {
-          id: 'fiveCountries',
-          icon: 'globe-hemisphere-west',
-          unlocked: true,
-          meta: countryYears[FIVE_COUNTRIES - 1] ?? '',
-        }
-      : {
-          id: 'fiveCountries',
-          icon: 'globe-hemisphere-west',
-          unlocked: false,
-          remaining: FIVE_COUNTRIES - countries.length,
-        },
-    endOfWorld
-      ? {
-          id: 'endOfWorld',
-          icon: 'mountains',
-          unlocked: true,
-          meta: `${endOfWorld.place} · ${endOfWorld.year}`,
-        }
-      : { id: 'endOfWorld', icon: 'mountains', unlocked: false, remaining: 1 },
-    cities >= TWENTY_CITIES
-      ? { id: 'twentyCities', icon: 'buildings', unlocked: true, meta: '' }
-      : {
-          id: 'twentyCities',
-          icon: 'buildings',
-          unlocked: false,
-          remaining: TWENTY_CITIES - cities,
-        },
-    continents.length >= THREE_CONTINENTS
-      ? {
-          id: 'threeContinents',
-          icon: 'compass',
-          unlocked: true,
-          meta: continents[THREE_CONTINENTS - 1] ?? '',
-        }
-      : {
-          id: 'threeContinents',
-          icon: 'compass',
-          unlocked: false,
-          remaining: THREE_CONTINENTS - continents.length,
-        },
-  ];
+/** Live: recomputed whenever local data changes. */
+export function useAchievements(): Achievement[] {
+  return useQuery(readAchievements, []);
 }

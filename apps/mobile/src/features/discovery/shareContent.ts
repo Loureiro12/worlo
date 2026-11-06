@@ -5,7 +5,7 @@ import { isVisible, usePhotoRef } from '@/data/photos';
 import { useMe } from '@/data/profile';
 import { repos } from '@/data/repositories';
 import { useQuery } from '@/data/useQuery';
-import { computeAchievements } from '@/features/profile/achievements';
+import { useAchievements } from '@/features/profile/achievements';
 import { countCities, countPhotos } from '@/features/profile/stats';
 import { countryFlag, WORLD_COUNTRIES } from '@/lib/countries';
 import { avatarFor, firstName, joinNames, ME } from '@/lib/people';
@@ -146,6 +146,7 @@ export function useShareContent(params: {
   const { t, i18n } = useTranslation();
   const me = useMe();
   const { trips, itineraries, visitedMap, photos } = useShareRecords();
+  const achievements = useAchievements();
   const lang = i18n.language;
   const number = (n: number) => n.toLocaleString(lang);
 
@@ -173,7 +174,7 @@ export function useShareContent(params: {
   const tripPhoto2 = usePhotoRef(photoOf(trip?.id, 2));
   const collaborators = (trip?.collab ?? []).filter((c) => c.status === 'ok').map((c) => c.name);
   const roteiro = itineraries.find(byRouteId(params.roteiroId)) ?? itineraries[0];
-  const unlocked = computeAchievements({ trips, visitedMap }).filter((a) => a.unlocked);
+  const unlocked = achievements.filter((a) => a.unlocked);
   const ach = unlocked.find((a) => a.id === params.achievement) ?? unlocked.at(-1);
   const tripsLabel = t('common.count.trips', { count: nTrips });
   const countriesLabel = t('common.count.countries', { count: nCountries });

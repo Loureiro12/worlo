@@ -6,21 +6,29 @@ const of = (input: Parameters<typeof computeAchievements>[0]) =>
 
 const trip = (place: string, year: string, title = place) => ({ title, place, year });
 
-describe('computeAchievements', () => {
-  it('unlocks nothing for a new account', () => {
-    const all = computeAchievements({ trips: [], visitedMap: {} });
-    expect(all.every((a) => !a.unlocked)).toBe(true);
-    expect(of({ trips: [], visitedMap: {} })).toMatchObject({
+describe('computeAchievements (8 official rules)', () => {
+  const none = { trips: [], visitedMap: {} };
+
+  it('unlocks nothing for a new account and says how far each one is', () => {
+    expect(computeAchievements(none).every((a) => !a.unlocked)).toBe(true);
+    expect(of(none)).toMatchObject({
+      firstCountry: { remaining: 1 },
       firstTrip: { remaining: 1 },
       fiveCountries: { remaining: 5 },
-      endOfWorld: { remaining: 1 },
-      twentyCities: { remaining: 20 },
-      threeContinents: { remaining: 3 },
+      tenCities: { remaining: 10 },
+      frequentTraveler: { remaining: 5 },
+      experienceExplorer: { remaining: 20 },
+      tripWithFriends: { remaining: 1 },
+      newContinent: { remaining: 1 },
     });
   });
 
-  it('dates the first trip from the oldest one', () => {
-    const got = of({ trips: [trip('Lisboa', '2024'), trip('Rio', '2019')], visitedMap: {} });
+  it('first country and first trip, dated', () => {
+    const got = of({
+      trips: [trip('Lisboa', '2024'), trip('Rio', '2019')],
+      visitedMap: { '076': ['2019'] },
+    });
+    expect(got.firstCountry).toMatchObject({ unlocked: true, meta: '2019' });
     expect(got.firstTrip).toMatchObject({ unlocked: true, meta: 'Rio · 2019' });
   });
 
@@ -32,23 +40,37 @@ describe('computeAchievements', () => {
     ).toMatchObject({ unlocked: true, meta: '2022' });
   });
 
-  it('needs a trip to the far south for "Fim do mundo", accents aside', () => {
-    expect(of({ trips: [trip('Buenos Aires', '2022')], visitedMap: {} }).endOfWorld).toMatchObject({
+  it('ten different cities and five trips make a frequent traveler', () => {
+    const trips = ['Rio', 'Lisboa', 'Porto', 'Paris', 'Roma'].map((c, i) => trip(c, `202${i}`));
+    const got = of({ trips, visitedMap: {} });
+    expect(got.tenCities).toMatchObject({ remaining: 5 });
+    expect(got.frequentTraveler).toMatchObject({ unlocked: true, meta: '2024' });
+  });
+
+  it('twenty experiences recorded in travel mode', () => {
+    expect(of({ ...none, experiences: 19 }).experienceExplorer).toMatchObject({ remaining: 1 });
+    expect(of({ ...none, experiences: 20 }).experienceExplorer).toMatchObject({ unlocked: true });
+  });
+
+  it('a trip with someone else on it', () => {
+    const solo = trip('Lisboa', '2023');
+    expect(of({ trips: [solo], visitedMap: {} }).tripWithFriends).toMatchObject({
       unlocked: false,
     });
     expect(
-      of({ trips: [trip('El Calafate', '2024', 'Patagônia de carro')], visitedMap: {} }).endOfWorld,
-    ).toMatchObject({ unlocked: true, meta: 'El Calafate · 2024' });
+      of({ trips: [solo, { ...trip('Jeri', '2024'), withFriends: true }], visitedMap: {} })
+        .tripWithFriends,
+    ).toMatchObject({ unlocked: true, meta: 'Jeri · 2024' });
   });
 
-  it('counts continents, not countries', () => {
-    const southAmerica = { '076': ['2018'], '604': ['2019'], '032': ['2020'] };
-    expect(of({ trips: [], visitedMap: southAmerica }).threeContinents).toMatchObject({
-      remaining: 2,
+  it("a new continent: a country outside the first trip's continent", () => {
+    const first = { ...trip('Rio', '2019'), countryIso: '076' };
+    const southAmerica = { '076': ['2019'], '032': ['2020'] };
+    expect(of({ trips: [first], visitedMap: southAmerica }).newContinent).toMatchObject({
+      unlocked: false,
     });
     expect(
-      of({ trips: [], visitedMap: { ...southAmerica, '620': ['2021'], '392': ['2022'] } })
-        .threeContinents,
+      of({ trips: [first], visitedMap: { ...southAmerica, '620': ['2022'] } }).newContinent,
     ).toMatchObject({ unlocked: true, meta: '2022' });
   });
 
