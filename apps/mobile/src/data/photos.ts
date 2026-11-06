@@ -314,6 +314,11 @@ export function assignLivePhotos(log: readonly { photo?: string }[], tripId: str
   }
 }
 
+/** A photo's caption (empty clears it). */
+export function setPhotoCaption(photoId: string, caption: string) {
+  repos.photos.setCaption(photoId, caption);
+}
+
 /** Moves photos to a trip (or back to "Sem viagem" with null). */
 export function assignPhotos(photoIds: readonly string[], tripId: string | null) {
   for (const id of photoIds) repos.photos.assign(id, tripId);

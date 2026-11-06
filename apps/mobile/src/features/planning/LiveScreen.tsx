@@ -17,7 +17,6 @@ import {
   Screen,
   ScreenHeader,
   Sheet,
-  StarRating,
   StatTile,
   shadow,
   Text,
@@ -27,13 +26,14 @@ import {
 } from '@worlo/ui';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getCatalog } from '@/data/catalog';
-import { assignLivePhotos, takePhoto, usePhotoRef } from '@/data/photos';
+import { assignLivePhotos, pickPhotos, setPhotoCaption, usePhotoRef } from '@/data/photos';
 import {
   addLiveLog,
+  addStop,
   endLive,
   type LiveLogEntry,
   setLiveDay,
@@ -44,8 +44,11 @@ import {
 } from '@/data/planning';
 import { repos } from '@/data/repositories';
 import { avatarFor, firstName, ME } from '@/lib/people';
-import type { Itinerary } from '@/mocks/types';
+import { findCity, timeIn } from '@/lib/places';
+import { useWeather } from '@/lib/weather';
+import type { Itinerary, Stop } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
+import { ActivitySheet, stopSubtitle } from './ActivitySheet';
 import {
   countryIdForFlag,
   EXPENSE_CATEGORIES,
@@ -53,13 +56,15 @@ import {
   endSummary,
   formatMoneyFlex,
   nowHHMM,
+  tripDaysFromLive,
   tripFromLive,
 } from './planning';
 
-type SheetKind = 'checkin' | 'photo' | 'expense' | 'note' | 'end';
+type SheetKind = 'photo' | 'expense' | 'note' | 'end';
+type ActionKey = 'add' | 'photo' | 'expense' | 'note';
 
-const ACTIONS: { key: Exclude<SheetKind, 'end'>; icon: IconName; coral: boolean }[] = [
-  { key: 'checkin', icon: 'map-pin', coral: true },
+const ACTIONS: { key: ActionKey; icon: IconName; coral: boolean }[] = [
+  { key: 'add', icon: 'plus', coral: true },
   { key: 'photo', icon: 'camera', coral: false },
   { key: 'expense', icon: 'wallet', coral: false },
   { key: 'note', icon: 'note-pencil', coral: false },
@@ -71,6 +76,7 @@ const LOG_ICONS: Record<LiveLogEntry['type'], IconName> = {
   expense: 'wallet',
   note: 'note-pencil',
   done: 'check-circle',
+  activity: 'plus',
 };
 
 export function LiveScreen() {
@@ -84,17 +90,11 @@ export function LiveScreen() {
   const itineraries = useItineraries();
   const found = itineraries.find((i) => i.id === live.itineraryId) ?? itineraries[0];
 
-  // Opening the screen with travel mode off turns it on for the current itinerary.
-  // Only on mount: ending the trip turns it off and must not restart it.
-  useEffect(() => {
-    if (!live.on && found) startLive(found.id);
-  }, []);
-
   const [sheet, setSheet] = useState<SheetKind | null>(null);
   const [error, setError] = useState(false);
-  const [pick, setPick] = useState<number | null>(null);
-  const [otherPlace, setOtherPlace] = useState('');
-  const [stars, setStars] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
+  const [picked, setPicked] = useState<{ id: string }[]>([]);
+  const [captions, setCaptions] = useState<Record<string, string>>({});
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState<ExpenseCategoryKey>('food');
   const [text, setText] = useState('');
@@ -115,25 +115,51 @@ export function LiveScreen() {
   }
   const it: Itinerary = found;
 
+  // Travel mode starts only when the person says so (Roteiro › Iniciar viagem).
+  if (!live.on || live.itineraryId !== it.id) {
+    return (
+      <Screen
+        testID="live-screen"
+        header={<ScreenHeader onBack={() => router.back()} backLabel={t('common.actions.back')} />}
+      >
+        <EmptyState
+          testID="live-not-started"
+          icon="airplane-takeoff"
+          title={t('planning.live.notStarted')}
+          text={t('planning.live.notStartedText')}
+          action={{
+            label: t('planning.live.startNow'),
+            onPress: () => {
+              startLive(it.id);
+              toast.show(t('planning.roteiro.liveStarted'));
+            },
+          }}
+        />
+      </Screen>
+    );
+  }
+
   const di = Math.max(0, Math.min(live.day - 1, it.days.length - 1));
   const day = it.days[di] ?? { label: '', items: [] };
   const here = it.place;
   const herePlace = here.split(',')[0] ?? here;
 
   const log = live.log;
+  // Older entries have no day: they belong to the day the session was on.
+  const dayLog = log.filter((entry) => (entry.day ?? live.day) === di + 1);
 
   const doneKey = (i: number) => `${di}-${i}`;
   const doneN = day.items.filter((_, i) => live.done[doneKey(i)]).length;
   const firstOpen = day.items.findIndex((_, i) => !live.done[doneKey(i)]);
-  const summary = endSummary(it, log, doneN);
+  const doneAll = Object.values(live.done).filter(Boolean).length;
+  const summary = endSummary(it, log, doneAll);
 
   const amountValue = parseMoney(amount);
 
   const openSheet = (kind: SheetKind) => {
     setError(false);
-    setPick(null);
-    setOtherPlace('');
-    setStars(0);
+    setPicked([]);
+    setCaptions({});
     setAmount('');
     setText('');
     setCategory('food');
@@ -141,20 +167,13 @@ export function LiveScreen() {
   };
 
   const log_ = (entry: Omit<LiveLogEntry, 'id' | 'time' | 'author'>, spent = 0) => {
-    addLiveLog({ time: nowHHMM(), author: ME, ...entry }, spent);
+    addLiveLog({ time: nowHHMM(), author: ME, day: di + 1, ...entry }, spent);
   };
 
   const submit = () => {
-    if (sheet === 'checkin') {
-      const place = otherPlace.trim() || (pick == null ? '' : day.items[pick]?.title);
-      if (!place) return setError(true);
-      log_({
-        type: 'checkin',
-        text: `${t('planning.live.log.checkin', { place })}${stars ? ` ${'★'.repeat(stars)}` : ''}`,
-      });
-      toast.show(t('planning.live.toasts.checkin', { place }));
-    } else if (sheet === 'photo') {
-      void addPhoto();
+    if (sheet === 'photo') {
+      if (picked.length === 0) return setError(true);
+      savePhotos();
       return;
     } else if (sheet === 'expense') {
       if (amountValue <= 0) return setError(true);
@@ -175,13 +194,25 @@ export function LiveScreen() {
       toast.show(t('planning.live.toasts.note'));
     } else if (sheet === 'end') {
       const input = tripFromLive(it, summary, live.spent);
-      // Ending the same trip again (same month) opens the trip created the first time.
-      const trip =
-        repos.trips
-          .list()
-          .find(
-            (x) => x.title === input.title && x.period === input.period && x.flag === input.flag,
-          ) ?? repos.trips.create(input);
+      const details = {
+        days: tripDaysFromLive(
+          it,
+          live.log,
+          live.done,
+          (n, label) => t('planning.live.dayTitle', { n, label }),
+          live.day,
+        ),
+      };
+      // Ending the same trip again (same month) updates the trip created the first time.
+      const existing = repos.trips
+        .list()
+        .find((x) => x.title === input.title && x.period === input.period && x.flag === input.flag);
+      const trip = existing
+        ? repos.trips.update(existing.id, {
+            ...input,
+            details: { ...(existing.details ?? {}), ...details },
+          })
+        : repos.trips.create({ ...input, details });
       const cid = countryIdForFlag(it.flag);
       if (input.countryIso) repos.world.markVisited(input.countryIso, input.year);
       assignLivePhotos(live.log, trip.id);
@@ -198,33 +229,54 @@ export function LiveScreen() {
     setSheet(null);
   };
 
-  /** Camera → photo of this trip (when it already exists, else "Sem viagem") → log entry. */
-  const addPhoto = async () => {
+  /** Camera or gallery (several at once): the photos go into the trip when it ends. */
+  const addPhotos = async (source: 'camera' | 'library') => {
     const input = tripFromLive(it, summary, live.spent);
     const tripId =
       repos.trips
         .list()
         .find((x) => x.title === input.title && x.period === input.period && x.flag === input.flag)
         ?.id ?? null;
-    const caption = text.trim() || undefined;
     try {
-      const result = await takePhoto({ tripId });
+      const result = await pickPhotos({ tripId, source, multiple: source === 'library' });
       if (result.status === 'denied') {
         toast.show(t('profile.photos.cameraDenied'), 'error');
         return;
       }
       if (result.status === 'canceled') return;
-      log_({
-        type: 'photo',
-        text: t('planning.live.log.photo', { place: herePlace }),
-        detail: caption,
-        photo: result.photos[0]?.id,
-      });
-      toast.show(t('planning.live.toasts.photo'));
-      setSheet(null);
+      setPicked((current) => [...current, ...result.photos.map((photo) => ({ id: photo.id }))]);
+      setError(false);
     } catch {
       toast.show(t('profile.photos.pickError'), 'error');
     }
+  };
+
+  /** One log entry per photo, with its caption, on the day being viewed. */
+  const savePhotos = () => {
+    for (const photo of picked) {
+      const caption = captions[photo.id]?.trim() ?? '';
+      if (caption) setPhotoCaption(photo.id, caption);
+      log_({
+        type: 'photo',
+        text: t('planning.live.log.photo', { place: herePlace }),
+        detail: caption || undefined,
+        photo: photo.id,
+      });
+    }
+    toast.show(t('planning.live.photosSaved', { count: picked.length, n: di + 1 }));
+    setSheet(null);
+  };
+
+  /** "+": an experience joins the day's plan and the day's record. */
+  const onSaveActivity = (stop: Stop) => {
+    addStop(it.id, di, stop);
+    log_({
+      type: 'activity',
+      text: t('planning.live.log.activity', { title: stop.title }),
+      detail: stopSubtitle(stop, t) || undefined,
+    });
+    setAddOpen(false);
+    toast.show(t('planning.live.toasts.added', { title: stop.title, n: di + 1 }));
   };
 
   const togglePlan = (i: number) => {
@@ -236,8 +288,8 @@ export function LiveScreen() {
   };
 
   const errorText =
-    sheet === 'checkin'
-      ? t('planning.live.errors.checkin')
+    sheet === 'photo'
+      ? t('planning.live.photoError')
       : sheet === 'expense'
         ? t('planning.live.errors.expense')
         : t('planning.live.errors.note');
@@ -298,33 +350,27 @@ export function LiveScreen() {
                 accessibilityLabel={t('planning.live.dayBar', { n: i + 1, label: d.label })}
                 hitSlop={{ top: 16, bottom: 16 }}
                 onPress={() => setLiveDay(i + 1)}
-                style={[
+                style={({ pressed }) => [
                   s.dayBar,
                   {
                     backgroundColor:
                       i === di ? colors.primary : i < di ? colors.surface : alpha.darkBorderStrong,
+                    opacity: pressed ? 0.6 : 1,
+                    transform: [{ scaleY: i === di ? 1 : 0.75 }],
                   },
                 ]}
               />
             ))}
           </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <FactBox
-              icon="wallet"
-              label={t('planning.live.facts.spent')}
-              value={formatMoneyFlex(live.spent)}
-            />
-            <FactBox
-              icon="map-pin"
-              label={t('planning.live.facts.places')}
-              value={String(summary.places)}
-            />
-            <FactBox
-              icon="camera"
-              label={t('planning.live.facts.photos')}
-              value={String(summary.photos)}
-            />
-          </View>
+          <Text
+            testID="live-day-hint"
+            variant="caption"
+            tone="inverseMuted"
+            style={{ marginTop: -8 }}
+          >
+            {t('planning.live.dayHint')}
+          </Text>
+          <LiveFacts place={it.place} spent={live.spent} />
         </View>
 
         {/* Overlapping action card */}
@@ -335,7 +381,7 @@ export function LiveScreen() {
               testID={`live-${a.key}`}
               accessibilityRole="button"
               accessibilityLabel={t(`planning.live.actions.${a.key}`)}
-              onPress={() => openSheet(a.key)}
+              onPress={() => (a.key === 'add' ? setAddOpen(true) : openSheet(a.key))}
               style={({ pressed }) => [s.action, pressed ? { opacity: 0.8 } : null]}
             >
               <View
@@ -445,17 +491,17 @@ export function LiveScreen() {
               </View>
             </View>
             <View testID="live-log" style={s.logCard}>
-              {log.length === 0 ? (
+              {dayLog.length === 0 ? (
                 <Text variant="bodyS" weight={400} tone="muted" style={{ padding: 16 }}>
                   {t('planning.live.logEmpty')}
                 </Text>
               ) : null}
-              {log.map((entry, i) => (
+              {dayLog.map((entry, i) => (
                 <LogRow
                   key={entry.id}
                   entry={entry}
                   who={entry.author === ME ? t('planning.live.you') : firstName(entry.author)}
-                  last={i === log.length - 1}
+                  last={i === dayLog.length - 1}
                 />
               ))}
             </View>
@@ -478,73 +524,6 @@ export function LiveScreen() {
           />
         }
       >
-        {sheet === 'checkin' ? (
-          <View style={{ gap: 8 }}>
-            {day.items.length ? (
-              <Text variant="caption" weight={600} tone="muted">
-                {t('planning.live.nearYou')}
-              </Text>
-            ) : null}
-            <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
-              {day.items.map((stop, i) => {
-                const selected = pick === i;
-                return (
-                  <Pressable
-                    key={`${di}-${i}`}
-                    testID={`live-near-${i}`}
-                    accessibilityRole="radio"
-                    accessibilityState={{ checked: selected }}
-                    accessibilityLabel={[stop.title, stop.note].filter(Boolean).join(', ')}
-                    onPress={() => {
-                      setPick(i);
-                      setOtherPlace('');
-                      setError(false);
-                    }}
-                    style={[s.near, { borderColor: selected ? colors.text : colors.border }]}
-                  >
-                    <Icon name={stop.icon} size={24} color={colors.textMuted} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text variant="body" weight={700}>
-                        {stop.title}
-                      </Text>
-                      {stop.note ? (
-                        <Text variant="caption" weight={400} tone="muted">
-                          {stop.note}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View
-                      style={[s.radio, { borderColor: selected ? colors.primary : colors.border }]}
-                    >
-                      {selected ? <View style={s.radioDot} /> : null}
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <TextField
-              testID="live-place"
-              label={t('planning.live.otherPlace')}
-              value={otherPlace}
-              maxLength={120}
-              onChangeText={(v) => {
-                setOtherPlace(v);
-                setPick(null);
-                setError(false);
-              }}
-            />
-            <Text variant="label" style={{ marginTop: 6 }}>
-              {t('planning.live.howWasIt')}
-            </Text>
-            <StarRating
-              testID="live-stars"
-              value={stars}
-              onChange={setStars}
-              starLabel={(count) => t('common.a11y.stars', { count })}
-            />
-          </View>
-        ) : null}
-
         {sheet === 'expense' ? (
           <View style={{ gap: 12 }}>
             <MoneyInput
@@ -577,18 +556,53 @@ export function LiveScreen() {
           </View>
         ) : null}
 
-        {sheet === 'photo' || sheet === 'note' ? (
+        {sheet === 'photo' ? (
+          <View style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button
+                testID="live-photo-camera"
+                variant="outline"
+                size="md"
+                flex={1}
+                icon="camera"
+                label={t('planning.live.photoCamera')}
+                onPress={() => void addPhotos('camera')}
+              />
+              <Button
+                testID="live-photo-gallery"
+                variant="outline"
+                size="md"
+                flex={1}
+                icon="images"
+                label={t('planning.live.photoGallery')}
+                onPress={() => void addPhotos('library')}
+              />
+            </View>
+            {picked.map((photo, i) => (
+              <View key={photo.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <PickedPhoto id={photo.id} />
+                <View style={{ flex: 1 }}>
+                  <TextField
+                    testID={`live-caption-${i}`}
+                    compact
+                    label={t('planning.live.captionFor', { n: i + 1 })}
+                    placeholder={t('planning.live.captionPlaceholder')}
+                    maxLength={500}
+                    value={captions[photo.id] ?? ''}
+                    onChangeText={(v) => setCaptions((c) => ({ ...c, [photo.id]: v }))}
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {sheet === 'note' ? (
           <TextArea
             testID="live-text"
             hideLabel
-            label={
-              sheet === 'photo' ? t('planning.live.captionLabel') : t('planning.live.noteLabel')
-            }
-            placeholder={
-              sheet === 'photo'
-                ? t('planning.live.captionPlaceholder')
-                : t('planning.live.notePlaceholder')
-            }
+            label={t('planning.live.noteLabel')}
+            placeholder={t('planning.live.notePlaceholder')}
             maxLength={500}
             minHeight={88}
             invalid={error}
@@ -628,10 +642,76 @@ export function LiveScreen() {
           </View>
         ) : null}
 
-        {error && sheet !== 'end' && sheet !== 'photo' ? (
-          <FormError testID="live-error" message={errorText} />
-        ) : null}
+        {error && sheet !== 'end' ? <FormError testID="live-error" message={errorText} /> : null}
       </Sheet>
+
+      <ActivitySheet
+        testID="live-add-sheet"
+        visible={addOpen}
+        onClose={() => setAddOpen(false)}
+        onSave={onSaveActivity}
+        title={t('planning.live.addTitle', { n: di + 1 })}
+        draft={`live-${it.id}-${di}`}
+      />
+    </View>
+  );
+}
+
+function PickedPhoto({ id }: { id: string }) {
+  const uri = usePhotoRef(id);
+  return (
+    <Photo
+      testID="live-picked-photo"
+      uri={uri}
+      tint={colors.border}
+      width={56}
+      height={56}
+      radius={10}
+    />
+  );
+}
+
+/** Local time at the destination (its time zone), weather now, and what was spent. */
+function LiveFacts({ place, spent }: { place: string; spent: number }) {
+  const { t, i18n } = useTranslation();
+  const city = useMemo(() => findCity(place, i18n.language), [place, i18n.language]);
+  const weather = useWeather(city);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  const local = city?.timeZone ? timeIn(city.timeZone, now, i18n.language) : '';
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {local ? (
+          <FactBox
+            testID="live-local-time"
+            icon="clock"
+            label={t('planning.live.facts.localTime')}
+            value={local}
+          />
+        ) : null}
+        {weather ? (
+          <FactBox
+            testID="live-weather"
+            icon={weather.icon}
+            label={t('planning.live.facts.now')}
+            value={`${weather.temperature}°C`}
+          />
+        ) : null}
+        <FactBox
+          icon="wallet"
+          label={t('planning.live.facts.spent')}
+          value={formatMoneyFlex(spent)}
+        />
+      </View>
+      {weather ? (
+        <Text variant="micro" tone="inverseMuted">
+          {t('planning.live.weatherCredit')}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -641,15 +721,22 @@ function FactBox({
   label,
   value,
   a11y,
+  testID,
 }: {
   icon: IconName;
   label: string;
   value: string;
   a11y?: string;
+  testID?: string;
 }) {
   const s = useStyles();
   return (
-    <View accessible accessibilityLabel={a11y ?? `${label}: ${value}`} style={s.fact}>
+    <View
+      testID={testID}
+      accessible
+      accessibilityLabel={a11y ?? `${label}: ${value}`}
+      style={s.fact}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
         <Icon name={icon} size={12} color={colors.textInverseMuted} />
         <Text variant="micro" weight={700} tone="inverseMuted" numberOfLines={1}>
@@ -741,7 +828,7 @@ const useStyles = makeStyles((t) => ({
     letterSpacing: -0.68,
   },
   dayBars: { flexDirection: 'row', gap: 6 },
-  dayBar: { flex: 1, height: 6, borderRadius: 3 },
+  dayBar: { flex: 1, height: 12, borderRadius: 6 },
   fact: {
     flex: 1,
     minWidth: 0,

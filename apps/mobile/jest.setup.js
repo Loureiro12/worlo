@@ -67,6 +67,13 @@ jest.mock('expo-crypto', () => ({
   randomUUID: () => require('node:crypto').randomUUID(),
 }));
 
+// Weather comes from MET Norway over the network: never from tests (the pure
+// parts are tested in lib/weather.test.ts).
+jest.mock('@/lib/weather', () => ({
+  ...jest.requireActual('@/lib/weather'),
+  useWeather: () => null,
+}));
+
 // Share export: no native modules in Jest. Tests read the calls.
 jest.mock('react-native-view-shot', () => ({
   captureRef: jest.fn(async () => 'file:///tmp/share.png'),

@@ -29,12 +29,14 @@ import {
   createItinerary,
   removeStop,
   startLive,
+  updateItinerary,
   useItinerary,
   useLive,
 } from '@/data/planning';
 import { avatarFor } from '@/lib/people';
-import type { Itinerary, Recommendation, Stop, Suggestion } from '@/mocks/types';
+import type { Itinerary, Recommendation, Stop } from '@/mocks/types';
 import { routes } from '@/navigation/routes';
+import { ActivitySheet, stopSubtitle } from './ActivitySheet';
 import { copyDays, formatMoneyFlex, stopCount, totalCost } from './planning';
 
 type Params = { id?: string; mode?: 'mine' | 'rec' };
@@ -53,6 +55,7 @@ export function RoteiroScreen() {
 
   const [dayIndex, setDayIndex] = useState(0);
   const [sugOpen, setSugOpen] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
 
   const rec = isRec ? RECS.find((r) => r.id === id) : undefined;
   const R: Itinerary | Recommendation | undefined = isRec ? rec : mine;
@@ -84,11 +87,10 @@ export function RoteiroScreen() {
     setDayIndex(R.days.length);
   };
 
-  const onAddSuggestion = (sg: Suggestion) => {
-    const stop: Stop = { ...sg, time: t('planning.roteiro.defaultTime') };
+  const onSaveActivity = (stop: Stop) => {
     addStop(R.id, di, stop);
     setSugOpen(false);
-    toast.show(t('planning.roteiro.sugAdded', { title: sg.title, n }));
+    toast.show(t('planning.roteiro.sugAdded', { title: stop.title, n }));
   };
 
   const onRemove = (index: number) => {
@@ -97,11 +99,19 @@ export function RoteiroScreen() {
   };
 
   const onStartLive = () => {
+    setStartOpen(false);
     if (!liveForThis) {
       startLive(R.id);
       toast.show(t('planning.roteiro.liveStarted'));
     }
     router.push(routes.live);
+  };
+
+  // "Deixar pra depois": stays a planned itinerary; travel mode is not on.
+  const onStartLater = () => {
+    setStartOpen(false);
+    updateItinerary(R.id, (it) => ({ ...it, status: t('planning.roteiro.plannedStatus') }));
+    toast.show(t('planning.roteiro.planned'));
   };
 
   const onUseRec = () => {
@@ -135,22 +145,13 @@ export function RoteiroScreen() {
           />
         </View>
       ) : (
-        <View style={{ flex: 1, gap: 10 }}>
+        <View style={{ flex: 1 }}>
           <Button
             testID="roteiro-start"
-            variant="outline"
-            size="md"
             icon="airplane-takeoff"
             fullWidth
-            label={liveForThis ? t('planning.roteiro.openLive') : t('planning.roteiro.startLive')}
-            onPress={onStartLive}
-          />
-          <Button
-            testID="roteiro-add-stop"
-            icon="plus"
-            fullWidth
-            label={t('planning.roteiro.addStop')}
-            onPress={() => setSugOpen(true)}
+            label={liveForThis ? t('planning.roteiro.openLive') : t('planning.roteiro.startTrip')}
+            onPress={() => (liveForThis ? router.push(routes.live) : setStartOpen(true))}
           />
         </View>
       )}
@@ -248,14 +249,14 @@ export function RoteiroScreen() {
             action={
               isRec
                 ? undefined
-                : { label: t('planning.roteiro.addStop'), onPress: () => setSugOpen(true) }
+                : { label: t('planning.roteiro.addActivity'), onPress: () => setSugOpen(true) }
             }
           />
         ) : (
           day.items.map((stop, i) => (
             <TimelineStop
               key={`${di}-${i}-${stop.title}`}
-              stop={stop}
+              stop={{ ...stop, note: stopSubtitle(stop, t) }}
               costText={costText(stop.cost)}
               last={i === day.items.length - 1}
               removeLabel={isRec ? undefined : `${t('planning.roteiro.removeStop')}: ${stop.title}`}
@@ -264,30 +265,62 @@ export function RoteiroScreen() {
             />
           ))
         )}
+        {!isRec && day.items.length > 0 ? (
+          <Button
+            testID="roteiro-add-stop"
+            variant="outline"
+            icon="plus"
+            fullWidth
+            label={t('planning.roteiro.addActivity')}
+            onPress={() => setSugOpen(true)}
+          />
+        ) : null}
       </View>
 
-      <Sheet
+      <ActivitySheet
         testID="roteiro-sug-sheet"
         visible={sugOpen && !isRec}
         onClose={() => setSugOpen(false)}
-        closeLabel={t('common.actions.close')}
+        onSave={onSaveActivity}
         title={t('planning.roteiro.sugTitle', { n })}
-        subtitle={t('planning.roteiro.sugSubtitle', { place: R.place })}
+        draft={`${R.id}-${di}`}
+        suggestions={sugs}
+        suggestionsTitle={t('planning.roteiro.sugSubtitle', { place: R.place })}
+      />
+
+      <Sheet
+        testID="roteiro-start-sheet"
+        visible={startOpen && !isRec}
+        onClose={() => setStartOpen(false)}
+        closeLabel={t('common.actions.close')}
+        title={t('planning.roteiro.startTitle')}
       >
-        {sugs.map((sg, i) => (
-          <SuggestionRow
-            key={sg.title}
-            testID={`roteiro-sug-${i}`}
-            suggestion={sg}
-            costText={costText(sg.cost)}
-            a11y={t('planning.roteiro.sugA11y', {
-              title: sg.title,
-              note: sg.note,
-              cost: costText(sg.cost),
-            })}
-            onPress={() => onAddSuggestion(sg)}
-          />
-        ))}
+        <View style={{ gap: 14 }}>
+          <View style={{ gap: 6 }}>
+            <Button
+              testID="roteiro-start-now"
+              icon="airplane-takeoff"
+              fullWidth
+              label={t('planning.roteiro.startNow')}
+              onPress={onStartLive}
+            />
+            <Text variant="caption" tone="muted" align="center">
+              {t('planning.roteiro.startNowText')}
+            </Text>
+          </View>
+          <View style={{ gap: 6 }}>
+            <Button
+              testID="roteiro-start-later"
+              variant="outline"
+              fullWidth
+              label={t('planning.roteiro.startLater')}
+              onPress={onStartLater}
+            />
+            <Text variant="caption" tone="muted" align="center">
+              {t('planning.roteiro.startLaterText')}
+            </Text>
+          </View>
+        </View>
       </Sheet>
     </Screen>
   );
@@ -406,46 +439,6 @@ function TimelineStop({
         ) : null}
       </View>
     </View>
-  );
-}
-
-function SuggestionRow({
-  suggestion,
-  costText,
-  a11y,
-  onPress,
-  testID,
-}: {
-  suggestion: Suggestion;
-  costText: string;
-  a11y: string;
-  onPress: () => void;
-  testID: string;
-}) {
-  const s = useStyles();
-  return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={a11y}
-      onPress={onPress}
-      style={({ pressed }) => [s.sug, pressed ? { backgroundColor: colors.background } : null]}
-    >
-      <View style={s.sugIcon}>
-        <Icon name={suggestion.icon} size={20} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text variant="body" weight={700}>
-          {suggestion.title}
-        </Text>
-        <Text variant="caption" tone="muted" weight={400}>
-          {`${suggestion.note} · ${costText}`}
-        </Text>
-      </View>
-      <View style={s.sugPlus}>
-        <Icon name="plus" size={16} color={colors.onPrimary} />
-      </View>
-    </Pressable>
   );
 }
 

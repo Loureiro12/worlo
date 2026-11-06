@@ -99,9 +99,10 @@ describe('RetroScreen', () => {
     expect(mockRouter.back).toHaveBeenCalled();
   });
 
-  it('falls back to the title when there is no best moment', async () => {
+  it('has no "best moment" card when there is none (no made-up one)', async () => {
     mockParams = { id: demoId('trip:paris') };
     await renderWithProviders(<RetroScreen />);
-    expect(screen.getAllByText('Primeira vez em Paris')).toHaveLength(2);
+    expect(screen.getAllByText('Primeira vez em Paris')).toHaveLength(1);
+    expect(screen.queryByText('Melhor momento')).toBeNull();
   });
 });

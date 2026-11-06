@@ -1,8 +1,9 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { getItinerary, getLive } from '@/data/planning';
+import { getItinerary, getLive, startLive } from '@/data/planning';
 import { repos } from '@/data/repositories';
 import { asset } from '@/features/photos/testing';
+import { timeIn } from '@/lib/places';
 import { demoId } from '@/mocks/demo';
 import { resetStore } from '@/store';
 import { renderWithProviders } from '@/test-utils';
@@ -44,48 +45,66 @@ beforeEach(() => {
 });
 
 describe('LiveScreen', () => {
-  it('turns travel mode on when opened and shows the current day', async () => {
+  /** Travel mode starts only when asked (Roteiro › Iniciar viagem › Começar agora). */
+  const open = async () => {
+    startLive(PERU);
+    await renderWithProviders(<LiveScreen />);
+  };
+  const gallery = (...names: string[]) =>
+    picker.launchImageLibraryAsync.mockResolvedValueOnce({
+      canceled: false,
+      assets: names.map((n) => asset(n)),
+    });
+
+  it('does not start the trip by itself: it waits for "Começar agora"', async () => {
     expect(live()).toMatchObject({ on: false, itineraryId: PERU, day: 2 });
     await renderWithProviders(<LiveScreen />);
+    expect(screen.getByTestId('live-not-started')).toBeOnTheScreen();
+    expect(live().on).toBe(false);
+    await fireEvent.press(screen.getByText('Começar agora'));
     expect(live().on).toBe(true);
     expect(repos.planning.currentSession()).toMatchObject({
       id: demoId('live:peru'),
       active: true,
     });
-    expect(screen.getByTestId('live-screen')).toBeOnTheScreen();
     expect(screen.getByText('🇵🇪 Cusco e Machu Picchu')).toBeOnTheScreen();
     expect(screen.getByText('Dia 2 · Vale Sagrado')).toBeOnTheScreen();
     expect(screen.getByText('Você está em Cusco, Peru')).toBeOnTheScreen();
   });
 
-  it('starts with an empty log and invented nothing', async () => {
-    await renderWithProviders(<LiveScreen />);
+  it("shows the destination's local time, from its time zone", async () => {
+    await open();
+    // The itinerary is "Cusco, Peru" → America/Lima.
+    expect(screen.getByTestId('live-local-time')).toHaveTextContent(
+      `Hora local${timeIn('America/Lima', new Date())}`,
+    );
+  });
+
+  it('starts with an empty record and invented nothing', async () => {
+    await open();
     const log = within(screen.getByTestId('live-log'));
-    expect(log.getByText(/Nada registrado ainda/)).toBeOnTheScreen();
+    expect(log.getByText('Nada registrado nesse dia ainda.')).toBeOnTheScreen();
     expect(screen.getByText('Salvo no aparelho')).toBeOnTheScreen();
-    expect(screen.queryByText(/San Blas|Marina|17°C/)).toBeNull();
+    expect(screen.queryByText(/San Blas|Marina|17°C|Check-in/)).toBeNull();
   });
 
-  it('shows an empty state when there is no itinerary to travel with', async () => {
-    for (const it of repos.planning.itineraries()) repos.planning.remove(it.id);
-    await renderWithProviders(<LiveScreen />);
-    expect(screen.getByText('Nenhum roteiro pra viajar.')).toBeOnTheScreen();
-  });
-
-  it('switches day with the day bars', async () => {
-    await renderWithProviders(<LiveScreen />);
+  it('switches day with the bars, which say they can be tapped', async () => {
+    await open();
+    expect(screen.getByTestId('live-day-hint')).toHaveTextContent(
+      'Toque num dia pra ver o plano e os registros dele.',
+    );
     await fireEvent.press(screen.getByLabelText('Dia 1, Lima → Cusco'));
     expect(live().day).toBe(1);
     expect(screen.getByText('Dia 1 · Lima → Cusco')).toBeOnTheScreen();
     expect(screen.getByTestId('live-progress')).toHaveTextContent('3 de 3 feitos');
     await fireEvent.press(screen.getByTestId('live-day-4'));
     expect(
-      screen.getByText('Dia livre. Faça check-in onde for, a gente monta o registro.'),
+      screen.getByText('Dia livre. Toque em + pra adicionar o que for fazendo.'),
     ).toBeOnTheScreen();
   });
 
   it('toggles plan items, marking the current one and logging completion', async () => {
-    await renderWithProviders(<LiveScreen />);
+    await open();
     expect(screen.getByTestId('live-progress')).toHaveTextContent('0 de 1 feitos');
     expect(screen.getByText('Agora · 08:00')).toBeOnTheScreen();
     const item = screen.getByTestId('live-plan-0');
@@ -93,45 +112,57 @@ describe('LiveScreen', () => {
     await fireEvent.press(item);
     expect(live().done['1-0']).toBe(true);
     expect(screen.getByTestId('live-progress')).toHaveTextContent('1 de 1 feitos');
-    expect(screen.getByText('Feito')).toBeOnTheScreen();
-    expect(live().log[0]?.text).toBe('concluiu Vale Sagrado em um dia.');
-    expect(live().log).toHaveLength(1);
-    const rows = within(screen.getByTestId('live-log'));
-    expect(rows.getByText(/concluiu Vale Sagrado/)).toBeOnTheScreen();
+    expect(live().log[0]).toMatchObject({ text: 'concluiu Vale Sagrado em um dia.', day: 2 });
     await fireEvent.press(item);
     expect(live().done['1-0']).toBe(false);
     expect(live().log).toHaveLength(1);
   });
 
-  it('check-in requires a place, then logs it with the rating', async () => {
-    await renderWithProviders(<LiveScreen />);
-    await fireEvent.press(screen.getByTestId('live-checkin'));
-    expect(screen.getByText('Fazer check-in')).toBeOnTheScreen();
-    await submit();
-    expect(screen.getByText('Escolha onde você está.')).toBeOnTheScreen();
-    expect(live().log).toHaveLength(0);
-    await fireEvent.press(screen.getByTestId('live-near-0'));
-    expect(screen.queryByText('Escolha onde você está.')).toBeNull();
-    await fireEvent.press(screen.getByLabelText('4 de 5 estrelas'));
-    await submit();
-    expect(live().log[0]).toMatchObject({
-      type: 'checkin',
-      author: 'me',
-      text: 'fez check-in em Vale Sagrado em um dia. ★★★★',
+  it('"+" adds an experience to the day: shortcut or typed freely', async () => {
+    await open();
+    expect(screen.queryByTestId('live-checkin')).toBeNull();
+    await fireEvent.press(screen.getByTestId('live-add'));
+    await fireEvent.press(screen.getByTestId('activity-group-food'));
+    await fireEvent.press(screen.getByTestId('activity-kind-lunch'));
+    expect(screen.getByTestId('activity-title')).toHaveDisplayValue('Almoço');
+    await fireEvent.changeText(screen.getByTestId('activity-note'), 'Mercado de Pisac');
+    await fireEvent.press(screen.getByTestId('live-add-sheet-save'));
+    const day2 = getItinerary(PERU)?.days[1]?.items ?? [];
+    expect(day2.at(-1)).toMatchObject({
+      title: 'Almoço',
+      time: '12:30',
+      icon: 'fork-knife',
+      note: 'Mercado de Pisac',
     });
-    expect(screen.getByText('Check-in em Vale Sagrado em um dia.')).toBeOnTheScreen();
+    expect(live().log[0]).toMatchObject({ type: 'activity', text: 'adicionou Almoço.', day: 2 });
+    expect(screen.getByText('Almoço entrou no Dia 2.')).toBeOnTheScreen();
+
+    // Anything goes: a relative's house is not in any catalog.
+    await fireEvent.press(screen.getByTestId('live-add'));
+    await fireEvent.press(screen.getByTestId('live-add-sheet-save'));
+    expect(screen.getByText('Diga o que você vai fazer.')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId('activity-title'), 'Visitar a tia Lúcia');
+    await fireEvent.changeText(screen.getByTestId('activity-time'), '19h');
+    await fireEvent.press(screen.getByTestId('live-add-sheet-save'));
+    expect(getItinerary(PERU)?.days[1]?.items.at(-1)).toMatchObject({
+      title: 'Visitar a tia Lúcia',
+      time: '19:00',
+    });
   });
 
-  it('check-in also takes a place typed by hand', async () => {
-    await renderWithProviders(<LiveScreen />);
-    await fireEvent.press(screen.getByTestId('live-checkin'));
-    await fireEvent.changeText(screen.getByTestId('live-place'), 'Café da esquina');
-    await submit();
-    expect(live().log[0]?.text).toBe('fez check-in em Café da esquina.');
+  it('keeps what was being typed if the sheet (or the app) closes', async () => {
+    await open();
+    await fireEvent.press(screen.getByTestId('live-add'));
+    await fireEvent.changeText(screen.getByTestId('activity-title'), 'Feira de artesanato');
+    await fireEvent.press(
+      screen.getByTestId('live-add-sheet-overlay', { includeHiddenElements: true }),
+    );
+    await fireEvent.press(screen.getByTestId('live-add'));
+    expect(screen.getByTestId('activity-title')).toHaveDisplayValue('Feira de artesanato');
   });
 
   it('expense requires an amount and adds to spent', async () => {
-    await renderWithProviders(<LiveScreen />);
+    await open();
     await fireEvent.press(screen.getByTestId('live-expense'));
     await submit();
     expect(screen.getByText('Quanto foi?')).toBeOnTheScreen();
@@ -142,92 +173,110 @@ describe('LiveScreen', () => {
     expect(live().log[0]).toMatchObject({
       type: 'expense',
       text: 'gastou R$ 12,50 em transporte.',
+      day: 2,
     });
-    expect(repos.planning.logs(demoId('live:peru'))[0]?.amount).toBeCloseTo(12.5);
-    // a second expense adds up
-    await fireEvent.press(screen.getByTestId('live-expense'));
-    await fireEvent.changeText(screen.getByLabelText('Valor em reais'), '10');
-    await submit();
-    expect(live().spent).toBeCloseTo(22.5);
-    expect(screen.getByText('Gasto anotado.')).toBeOnTheScreen();
   });
 
-  it('note requires text; photo caption is optional', async () => {
-    await renderWithProviders(<LiveScreen />);
+  it('notes are kept on the day they were written', async () => {
+    await open();
     await fireEvent.press(screen.getByTestId('live-note'));
     await submit();
     expect(screen.getByText('Escreva alguma coisa.')).toBeOnTheScreen();
     await fireEvent.changeText(screen.getByTestId('live-text'), 'Que dia lindo');
     await submit();
-    expect(logOf('note')).toMatchObject({ detail: 'Que dia lindo' });
+    expect(logOf('note')).toMatchObject({ detail: 'Que dia lindo', day: 2 });
     expect(screen.getByText('“Que dia lindo”')).toBeOnTheScreen();
-
-    shoot();
-    await fireEvent.press(screen.getByTestId('live-photo'));
-    await submit();
-    await waitFor(() => expect(logOf('photo')).toBeDefined());
-    expect(picker.launchCameraAsync).toHaveBeenCalledWith(expect.objectContaining({ exif: true }));
-    expect(logOf('photo')).toMatchObject({ text: 'tirou uma foto em Cusco.' });
-    // The entry points at the picked photo (loose: the Peru trip doesn't exist yet).
-    const photo = repos.photos.get(logOf('photo')?.photo ?? '');
-    expect(photo).toMatchObject({ tripId: null, uploaded: false });
-    expect(repos.photos.file(photo?.id ?? '')?.state).toBe('pending');
-    expect(live().log).toHaveLength(2);
-    expect(screen.getByText('Foto salva na viagem.')).toBeOnTheScreen();
-    expect(screen.getByTestId('live-log-photo')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('live-day-1'));
+    expect(screen.queryByText('“Que dia lindo”')).toBeNull();
+    await fireEvent.press(screen.getByTestId('live-day-2'));
+    expect(screen.getByText('“Que dia lindo”')).toBeOnTheScreen();
   });
 
-  it('keeps the photo sheet open when the camera is canceled or denied', async () => {
-    await renderWithProviders(<LiveScreen />);
-    picker.launchCameraAsync.mockResolvedValueOnce({ canceled: true, assets: null });
+  it('adds photos from the gallery, each with its caption, to the day', async () => {
+    await open();
+    await fireEvent.press(screen.getByTestId('live-photo'));
+    gallery('pisac', 'mercado');
+    await fireEvent.press(screen.getByTestId('live-photo-gallery'));
+    await waitFor(() => expect(screen.getAllByTestId('live-picked-photo')).toHaveLength(2));
+    expect(picker.launchCameraAsync).not.toHaveBeenCalled();
+    await fireEvent.changeText(screen.getByTestId('live-caption-0'), 'Pôr do sol em Pisac');
+    await submit();
+    const photos = live().log.filter((l) => l.type === 'photo');
+    expect(photos).toHaveLength(2);
+    expect(photos.every((p) => p.day === 2)).toBe(true);
+    const withCaption = photos.find((p) => p.detail === 'Pôr do sol em Pisac');
+    expect(repos.photos.get(withCaption?.photo ?? '')?.caption).toBe('Pôr do sol em Pisac');
+    expect(screen.getByText('2 fotos salvas no Dia 2.')).toBeOnTheScreen();
+  });
+
+  it('the camera still works; nothing picked asks for a photo', async () => {
+    await open();
     await fireEvent.press(screen.getByTestId('live-photo'));
     await submit();
-    expect(logOf('photo')).toBeUndefined();
-    expect(screen.getByTestId('live-sheet-submit')).toBeOnTheScreen();
-
+    expect(screen.getByText('Escolha ao menos uma foto.')).toBeOnTheScreen();
+    picker.launchCameraAsync.mockResolvedValueOnce({ canceled: true, assets: null });
+    await fireEvent.press(screen.getByTestId('live-photo-camera'));
+    expect(screen.queryByTestId('live-picked-photo')).toBeNull();
     picker.requestCameraPermissionsAsync.mockResolvedValueOnce({ granted: false } as never);
-    await submit();
+    await fireEvent.press(screen.getByTestId('live-photo-camera'));
     expect(
       await screen.findByText('Sem acesso à câmera. Libere nos ajustes do aparelho.'),
     ).toBeOnTheScreen();
-    expect(repos.photos.list()).toHaveLength(0);
-  });
-
-  it('ending the trip moves the photos taken in travel mode into the new trip', async () => {
-    await renderWithProviders(<LiveScreen />);
     shoot();
-    await fireEvent.press(screen.getByTestId('live-photo'));
+    await fireEvent.press(screen.getByTestId('live-photo-camera'));
+    await waitFor(() => expect(screen.getAllByTestId('live-picked-photo')).toHaveLength(1));
     await submit();
-    await waitFor(() => expect(logOf('photo')).toBeDefined());
-    const photoId = logOf('photo')?.photo ?? '';
-    await fireEvent.press(screen.getByTestId('live-end'));
-    await fireEvent.press(screen.getByText('Encerrar e criar viagem'));
-    const trip = repos.trips.list()[0];
-    expect(trip?.title).toBe('Cusco e Machu Picchu');
-    expect(repos.photos.get(photoId)?.tripId).toBe(trip?.id);
+    expect(logOf('photo')).toMatchObject({ text: 'tirou uma foto em Cusco.', day: 2 });
   });
 
-  it('ending the trip creates a past trip, lights Peru and opens the trip', async () => {
-    await renderWithProviders(<LiveScreen />);
+  it('ending builds the trip from what was really recorded, day by day', async () => {
+    await open();
+    await fireEvent.press(screen.getByTestId('live-plan-0'));
+    await fireEvent.press(screen.getByTestId('live-add'));
+    await fireEvent.changeText(screen.getByTestId('activity-title'), 'Feira de Pisac');
+    await fireEvent.press(screen.getByTestId('live-add-sheet-save'));
+    await fireEvent.press(screen.getByTestId('live-photo'));
+    gallery('pisac');
+    await fireEvent.press(screen.getByTestId('live-photo-gallery'));
+    await waitFor(() => expect(screen.getAllByTestId('live-picked-photo')).toHaveLength(1));
+    await fireEvent.changeText(screen.getByTestId('live-caption-0'), 'Ruínas');
+    await submit();
+    const photoId = logOf('photo')?.photo ?? '';
+
     await fireEvent.press(screen.getByTestId('live-end'));
     expect(screen.getByText('Encerrar a viagem?')).toBeOnTheScreen();
-    // Only what this trip logged: 4 days, no photos, no check-ins.
+    // 4 days · 1 photo · places: the 3 stops already done on Day 1 (seeded
+    // session) + the one done now + the activity added with "+".
+    expect(live().done).toMatchObject({ '0-0': true, '0-1': true, '0-2': true, '1-0': true });
     expect(screen.getByTestId('live-end-days')).toHaveTextContent(/^4/);
-    expect(screen.getByTestId('live-end-photos')).toHaveTextContent(/^0/);
-    expect(screen.getByTestId('live-end-places')).toHaveTextContent(/^0/);
+    expect(screen.getByTestId('live-end-photos')).toHaveTextContent(/^1/);
+    expect(screen.getByTestId('live-end-places')).toHaveTextContent(/^5/);
     await fireEvent.press(screen.getByText('Encerrar e criar viagem'));
+
     expect(live().on).toBe(false);
     const trip = repos.trips.list()[0];
     expect(trip).toMatchObject({
       title: 'Cusco e Machu Picchu',
-      place: 'Cusco',
       country: 'Peru',
-      days: 4,
-      photos: 0,
-      places: 0,
       countryIso: '604',
+      days: 4,
+      photos: 1,
+      places: 5,
       companions: [],
     });
+    expect(repos.photos.get(photoId)?.tripId).toBe(trip?.id);
+    const details = trip?.details as
+      | { days: { label: string; items: Record<string, unknown>[] }[] }
+      | undefined;
+    const days = details?.days ?? [];
+    const day2 = days.find((d) => d.label === 'Dia 2 · Vale Sagrado');
+    expect(day2?.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: 'Vale Sagrado em um dia', extra: '✓' }),
+        expect.objectContaining({ title: 'Feira de Pisac' }),
+        expect.objectContaining({ note: 'Ruínas', photos: [photoId] }),
+      ]),
+    );
     expect(repos.world.visitedMap()['604']).toBeDefined();
     expect(mockRouter.replace).toHaveBeenCalledWith(`/trip/${trip?.id}`);
     expect(screen.getByText('Viagem encerrada. O Peru acendeu no seu mapa.')).toBeOnTheScreen();

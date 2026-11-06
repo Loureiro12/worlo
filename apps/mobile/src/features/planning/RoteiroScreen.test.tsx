@@ -63,7 +63,10 @@ describe('RoteiroScreen (mine)', () => {
     await fireEvent.press(screen.getByTestId('roteiro-add-stop'));
     expect(screen.getByText('Adicionar ao Dia 2')).toBeOnTheScreen();
     expect(screen.getByText('Sugestões perto de Cusco, Peru')).toBeOnTheScreen();
+    // A suggestion only fills the form: it is still the person's to edit.
     await fireEvent.press(screen.getByTestId('roteiro-sug-0'));
+    expect(screen.getByTestId('activity-title')).toHaveDisplayValue('Mercado San Pedro');
+    await fireEvent.press(screen.getByTestId('roteiro-sug-sheet-save'));
     const items = peru()?.days[1]?.items ?? [];
     expect(items).toHaveLength(2);
     expect(items[1]).toMatchObject({ title: 'Mercado San Pedro', time: 'A definir', cost: 40 });
@@ -75,10 +78,61 @@ describe('RoteiroScreen (mine)', () => {
     await renderWithProviders(<RoteiroScreen />);
     await fireEvent.press(screen.getByTestId('roteiro-day-4'));
     await fireEvent.press(
-      within(screen.getByTestId('roteiro-empty-day')).getByText('Adicionar parada'),
+      within(screen.getByTestId('roteiro-empty-day')).getByText('Adicionar atividade'),
     );
     await fireEvent.press(screen.getByTestId('roteiro-sug-2'));
+    await fireEvent.press(screen.getByTestId('roteiro-sug-sheet-save'));
     expect(peru()?.days[3]?.items[0]?.title).toBe('Qorikancha');
+  });
+
+  it('takes any activity: shortcuts for meals, rest, lodging and tours, or free text', async () => {
+    await renderWithProviders(<RoteiroScreen />);
+    await fireEvent.press(screen.getByTestId('roteiro-day-4'));
+    const add = async () =>
+      fireEvent.press(
+        screen.queryByTestId('roteiro-add-stop') ??
+          within(screen.getByTestId('roteiro-empty-day')).getByText('Adicionar atividade'),
+      );
+    const save = () => fireEvent.press(screen.getByTestId('roteiro-sug-sheet-save'));
+
+    await add();
+    await fireEvent.press(screen.getByTestId('activity-group-food'));
+    await fireEvent.press(screen.getByTestId('activity-kind-afternoonCoffee'));
+    await save();
+
+    await add();
+    await fireEvent.press(screen.getByTestId('activity-group-rest'));
+    await fireEvent.changeText(screen.getByTestId('activity-duration'), '1 h');
+    await save();
+
+    await add();
+    await fireEvent.press(screen.getByTestId('activity-group-lodging'));
+    await fireEvent.press(screen.getByTestId('activity-kind-checkOut'));
+    await save();
+
+    await add();
+    await fireEvent.press(screen.getByTestId('activity-group-tour'));
+    expect(screen.getByText('Nome do passeio')).toBeOnTheScreen();
+    await fireEvent.changeText(screen.getByTestId('activity-title'), 'Valle Sagrado em van');
+    await save();
+
+    await add();
+    await fireEvent.changeText(screen.getByTestId('activity-title'), 'Casa da tia Rosa');
+    await fireEvent.changeText(screen.getByTestId('activity-note'), 'Av. Sol, 120');
+    await save();
+
+    expect(peru()?.days[3]?.items).toEqual([
+      expect.objectContaining({ title: 'Café da tarde', time: '16:00', icon: 'coffee' }),
+      expect.objectContaining({ title: 'Descanso', icon: 'moon', duration: '1 h' }),
+      expect.objectContaining({
+        title: 'Check-out da hospedagem',
+        time: '11:00',
+        icon: 'sign-out',
+      }),
+      expect.objectContaining({ title: 'Valle Sagrado em van', icon: 'ticket' }),
+      expect.objectContaining({ title: 'Casa da tia Rosa', note: 'Av. Sol, 120', icon: 'map-pin' }),
+    ]);
+    expect(screen.getByText('1 h de descanso')).toBeOnTheScreen();
   });
 
   it('removes a stop', async () => {
@@ -95,10 +149,22 @@ describe('RoteiroScreen (mine)', () => {
   it('starts travel mode and opens it', async () => {
     await renderWithProviders(<RoteiroScreen />);
     await fireEvent.press(screen.getByTestId('roteiro-start'));
+    expect(screen.getByText('Quando a viagem começa?')).toBeOnTheScreen();
+    await fireEvent.press(screen.getByTestId('roteiro-start-now'));
     expect(getLive()).toMatchObject({ on: true, itineraryId: PERU });
     expect(repos.planning.currentSession()).toMatchObject({ active: true, itineraryId: PERU });
     expect(mockRouter.push).toHaveBeenCalledWith('/live');
     expect(screen.getByText('Modo viagem ligado. Boa viagem!')).toBeOnTheScreen();
+  });
+
+  it('can stay planned: "Deixar pra depois" does not start the trip', async () => {
+    await renderWithProviders(<RoteiroScreen />);
+    await fireEvent.press(screen.getByTestId('roteiro-start'));
+    await fireEvent.press(screen.getByTestId('roteiro-start-later'));
+    expect(getLive().on).toBe(false);
+    expect(peru()?.status).toBe('Planejada');
+    expect(mockRouter.push).not.toHaveBeenCalled();
+    expect(screen.getByText('Roteiro planejado. Comece quando quiser.')).toBeOnTheScreen();
   });
 
   it('labels the button "Abrir modo viagem" when live is already on for it', async () => {
@@ -112,8 +178,9 @@ describe('RoteiroScreen (mine)', () => {
   it('starting another itinerary resets the live state', async () => {
     mockParams = { id: JAPAO, mode: 'mine' };
     await renderWithProviders(<RoteiroScreen />);
-    expect(screen.getByText('Começar viagem agora')).toBeOnTheScreen();
+    expect(screen.getByText('Iniciar viagem')).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId('roteiro-start'));
+    await fireEvent.press(screen.getByTestId('roteiro-start-now'));
     expect(getLive()).toEqual({
       on: true,
       itineraryId: JAPAO,

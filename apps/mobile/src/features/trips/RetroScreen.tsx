@@ -18,10 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTripExpenses, useTrips } from '@/data/trips';
 import { TripCollage, useTripPhotoCount } from '@/features/photos/TripPhotos';
 import { routes } from '@/navigation/routes';
-import { formatAmount, summarizeMoney } from './money';
-
-const STORY_PARTS = 4;
-const STORY_CURRENT = 2;
+import { DayByDay } from './DayByDay';
+import { formatAmount, summarizeMoney, tripCurrency } from './money';
+import { SplitSummary } from './SplitSummary';
 
 /** C2 · Retrospectiva: carvão story with collage, stats and the best moment. */
 export function RetroScreen() {
@@ -56,27 +55,6 @@ export function RetroScreen() {
         backgroundColor: colors.backgroundDark,
       }}
     >
-      <View
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={t('trips.retro.progress', {
-          current: STORY_CURRENT,
-          total: STORY_PARTS,
-        })}
-        style={{ flexDirection: 'row', gap: 4 }}
-      >
-        {Array.from({ length: STORY_PARTS }, (_, i) => (
-          <View
-            key={i}
-            style={{
-              flex: 1,
-              height: 3,
-              borderRadius: 2,
-              backgroundColor: i < STORY_CURRENT ? colors.textInverse : alpha.darkBorderStrong,
-            }}
-          />
-        ))}
-      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
         <Text variant="overline" tone="accentOnDark">
           {t('trips.retro.overline', { year: trip.year })}
@@ -110,39 +88,55 @@ export function RetroScreen() {
           />
         ))}
       </TileGrid>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 12,
-          padding: 16,
-          borderRadius: radius.r16,
-          backgroundColor: alpha.darkCard,
-          borderWidth: 1,
-          borderColor: alpha.darkBorder,
-        }}
-      >
+      {details?.best ? (
         <View
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: colors.primary,
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: 12,
+            padding: 16,
+            borderRadius: radius.r16,
+            backgroundColor: alpha.darkCard,
+            borderWidth: 1,
+            borderColor: alpha.darkBorder,
           }}
         >
-          <Icon name="star" weight="fill" size={20} color={colors.onPrimary} />
+          <View
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: colors.primary,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Icon name="star" weight="fill" size={20} color={colors.onPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text variant="overline" tone="inverseMuted">
+              {t('trips.retro.best')}
+            </Text>
+            <Text variant="bodyL" weight={700} tone="inverse">
+              {details.best}
+            </Text>
+          </View>
         </View>
-        <View style={{ flex: 1 }}>
-          <Text variant="overline" tone="inverseMuted">
-            {t('trips.retro.best')}
+      ) : null}
+      <SplitSummary
+        tripId={trip.id}
+        collab={trip.collab}
+        currency={money?.currency ?? tripCurrency(trip, details)}
+        onDark
+      />
+      {details?.days?.length ? (
+        <View style={{ gap: 14 }}>
+          <Text variant="h3" tone="inverse" accessibilityRole="header">
+            {t('trips.retro.dayByDay')}
           </Text>
-          <Text variant="bodyL" weight={700} tone="inverse">
-            {details?.best ?? trip.title}
-          </Text>
+          <DayByDay details={details} onDark />
         </View>
-      </View>
+      ) : null}
       <Button
         testID="retro-share"
         icon="export"

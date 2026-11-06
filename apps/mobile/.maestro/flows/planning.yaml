@@ -16,36 +16,49 @@ tags:
       id: roteiro-screen
     timeout: 10000
 - assertVisible: Dia 1 · Lima → Cusco
-# Adicionar parada → primeira sugestão
+# Adicionar atividade (end of the day) → a suggestion fills the form → save
+- scrollUntilVisible:
+    element:
+      id: roteiro-add-stop
+    direction: DOWN
+    # Fully on screen, not behind the bottom bar.
+    visibilityPercentage: 100
+    centerElement: true
 - tapOn:
     id: roteiro-add-stop
 - assertVisible: Adicionar ao Dia 1
 - tapOn:
     id: roteiro-sug-0
+- tapOn:
+    id: roteiro-sug-sheet-save
 # The new stop goes to the end of the day, below the fold.
 - scrollUntilVisible:
     element:
       text: ".*Mercado San Pedro.*"
     direction: DOWN
-# Começar viagem agora → modo viagem
+# Iniciar viagem → Começar agora → modo viagem
 - tapOn:
     id: roteiro-start
+- assertVisible: Quando a viagem começa?
+- tapOn:
+    id: roteiro-start-now
 - extendedWaitUntil:
     visible:
       id: live-screen
     timeout: 10000
 - assertVisible: Plano de hoje
-# Check-in: exige lugar
+# "+" adds anything to the day, typed freely
 - tapOn:
-    id: live-checkin
+    id: live-add
 - tapOn:
-    id: live-sheet-submit
-- assertVisible: Escolha onde você está.
+    id: live-add-sheet-save
+- assertVisible: Diga o que você vai fazer.
 - tapOn:
-    id: live-near-0
+    id: activity-title
+- inputText: Casa da tia Rosa
 - tapOn:
-    id: live-sheet-submit
-- assertVisible: Check-in em .*
+    id: live-add-sheet-save
+- assertVisible: Casa da tia Rosa entrou no Dia .*
 # Encerrar → viagem realizada
 - tapOn:
     id: live-end

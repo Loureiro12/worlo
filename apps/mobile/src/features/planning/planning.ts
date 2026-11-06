@@ -3,7 +3,7 @@ import type { IconName } from '@worlo/ui';
 import { palette } from '@worlo/ui';
 import { getCatalog } from '@/data/catalog';
 import { formatMoney } from '@/lib/format';
-import type { CountryId, Itinerary, Stop } from '@/mocks/types';
+import type { CountryId, Itinerary, Stop, TimelineItem, TripDay } from '@/mocks/types';
 
 export const EXPENSE_CATEGORIES = [
   { key: 'food', icon: 'fork-knife' },
@@ -63,16 +63,72 @@ export function countryIdForFlag(flag: string): CountryId | undefined {
 
 export type EndSummary = { days: number; photos: number; places: number };
 
+/** What the trip will count: only what was really recorded in travel mode. */
 export function endSummary(
   it: Itinerary,
   log: { type: string; photo?: string }[],
-  doneToday: number,
+  doneCount: number,
 ): EndSummary {
   return {
     days: it.days.length,
     photos: log.filter((l) => l.photo).length,
-    places: log.filter((l) => l.type === 'checkin').length + doneToday,
+    places: log.filter((l) => l.type === 'checkin' || l.type === 'activity').length + doneCount,
   };
+}
+
+type RecordEntry = {
+  type: string;
+  text: string;
+  detail?: string;
+  photo?: string;
+  time: string;
+  day?: number;
+};
+
+const LOG_ICON: Record<string, IconName> = {
+  photo: 'camera',
+  expense: 'wallet',
+  note: 'note-pencil',
+  checkin: 'map-pin',
+};
+
+/**
+ * "Dia a dia" of the trip created when travel mode ends: each itinerary day
+ * with its stops (done or not) and what was recorded on it — photos with
+ * their captions, notes, expenses. Activities added with "+" are already
+ * stops; "done" entries only mark stops.
+ */
+export function tripDaysFromLive(
+  it: Itinerary,
+  log: readonly RecordEntry[],
+  done: Record<string, boolean>,
+  dayLabel: (n: number, label: string) => string,
+  fallbackDay = 1,
+): TripDay[] {
+  return it.days
+    .map((day, di) => {
+      const stops: TimelineItem[] = day.items.map((stop, i) => ({
+        time: stop.time,
+        icon: stop.icon,
+        title: stop.title,
+        note: [stop.duration, stop.note].filter(Boolean).join(' · '),
+        ...(done[`${di}-${i}`] ? { extra: '✓' } : {}),
+      }));
+      const recorded: TimelineItem[] = log
+        .filter((entry) => (entry.day ?? fallbackDay) === di + 1 && entry.type in LOG_ICON)
+        // The log is newest first; the day reads in order.
+        .slice()
+        .reverse()
+        .map((entry) => ({
+          time: entry.time,
+          icon: LOG_ICON[entry.type] ?? 'note-pencil',
+          title: entry.text,
+          note: entry.detail ?? '',
+          ...(entry.photo && !entry.photo.includes('://') ? { photos: [entry.photo] } : {}),
+        }));
+      return { label: dayLabel(di + 1, day.label), items: [...stops, ...recorded] };
+    })
+    .filter((day) => day.items.length > 0);
 }
 
 const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];

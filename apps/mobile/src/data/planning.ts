@@ -21,6 +21,8 @@ export type LiveLogEntry = {
   time: string;
   /** 'me' or the name of a travel companion. */
   author: 'me' | string;
+  /** Itinerary day (1-based); missing on entries from older apps. */
+  day?: number;
 };
 
 /** Travel mode as the screens see it (the newest `live_sessions` row + its logs). */
@@ -58,6 +60,7 @@ const toEntry = (row: LiveLog): LiveLogEntry => ({
   photo: row.photo ?? undefined,
   time: row.time,
   author: row.author,
+  day: row.day ?? undefined,
 });
 
 /** Newest first. For plain modules; components use `useItineraries`. */
@@ -159,5 +162,6 @@ export function addLiveLog(entry: Omit<LiveLogEntry, 'id'>, spent = 0) {
     time: entry.time,
     author: entry.author,
     amount: spent,
+    day: entry.day ?? null,
   });
 }
