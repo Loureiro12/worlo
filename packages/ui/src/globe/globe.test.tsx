@@ -75,3 +75,21 @@ describe('Globe', () => {
     expect(screen.getByLabelText('Seu mapa: 2 países')).toBeOnTheScreen();
   });
 });
+
+describe('Globe animation', () => {
+  it('spins only while it is not paused (hidden tab screens pass paused)', async () => {
+    const raf = jest.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(() => 1);
+    const env = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      const props = { width: 300, height: 300, visited: [], autoRotate: 0.1 };
+      await renderUi(<Globe {...props} paused />);
+      expect(raf).not.toHaveBeenCalled();
+      await renderUi(<Globe {...props} />);
+      expect(raf).toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = env;
+      raf.mockRestore();
+    }
+  });
+});

@@ -18,6 +18,8 @@ export const palette = {
   erro: '#B3261E',
   info: '#2563A8',
   globoOceano: '#211F1C',
+  /** Light map (Mapa tab): a soft, warm-grey sea under white land. */
+  globoOceanoClaro: '#DCD8D3',
 } as const;
 
 /** Translucent layers used on dark (carvão) screens and overlays. */

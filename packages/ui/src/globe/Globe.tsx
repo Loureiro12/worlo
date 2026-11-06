@@ -50,6 +50,12 @@ export type GlobeProps = GlobeLayers & {
   selected?: string | null;
   /** Degrees per frame (60fps). 0 disables auto-rotation. */
   autoRotate?: number;
+  /**
+   * Stops every animation (auto-rotation, inertia, pulse). Screens pass it when
+   * they are not visible: tab screens stay mounted, and a spinning globe there
+   * redraws the whole world on the JS thread behind every other screen.
+   */
+  paused?: boolean;
   initialRotation?: LonLat;
   /** Multiplies the base radius (0.46 × min(width, height)). */
   scale?: number;
@@ -60,6 +66,8 @@ export type GlobeProps = GlobeLayers & {
   cities?: readonly GlobeCity[];
   photosLabel?: (count: number) => string;
   glow?: boolean;
+  /** 'light' on the Mapa tab; 'dark' (carvão) elsewhere. */
+  theme?: GlobeTheme;
   /** Pulsing coral ring on a country until the first tap (onboarding). */
   pulse?: string | null;
   interactive?: boolean;
@@ -70,15 +78,41 @@ export type GlobeProps = GlobeLayers & {
   ref?: Ref<GlobeHandle>;
 };
 
-const fills = {
-  none: palette.cinza800,
-  wishlist: palette.cinza600,
-  planned: palette.linha,
-  visited: palette.coral,
+/** Carvão globe (onboarding, perfil) and the light one of the Mapa tab. */
+const THEMES = {
+  dark: {
+    ocean: palette.globoOceano,
+    graticule: 'rgba(255,253,252,0.05)',
+    none: palette.cinza800,
+    wishlist: palette.cinza600,
+    planned: palette.linha,
+    visited: palette.coral,
+    border: palette.globoOceano,
+    outline: 'rgba(255,253,252,0.75)',
+    selected: palette.branco,
+    city: palette.branco,
+    shadeLight: 0.1,
+    shadeDark: 0.5,
+  },
+  light: {
+    ocean: palette.globoOceanoClaro,
+    graticule: 'rgba(19,19,17,0.05)',
+    none: palette.branco,
+    wishlist: palette.cinza600,
+    planned: palette.linha,
+    visited: palette.coral,
+    border: palette.linha,
+    outline: 'rgba(19,19,17,0.55)',
+    selected: palette.carvao,
+    city: palette.carvao,
+    shadeLight: 0.35,
+    shadeDark: 0.12,
+  },
 } as const;
+export type GlobeTheme = keyof typeof THEMES;
 
-// Animations are pointless (and noisy) under Jest.
-const ANIMATE = process.env.NODE_ENV !== 'test';
+// Animations are pointless (and noisy) under Jest; read on each use so a test can turn them on.
+const animates = () => process.env.NODE_ENV !== 'test';
 
 type Motion = {
   rotation: LonLat;
@@ -101,6 +135,7 @@ export function Globe({
   wishlist,
   selected = null,
   autoRotate = 0,
+  paused = false,
   initialRotation = [30, -15],
   scale = 1,
   offsetY = 0,
@@ -108,6 +143,7 @@ export function Globe({
   cities,
   photosLabel = (n) => `${n}`,
   glow = true,
+  theme = 'dark',
   pulse = null,
   interactive = true,
   onPickCountry,
@@ -116,6 +152,7 @@ export function Globe({
   testID,
   ref,
 }: GlobeProps) {
+  const look = THEMES[theme];
   const motion = useRef<Motion>({
     rotation: [...initialRotation] as LonLat,
     velocity: [0, 0],
@@ -129,13 +166,14 @@ export function Globe({
   const pulsePhase = useRef(0);
   /** Idle auto-rotation renders every other frame (30fps) to spare the JS thread. */
   const idleFrame = useRef(false);
-  const props = useRef({ autoRotate, offsetY, pulse });
-  props.current = { autoRotate, offsetY, pulse };
+  const props = useRef({ autoRotate, offsetY, pulse, paused });
+  props.current = { autoRotate, offsetY, pulse, paused };
 
   const step = useCallback(() => {
     raf.current = null;
     const m = motion.current;
     const p = props.current;
+    if (p.paused) return;
     let busy = false;
     if (!m.dragging) {
       if (m.target) {
@@ -173,7 +211,7 @@ export function Globe({
   }, []);
 
   const schedule = useCallback(() => {
-    if (!ANIMATE || raf.current !== null) return;
+    if (!animates() || raf.current !== null || props.current.paused) return;
     raf.current = requestAnimationFrame(step);
   }, [step]);
 
@@ -185,10 +223,15 @@ export function Globe({
     };
   }, [schedule]);
 
-  // Restart the loop whenever something animatable changes.
+  // Restart the loop whenever something animatable changes; stop it when paused.
   useEffect(() => {
+    if (paused) {
+      if (raf.current !== null) cancelAnimationFrame(raf.current);
+      raf.current = null;
+      return;
+    }
     schedule();
-  }, [autoRotate, offsetY, pulse, schedule]);
+  }, [autoRotate, offsetY, pulse, paused, schedule]);
 
   useImperativeHandle(
     ref,
@@ -379,30 +422,30 @@ export function Globe({
             r={radius * 1.02}
             gradientUnits="userSpaceOnUse"
           >
-            <Stop offset={0} stopColor={palette.branco} stopOpacity={0.1} />
+            <Stop offset={0} stopColor={palette.branco} stopOpacity={look.shadeLight} />
             <Stop offset={0.55} stopColor={palette.carvao} stopOpacity={0} />
-            <Stop offset={1} stopColor={palette.carvao} stopOpacity={0.5} />
+            <Stop offset={1} stopColor={palette.carvao} stopOpacity={look.shadeDark} />
           </RadialGradient>
         </Defs>
         {glow ? <Rect x={0} y={0} width={width} height={height} fill="url(#glow)" /> : null}
-        <Path d={paths.sphere} fill={palette.globoOceano} />
-        <Path d={paths.graticule} stroke="rgba(255,253,252,0.05)" strokeWidth={0.6} fill="none" />
-        <Path d={paths.fills.none} fill={fills.none} />
-        <Path d={paths.fills.wishlist} fill={fills.wishlist} />
-        <Path d={paths.fills.planned} fill={fills.planned} />
-        <Path d={paths.fills.visited} fill={fills.visited} />
-        <Path d={paths.borders} stroke={palette.globoOceano} strokeWidth={0.6} fill="none" />
+        <Path d={paths.sphere} fill={look.ocean} />
+        <Path d={paths.graticule} stroke={look.graticule} strokeWidth={0.6} fill="none" />
+        <Path d={paths.fills.none} fill={look.none} />
+        <Path d={paths.fills.wishlist} fill={look.wishlist} />
+        <Path d={paths.fills.planned} fill={look.planned} />
+        <Path d={paths.fills.visited} fill={look.visited} />
+        <Path d={paths.borders} stroke={look.border} strokeWidth={0.6} fill="none" />
         {paths.wishlistOutline ? (
           <Path
             d={paths.wishlistOutline}
-            stroke="rgba(255,253,252,0.75)"
+            stroke={look.outline}
             strokeWidth={1}
             strokeDasharray="3,2"
             fill="none"
           />
         ) : null}
         {paths.selected ? (
-          <Path d={paths.selected} stroke={palette.branco} strokeWidth={2} fill="none" />
+          <Path d={paths.selected} stroke={look.selected} strokeWidth={2} fill="none" />
         ) : null}
         <Path d={paths.sphere} fill="url(#shade)" />
         {showCities
@@ -412,11 +455,11 @@ export function Globe({
               const label = city.photos && m.zoom > 2.3 ? photosLabel(city.photos) : null;
               return (
                 <G key={city.name}>
-                  <Circle cx={x} cy={y} r={3} fill={palette.branco} />
+                  <Circle cx={x} cy={y} r={3} fill={look.city} />
                   <SvgText
                     x={x + 7}
                     y={y + 4}
-                    fill={palette.branco}
+                    fill={look.city}
                     fontSize={11}
                     fontFamily={fontFamily.ui600}
                   >

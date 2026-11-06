@@ -11,6 +11,7 @@ import { ArrowClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowClockwi
 import { ArrowCounterClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowCounterClockwise';
 import { ArrowLeftIcon } from 'phosphor-react-native/src/icons/ArrowLeft';
 import { ArrowRightIcon } from 'phosphor-react-native/src/icons/ArrowRight';
+import { ArrowSquareOutIcon } from 'phosphor-react-native/src/icons/ArrowSquareOut';
 import { ArrowsClockwiseIcon } from 'phosphor-react-native/src/icons/ArrowsClockwise';
 import { ArrowUpIcon } from 'phosphor-react-native/src/icons/ArrowUp';
 import { ArrowUpLeftIcon } from 'phosphor-react-native/src/icons/ArrowUpLeft';
@@ -45,12 +46,18 @@ import { ChurchIcon } from 'phosphor-react-native/src/icons/Church';
 import { CircleNotchIcon } from 'phosphor-react-native/src/icons/CircleNotch';
 import { ClockIcon } from 'phosphor-react-native/src/icons/Clock';
 import { ClockCounterClockwiseIcon } from 'phosphor-react-native/src/icons/ClockCounterClockwise';
+import { CloudIcon } from 'phosphor-react-native/src/icons/Cloud';
 import { CloudCheckIcon } from 'phosphor-react-native/src/icons/CloudCheck';
+import { CloudFogIcon } from 'phosphor-react-native/src/icons/CloudFog';
+import { CloudLightningIcon } from 'phosphor-react-native/src/icons/CloudLightning';
+import { CloudRainIcon } from 'phosphor-react-native/src/icons/CloudRain';
+import { CloudSnowIcon } from 'phosphor-react-native/src/icons/CloudSnow';
 import { CloudSunIcon } from 'phosphor-react-native/src/icons/CloudSun';
 import { CloudXIcon } from 'phosphor-react-native/src/icons/CloudX';
 import { CoffeeIcon } from 'phosphor-react-native/src/icons/Coffee';
 import { CoinsIcon } from 'phosphor-react-native/src/icons/Coins';
 import { CompassIcon } from 'phosphor-react-native/src/icons/Compass';
+import { CookieIcon } from 'phosphor-react-native/src/icons/Cookie';
 import { CrosshairIcon } from 'phosphor-react-native/src/icons/Crosshair';
 import { CurrencyCircleDollarIcon } from 'phosphor-react-native/src/icons/CurrencyCircleDollar';
 import { DeviceMobileIcon } from 'phosphor-react-native/src/icons/DeviceMobile';
@@ -95,6 +102,7 @@ import { MedalIcon } from 'phosphor-react-native/src/icons/Medal';
 import { MegaphoneIcon } from 'phosphor-react-native/src/icons/Megaphone';
 import { MinusIcon } from 'phosphor-react-native/src/icons/Minus';
 import { MinusCircleIcon } from 'phosphor-react-native/src/icons/MinusCircle';
+import { MoonIcon } from 'phosphor-react-native/src/icons/Moon';
 import { MountainsIcon } from 'phosphor-react-native/src/icons/Mountains';
 import { MusicNotesIcon } from 'phosphor-react-native/src/icons/MusicNotes';
 import { NavigationArrowIcon } from 'phosphor-react-native/src/icons/NavigationArrow';
@@ -112,6 +120,8 @@ import { RulerIcon } from 'phosphor-react-native/src/icons/Ruler';
 import { SealCheckIcon } from 'phosphor-react-native/src/icons/SealCheck';
 import { ShieldCheckIcon } from 'phosphor-react-native/src/icons/ShieldCheck';
 import { ShoppingBagIcon } from 'phosphor-react-native/src/icons/ShoppingBag';
+import { SignInIcon } from 'phosphor-react-native/src/icons/SignIn';
+import { SignOutIcon } from 'phosphor-react-native/src/icons/SignOut';
 import { SquareIcon } from 'phosphor-react-native/src/icons/Square';
 import { StarIcon } from 'phosphor-react-native/src/icons/Star';
 import { StorefrontIcon } from 'phosphor-react-native/src/icons/Storefront';
@@ -153,6 +163,7 @@ export const icons = {
   'arrow-counter-clockwise': ArrowCounterClockwiseIcon,
   'arrow-left': ArrowLeftIcon,
   'arrow-right': ArrowRightIcon,
+  'arrow-square-out': ArrowSquareOutIcon,
   'arrow-up': ArrowUpIcon,
   'arrow-up-left': ArrowUpLeftIcon,
   'arrows-clockwise': ArrowsClockwiseIcon,
@@ -187,12 +198,18 @@ export const icons = {
   'circle-notch': CircleNotchIcon,
   clock: ClockIcon,
   'clock-counter-clockwise': ClockCounterClockwiseIcon,
+  cloud: CloudIcon,
   'cloud-check': CloudCheckIcon,
+  'cloud-fog': CloudFogIcon,
+  'cloud-lightning': CloudLightningIcon,
+  'cloud-rain': CloudRainIcon,
+  'cloud-snow': CloudSnowIcon,
   'cloud-sun': CloudSunIcon,
   'cloud-x': CloudXIcon,
   coffee: CoffeeIcon,
   coins: CoinsIcon,
   compass: CompassIcon,
+  cookie: CookieIcon,
   crosshair: CrosshairIcon,
   'currency-circle-dollar': CurrencyCircleDollarIcon,
   'device-mobile': DeviceMobileIcon,
@@ -237,6 +254,7 @@ export const icons = {
   megaphone: MegaphoneIcon,
   minus: MinusIcon,
   'minus-circle': MinusCircleIcon,
+  moon: MoonIcon,
   mountains: MountainsIcon,
   'music-notes': MusicNotesIcon,
   'navigation-arrow': NavigationArrowIcon,
@@ -254,6 +272,8 @@ export const icons = {
   'seal-check': SealCheckIcon,
   'shield-check': ShieldCheckIcon,
   'shopping-bag': ShoppingBagIcon,
+  'sign-in': SignInIcon,
+  'sign-out': SignOutIcon,
   square: SquareIcon,
   star: StarIcon,
   storefront: StorefrontIcon,
