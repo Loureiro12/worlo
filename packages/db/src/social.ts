@@ -426,6 +426,13 @@ export function createSocialRepositories(db: LocalDatabase, w: Writer, me: () =>
       const photo = w.getOrThrow('photos', photoId);
       w.put('photos', { ...photo, uploaded: true, updatedAt: w.stamp() });
     },
+    /** Legenda (≤ 500), kept with the photo wherever it is shown. */
+    setCaption(photoId: string, caption: string | null) {
+      const value = caption?.trim() || null;
+      if ((value?.length ?? 0) > 500) throw new ValidationError('caption');
+      const photo = w.getOrThrow('photos', photoId);
+      w.put('photos', { ...photo, caption: value, updatedAt: w.stamp() });
+    },
     assign(photoId: string, tripId: string | null) {
       const photo = w.getOrThrow('photos', photoId);
       w.put('photos', { ...photo, tripId, updatedAt: w.stamp() });

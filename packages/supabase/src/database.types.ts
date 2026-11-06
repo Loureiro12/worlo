@@ -37,6 +37,20 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"app_errors": {
+                  Row: {
+                    "app_version": string,"context": string,"created_at": string,"fatal": boolean,"id": string,"message": string,"occurred_at": string,"platform": string,"stack": string,"user_id": string | null
+                  }
+                  ComputedFields: never
+                  Insert: {
+                    "app_version"?: string,"context"?: string,"created_at"?: string,"fatal"?: boolean,"id"?: string,"message": string,"occurred_at": string,"platform"?: string,"stack"?: string,"user_id"?: string | null
+                  }
+                  Update: {
+                    "app_version"?: string,"context"?: string,"created_at"?: string,"fatal"?: boolean,"id"?: string,"message"?: string,"occurred_at"?: string,"platform"?: string,"stack"?: string,"user_id"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"bookings": {
                   Row: {
                     "cancelled_at": string | null,"created_at": string,"currency": string,"date": string,"deleted_at": string | null,"id": string,"people": number,"reminded_at": string | null,"slot_id": string,"status": string,"total": number,"tour_id": string,"updated_at": string,"user_id": string
@@ -59,14 +73,14 @@ isOneToOne: false
                   ]
                 },"businesses": {
                   Row: {
-                    "city": string,"created_at": string,"deleted_at": string | null,"description": string,"email": string,"id": string,"name": string,"status": string,"type": string,"updated_at": string,"user_id": string
+                    "booking_url": string | null,"city": string,"created_at": string,"deleted_at": string | null,"description": string,"email": string,"id": string,"name": string,"status": string,"type": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "city": string,"created_at"?: string,"deleted_at"?: string | null,"description"?: string,"email": string,"id": string,"name": string,"status"?: string,"type": string,"updated_at"?: string,"user_id"?: string
+                    "booking_url"?: string | null,"city": string,"created_at"?: string,"deleted_at"?: string | null,"description"?: string,"email": string,"id": string,"name": string,"status"?: string,"type": string,"updated_at"?: string,"user_id"?: string
                   }
                   Update: {
-                    "city"?: string,"created_at"?: string,"deleted_at"?: string | null,"description"?: string,"email"?: string,"id"?: string,"name"?: string,"status"?: string,"type"?: string,"updated_at"?: string,"user_id"?: string
+                    "booking_url"?: string | null,"city"?: string,"created_at"?: string,"deleted_at"?: string | null,"description"?: string,"email"?: string,"id"?: string,"name"?: string,"status"?: string,"type"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     
@@ -211,14 +225,14 @@ isOneToOne: false
                   ]
                 },"live_logs": {
                   Row: {
-                    "amount": number,"author": string,"created_at": string,"deleted_at": string | null,"detail": string | null,"id": string,"photo": string | null,"session_id": string,"text": string,"time": string,"type": string,"updated_at": string,"user_id": string
+                    "amount": number,"author": string,"created_at": string,"day": number | null,"deleted_at": string | null,"detail": string | null,"id": string,"photo": string | null,"session_id": string,"text": string,"time": string,"type": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount"?: number,"author"?: string,"created_at"?: string,"deleted_at"?: string | null,"detail"?: string | null,"id": string,"photo"?: string | null,"session_id": string,"text": string,"time"?: string,"type": string,"updated_at"?: string,"user_id"?: string
+                    "amount"?: number,"author"?: string,"created_at"?: string,"day"?: number | null,"deleted_at"?: string | null,"detail"?: string | null,"id": string,"photo"?: string | null,"session_id": string,"text": string,"time"?: string,"type": string,"updated_at"?: string,"user_id"?: string
                   }
                   Update: {
-                    "amount"?: number,"author"?: string,"created_at"?: string,"deleted_at"?: string | null,"detail"?: string | null,"id"?: string,"photo"?: string | null,"session_id"?: string,"text"?: string,"time"?: string,"type"?: string,"updated_at"?: string,"user_id"?: string
+                    "amount"?: number,"author"?: string,"created_at"?: string,"day"?: number | null,"deleted_at"?: string | null,"detail"?: string | null,"id"?: string,"photo"?: string | null,"session_id"?: string,"text"?: string,"time"?: string,"type"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -457,14 +471,14 @@ isOneToOne: false
                   ]
                 },"trip_expenses": {
                   Row: {
-                    "amount": number,"amount_label": string,"category": string,"created_at": string,"deleted_at": string | null,"icon": string,"id": string,"meta": string,"name": string,"receipt": boolean,"split": NonNullable<Json>,"trip_id": string,"updated_at": string,"user_id": string
+                    "amount": number,"amount_label": string,"category": string,"created_at": string,"deleted_at": string | null,"icon": string,"id": string,"meta": string,"name": string,"paid_by": string | null,"receipt": boolean,"split": NonNullable<Json>,"trip_id": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "amount"?: number,"amount_label"?: string,"category"?: string,"created_at"?: string,"deleted_at"?: string | null,"icon"?: string,"id": string,"meta"?: string,"name": string,"receipt"?: boolean,"split"?: NonNullable<Json>,"trip_id": string,"updated_at"?: string,"user_id"?: string
+                    "amount"?: number,"amount_label"?: string,"category"?: string,"created_at"?: string,"deleted_at"?: string | null,"icon"?: string,"id": string,"meta"?: string,"name": string,"paid_by"?: string | null,"receipt"?: boolean,"split"?: NonNullable<Json>,"trip_id": string,"updated_at"?: string,"user_id"?: string
                   }
                   Update: {
-                    "amount"?: number,"amount_label"?: string,"category"?: string,"created_at"?: string,"deleted_at"?: string | null,"icon"?: string,"id"?: string,"meta"?: string,"name"?: string,"receipt"?: boolean,"split"?: NonNullable<Json>,"trip_id"?: string,"updated_at"?: string,"user_id"?: string
+                    "amount"?: number,"amount_label"?: string,"category"?: string,"created_at"?: string,"deleted_at"?: string | null,"icon"?: string,"id"?: string,"meta"?: string,"name"?: string,"paid_by"?: string | null,"receipt"?: boolean,"split"?: NonNullable<Json>,"trip_id"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     {
@@ -505,14 +519,14 @@ isOneToOne: false
                   ]
                 },"wish_destinations": {
                   Row: {
-                    "companions": NonNullable<Json>,"country_iso": string | null,"created_at": string,"deleted_at": string | null,"flag": string,"id": string,"name": string,"note": string,"tint": string,"updated_at": string,"user_id": string
+                    "companions": NonNullable<Json>,"country_iso": string | null,"cover_url": string | null,"created_at": string,"deleted_at": string | null,"flag": string,"id": string,"name": string,"note": string,"tint": string,"updated_at": string,"user_id": string
                   }
                   ComputedFields: never
                   Insert: {
-                    "companions"?: NonNullable<Json>,"country_iso"?: string | null,"created_at"?: string,"deleted_at"?: string | null,"flag"?: string,"id": string,"name": string,"note"?: string,"tint"?: string,"updated_at"?: string,"user_id"?: string
+                    "companions"?: NonNullable<Json>,"country_iso"?: string | null,"cover_url"?: string | null,"created_at"?: string,"deleted_at"?: string | null,"flag"?: string,"id": string,"name": string,"note"?: string,"tint"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Update: {
-                    "companions"?: NonNullable<Json>,"country_iso"?: string | null,"created_at"?: string,"deleted_at"?: string | null,"flag"?: string,"id"?: string,"name"?: string,"note"?: string,"tint"?: string,"updated_at"?: string,"user_id"?: string
+                    "companions"?: NonNullable<Json>,"country_iso"?: string | null,"cover_url"?: string | null,"created_at"?: string,"deleted_at"?: string | null,"flag"?: string,"id"?: string,"name"?: string,"note"?: string,"tint"?: string,"updated_at"?: string,"user_id"?: string
                   }
                   Relationships: [
                     

@@ -6,6 +6,7 @@ import { syncedTables } from './synced-tables';
 import { requiredText, ValidationError, type Writer } from './writer';
 
 const EMAIL = /.+@.+\..+/;
+const WEB_URL = /^https?:\/\/\S+$/i;
 
 /**
  * Phase 3 repositories: tour dates, bookings and Anuncie sign-ups.
@@ -88,10 +89,15 @@ export function createCommerceRepositories(db: LocalDatabase, w: Writer, me: () 
       city: string;
       description?: string;
       email: string;
+      bookingUrl?: string;
     }) {
       const userId = requireMe();
       const email = input.email.trim();
       if (!EMAIL.test(email)) throw new ValidationError('email');
+      const bookingUrl = input.bookingUrl?.trim() || null;
+      if (bookingUrl && (!WEB_URL.test(bookingUrl) || bookingUrl.length > 500)) {
+        throw new ValidationError('bookingUrl');
+      }
       return w.put('businesses', {
         ...w.fresh(),
         userId,
@@ -100,6 +106,7 @@ export function createCommerceRepositories(db: LocalDatabase, w: Writer, me: () 
         city: requiredText(input.city, 120, 'city'),
         description: (input.description ?? '').trim().slice(0, 500),
         email,
+        bookingUrl,
         status: 'review',
       });
     },

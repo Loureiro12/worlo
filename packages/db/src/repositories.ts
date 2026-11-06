@@ -141,6 +141,7 @@ export function createRepositories(db: LocalDatabase, options: RepositoryOptions
         flag: input.flag ?? '',
         note: input.note ?? '',
         tint: input.tint ?? '',
+        coverUrl: null,
         companions: input.companions ?? [],
         userId: me(),
       });
@@ -237,6 +238,7 @@ export function createRepositories(db: LocalDatabase, options: RepositoryOptions
         amountLabel: '',
         split: [],
         receipt: false,
+        paidBy: null,
         ...input,
         userId: me(),
         ...w.fresh(),
@@ -327,6 +329,16 @@ export function createRepositories(db: LocalDatabase, options: RepositoryOptions
         .orderBy(desc(liveLogs.createdAt))
         .all();
     },
+    /** Experiences recorded in travel mode, every trip (Conquistas › Explorador). */
+    experienceCount(): number {
+      return db
+        .select({ type: liveLogs.type })
+        .from(liveLogs)
+        .where(isNull(liveLogs.deletedAt))
+        .all()
+        .filter((row) => row.type === 'activity' || row.type === 'done' || row.type === 'checkin')
+        .length;
+    },
     /** Adds an entry to the current session; `amount` also adds to what was spent. */
     addLog(entry: Pick<LiveLog, 'type' | 'text'> & Editable<LiveLog>): LiveLog {
       const session = planning.currentSession();
@@ -347,6 +359,7 @@ export function createRepositories(db: LocalDatabase, options: RepositoryOptions
           photo: null,
           time: '',
           author: 'me',
+          day: null,
           ...entry,
           ...fresh,
           amount,

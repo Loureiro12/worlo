@@ -64,6 +64,8 @@ export const wishDestinations = sqliteTable('wish_destinations', {
   note: text('note').notNull().default(''),
   companions: json<Companion[]>('companions').notNull(),
   tint: text('tint').notNull().default(''),
+  /** Cover photo (public URL); null = the solid `tint`. */
+  coverUrl: text('cover_url'),
 });
 
 export const trips = sqliteTable('trips', {
@@ -103,6 +105,8 @@ export const tripExpenses = sqliteTable(
     amountLabel: text('amount_label').notNull().default(''),
     split: json<string[]>('split').notNull(),
     receipt: integer('receipt', { mode: 'boolean' }).notNull().default(false),
+    /** Who paid (user id or "name:<companion>"); null = the author (older rows). */
+    paidBy: text('paid_by'),
   },
   (t) => [index('trip_expenses_trip_idx').on(t.tripId)],
 );
@@ -135,13 +139,17 @@ export const liveLogs = sqliteTable(
   {
     ...synced,
     sessionId: text('session_id').notNull(),
-    type: text('type').$type<'checkin' | 'photo' | 'expense' | 'note' | 'done'>().notNull(),
+    type: text('type')
+      .$type<'checkin' | 'photo' | 'expense' | 'note' | 'done' | 'activity'>()
+      .notNull(),
     text: text('text').notNull(),
     detail: text('detail'),
     photo: text('photo'),
     time: text('time').notNull().default(''),
     author: text('author').notNull().default('me'),
     amount: real('amount').notNull().default(0),
+    /** Itinerary day (1-based); null on entries from older apps. */
+    day: integer('day'),
   },
   (t) => [index('live_logs_session_idx').on(t.sessionId)],
 );
@@ -373,6 +381,8 @@ export const businesses = sqliteTable('businesses', {
   description: text('description').notNull().default(''),
   email: text('email').notNull(),
   status: text('status').$type<BusinessStatus>().notNull().default('review'),
+  /** Where its tours are booked (Reservar opens it). */
+  bookingUrl: text('booking_url'),
 });
 
 /** Read-only reference content (pull only). `id` = '<kind>:<key>'. */

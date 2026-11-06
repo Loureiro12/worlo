@@ -1,0 +1,1 @@
+ALTER TABLE `wish_destinations` ADD `cover_url` text;

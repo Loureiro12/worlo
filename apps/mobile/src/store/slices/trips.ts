@@ -16,8 +16,12 @@ export type TripExpense = ExpenseItem & {
   amount?: number;
   /** Category name as in the mock data ("Comida", "Hospedagem"…). */
   cat?: string;
-  /** Collaborators the expense is split with (equal split with the author). */
+  /** With `paidBy`: every participant's key; without (older rows): names split with the author. */
   split?: string[];
+  /** Who paid: user id or "name:<companion>"; null = the author. */
+  paidBy?: string | null;
+  /** Who wrote it down (user id). */
+  author?: string | null;
 };
 
 /**

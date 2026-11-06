@@ -1,0 +1,1 @@
+ALTER TABLE `trip_expenses` ADD `paid_by` text;

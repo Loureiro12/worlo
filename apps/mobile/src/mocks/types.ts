@@ -100,6 +100,8 @@ export type TimelineItem = {
   title: string;
   note: string;
   extra?: string;
+  /** Photo ids (travel mode), shown with their captions. */
+  photos?: string[];
 };
 export type TripDay = { label: string; items: TimelineItem[] };
 export type ExpenseCategory = { name: string; val: number; color: string };
@@ -128,6 +130,8 @@ export type Future = {
   note: string;
   saved: string;
   tint: string;
+  /** Cover photo URL (chosen from the gallery), null = solid tint. */
+  cover?: string | null;
 };
 
 export type PlaceToKnow = {
@@ -179,6 +183,10 @@ export type Stop = {
   note: string;
   cost: number;
   done?: boolean;
+  /** Shortcut used to fill it (Adicionar atividade), if any. */
+  kind?: string;
+  /** "1 h", "40 min" (descanso). */
+  duration?: string;
 };
 export type ItineraryDay = { label: string; items: Stop[] };
 
@@ -228,6 +236,8 @@ export type Tour = {
   inc: string[];
   meet: string;
   review: { who: string; text: string };
+  /** The supplier's booking page (catalog, set by the team). Reservar opens it. */
+  bookingUrl?: string;
 };
 
 export type SavedCategory = 'Atrações' | 'Gastronomia' | 'Passeios' | 'Hospedagem';

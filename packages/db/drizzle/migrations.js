@@ -6,6 +6,10 @@ import m0001 from './0001_ancient_mole_man.sql';
 import m0002 from './0002_parched_moon_knight.sql';
 import m0003 from './0003_cloudy_adam_warlock.sql';
 import m0004 from './0004_organic_amphibian.sql';
+import m0005 from './0005_nervous_vengeance.sql';
+import m0006 from './0006_amusing_wendigo.sql';
+import m0007 from './0007_early_preak.sql';
+import m0008 from './0008_gigantic_wendell_rand.sql';
 
   export default {
     journal,
@@ -14,7 +18,11 @@ import m0004 from './0004_organic_amphibian.sql';
 m0001,
 m0002,
 m0003,
-m0004
+m0004,
+m0005,
+m0006,
+m0007,
+m0008
     }
   }
   

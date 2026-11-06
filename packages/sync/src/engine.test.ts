@@ -142,6 +142,19 @@ describe('SyncEngine rejected rows', () => {
     expect(result.pulled).toBeGreaterThan(0);
   });
 
+  it('tells the app which table lost rows, so it can report them', async () => {
+    const local = new MemoryLocalStore();
+    const remote = new MemoryRemoteStore();
+    const onRejected = vi.fn();
+    const engine = new SyncEngine({ local, remote, tables: ['tasks'], onRejected });
+    local.enqueue('tasks', { id: 'ok' });
+    local.enqueue('tasks', { id: 'forbidden' });
+    remote.forbiddenIds.add('forbidden');
+    await engine.sync();
+    expect(onRejected).toHaveBeenCalledTimes(1);
+    expect(onRejected).toHaveBeenCalledWith('tasks', expect.any(String), 1);
+  });
+
   it('keeps retrying network errors (nothing is rejected)', async () => {
     const { local, remote, engine } = setup();
     local.enqueue('tasks', { id: 'a' });

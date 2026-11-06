@@ -6,7 +6,7 @@ export type ShareOptions = { format: ShareFormat; theme: ShareTheme; showHandle:
 
 /**
  * "Quero ir" places from Explorar are wish destinations in SQLite (`@/data/world`),
- * tour bookings are synced rows (`@/data/bookings`).
+ * (tours are booked on the supplier's site, see PasseioScreen).
  */
 export type DiscoverySlice = {
   /** Last format/theme/@ picked on Compartilhar (kept across visits, like the prototype). */

@@ -1,0 +1,1 @@
+ALTER TABLE `live_logs` ADD `day` integer;

@@ -12,6 +12,8 @@ export type SyncEngineOptions = {
   tables: readonly string[];
   batchSize?: number;
   now?: () => Date;
+  /** Told about rows the server refused for good (they leave the outbox). */
+  onRejected?: (table: string, error: string, count: number) => void;
 };
 
 type Listener = (status: SyncStatus) => void;
@@ -23,6 +25,7 @@ export class SyncEngine {
   private readonly batchSize: number;
   private readonly now: () => Date;
   private readonly isPermanentError: (error: unknown) => boolean;
+  private readonly onRejected: (table: string, error: string, count: number) => void;
 
   private inFlight: Promise<SyncResult> | null = null;
   private rerunRequested = false;
@@ -36,6 +39,7 @@ export class SyncEngine {
     this.batchSize = options.batchSize ?? 100;
     this.now = options.now ?? (() => new Date());
     this.isPermanentError = options.isPermanentError ?? isPostgresPermanentError;
+    this.onRejected = options.onRejected ?? (() => {});
   }
 
   getStatus(): SyncStatus {
@@ -141,6 +145,7 @@ export class SyncEngine {
           throw error;
         }
         await this.local.rejectMutations(ids, errorMessage(error));
+        this.onRejected(table, errorMessage(error), ids.length);
       }
     }
     return pushed;

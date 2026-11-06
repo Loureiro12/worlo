@@ -11,6 +11,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
 insert into public.catalog (id, kind, key, data) values
   ('passeios:t-veleiro', 'passeios', 't-veleiro', '{"name": "Veleiro", "price": 45, "cur": "€"}');
 insert into public.tour_schedules (tour_id, capacity, days_ahead) values ('t-veleiro', 4, 3);
+-- Only this tour opens dates here (seeded tours would add theirs as days go by).
+update public.tour_schedules set active = false where tour_id <> 't-veleiro';
 
 create function pg_temp.as_user(uid text, aal text default 'aal1') returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', uid, 'aal', aal)::text, true);
